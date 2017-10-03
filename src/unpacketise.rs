@@ -2,7 +2,7 @@
 use packet;
 
 pub struct Unpacketise<C>
-    where C: packet::PacketConsumer
+    where C: packet::PacketConsumer<()>
 {
     consumer: C,
     // TODO: store any remainder from end of last buffer
@@ -11,7 +11,7 @@ pub struct Unpacketise<C>
 const PACKET_SIZE: usize = 188;
 
 impl <C> Unpacketise<C>
-    where C: packet::PacketConsumer
+    where C: packet::PacketConsumer<()>
 {
     pub fn new(consumer: C) -> Unpacketise<C> {
         Unpacketise { consumer }
@@ -47,9 +47,10 @@ mod test {
     struct MockPacketConsumer {
         pub pids: Rc<RefCell<Vec<u16>>>
     }
-    impl packet::PacketConsumer for MockPacketConsumer {
-        fn consume(&mut self, pk: packet::Packet) {
+    impl packet::PacketConsumer<()> for MockPacketConsumer {
+        fn consume(&mut self, pk: packet::Packet) -> Option<()> {
             self.pids.borrow_mut().push(pk.pid());
+            None
         }
     }
 
@@ -69,8 +70,9 @@ mod test {
 
     struct NullPacketConsumer {
     }
-    impl packet::PacketConsumer for NullPacketConsumer {
-        fn consume(&mut self, _: packet::Packet) {
+    impl packet::PacketConsumer<()> for NullPacketConsumer {
+        fn consume(&mut self, _: packet::Packet) -> Option<()> {
+            None
         }
     }
 

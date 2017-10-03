@@ -23,7 +23,11 @@
 extern crate hexdump;
 extern crate byteorder;
 extern crate data_encoding;
-extern crate crc;
+extern crate amphora;
+extern crate bitreader;
+#[cfg(test)]
+#[macro_use]
+extern crate matches;
 
 pub mod unpacketise;
 pub mod packet;

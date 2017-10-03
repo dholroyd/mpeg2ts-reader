@@ -13,7 +13,7 @@ fn run<R>(mut r: R) -> io::Result<()>
 {
     let mut buf = [0u8; 188*1024];
     let reading = true;
-    let demultiplex = demultiplex::Demultiplex::new();
+    let demultiplex = demultiplex::Demultiplex::default();
     let mut parser = unpacketise::Unpacketise::new(demultiplex);
     while reading {
         match r.read(&mut buf[..])? {

@@ -19,7 +19,9 @@
 //! Note that the specific types of table such as Program Association Table are defined elsewhere
 //! with only the generic functionality in this module.
 
+use std;
 use packet;
+use demultiplex;
 use hexdump;
 use mpegts_crc;
 
@@ -31,12 +33,14 @@ use mpegts_crc;
 /// # use mpeg2ts_reader::psi::SectionPacketConsumer;
 /// # use mpeg2ts_reader::psi::SectionProcessor;
 /// # use mpeg2ts_reader::psi::SectionCommonHeader;
+/// # use mpeg2ts_reader::demultiplex;
 /// struct MyProcessor { }
 /// # impl MyProcessor { pub fn new() -> MyProcessor { MyProcessor { } } }
 ///
 /// impl SectionProcessor for MyProcessor {
-///     fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) {
+///     fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<demultiplex::FilterChangeset> {
 ///         println!("Got table section with id {}", header.table_id);
+///         None
 ///     }
 /// }
 ///
@@ -51,7 +55,7 @@ pub trait SectionProcessor {
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
     /// been supplied to this call in the `header` parameter.  This is to allow implementors to
     /// calculate a CRC over the whole section if required.
-    fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]);
+    fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<demultiplex::FilterChangeset>;
 }
 
 #[derive(Debug,PartialEq)]
@@ -65,7 +69,7 @@ impl CurrentNext {
         match v {
             0 => CurrentNext::Next,
             1 => CurrentNext::Current,
-            _ => panic!("invalid value {}", v),
+            _ => panic!("invalid current_next_indicator value {}", v),
         }
     }
 }
@@ -86,7 +90,7 @@ impl TableSyntaxHeader {
     pub fn new(data: &[u8]) -> TableSyntaxHeader {
         assert!(data.len() >= TABLE_SYNTAX_HEADER_SIZE);
         TableSyntaxHeader {
-            id: (data[0] as u16) << 8 | data[1] as u16,
+            id: u16::from(data[0]) << 8 | u16::from(data[1]),
             reserved: data[2] >> 6,
             version: (data[2] >> 1) & 0b00011111,
             current_next_indicator: CurrentNext::from(data[2] & 1),
@@ -96,19 +100,46 @@ impl TableSyntaxHeader {
     }
 }
 
+#[derive(Debug)]
 pub struct Table<'a, T>
 where
     T: TableSection<T> + 'a,
 {
+    version: u8,
     sections: &'a [Option<T>],
+}
+
+pub struct TableSectionIter<'a, T: 'a> ( std::slice::Iter<'a, Option<T>> );
+
+impl<'a, T> Iterator for TableSectionIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map( |o| o.as_ref().unwrap() )
+    }
 }
 
 impl<'a, T> Table<'a, T>
 where
     T: TableSection<T>
 {
+    pub fn new(version: u8, sections: &'a [Option<T>]) -> Table<T> {
+        Table {
+            version,
+            sections,
+        }
+    }
+
+    pub fn ver(&self) -> u8 {
+        self.version
+    }
+
     pub fn len(&'a self) -> usize {
         self.sections.len()
+    }
+
+    pub fn section_iter(&self) -> TableSectionIter<T> {
+        TableSectionIter ( self.sections.iter() )
     }
 
     pub fn index(&'a self, index: usize) -> &'a T {
@@ -121,13 +152,13 @@ pub trait TableProcessor<T>
 where
     T: TableSection<T>
 {
-    fn process(&mut self, table: Table<T>);
+    fn process(&mut self, table: Table<T>) -> Option<demultiplex::FilterChangeset>;
 }
 
-pub trait TableSection<T> : Clone {
+pub trait TableSection<T> {
     /// attempts to convert the given bytes into a table section, returning None if therw is a
     /// syntax or other error
-    fn from_bytes(data: &[u8]) -> Option<T>;  // TODO: Result instead of Option?
+    fn from_bytes(header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &[u8]) -> Option<T>;  // TODO: Result instead of Option?
 }
 
 pub struct TableSectionConsumer<TP, T> {
@@ -173,41 +204,52 @@ where
         }
     }
 
-    fn insert_section(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, rest: &[u8]) {
+    fn make_space_for(&mut self, table_syntax_header: &TableSyntaxHeader) {
+        let required_size = table_syntax_header.last_section_number as usize + 1;
+        // Vec<T>.resize() requires T:Clone, which we don't have, so go the long way around,
+        while self.sections.len() < required_size {
+            self.sections.push(None);
+        }
+    }
+
+    fn maybe_complete_table(&mut self, version: u8) -> Option<demultiplex::FilterChangeset> {
+        if self.complete() {
+            let result = self.table_processor.process(Table::new(version, &self.sections[..]));
+            self.reset();
+            result
+        } else {
+            None
+        }
+    }
+
+    fn insert_section(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, rest: &[u8]) -> Option<demultiplex::FilterChangeset> {
         if table_syntax_header.current_next_indicator == CurrentNext::Next {
             println!("skipping section where current_next_indicator indicates for future use, in table id {}", header.table_id);
-            return;
+            return None;
         }
         if self.is_new_version(table_syntax_header) {
             self.reset();
             self.current_version = Some(table_syntax_header.version);
             self.expected_last_section_number = Some(table_syntax_header.last_section_number);
-            let required_size = table_syntax_header.last_section_number as usize + 1;
-            self.sections.resize(required_size, None);
-        } else {
-            if table_syntax_header.last_section_number != self.expected_last_section_number.unwrap() {
-                println!("last_section_number changed from {} to {}, but version remains {}", self.expected_last_section_number.unwrap(), table_syntax_header.last_section_number, table_syntax_header.version);
-                self.reset();
-                return;
-            }
+            self.make_space_for(table_syntax_header);
+        } else if table_syntax_header.last_section_number != self.expected_last_section_number.unwrap() {
+            println!("last_section_number changed from {} to {}, but version remains {}", self.expected_last_section_number.unwrap(), table_syntax_header.last_section_number, table_syntax_header.version);
+            self.reset();
+            return None;
         }
         let this_section = table_syntax_header.section_number as usize;
-        if let None = self.sections[this_section] {
-            self.complete_section_count += 1;
-        }
-        if let Some(s) = T::from_bytes(rest) {
+        if let Some(s) = T::from_bytes(header, table_syntax_header, rest) {
+            // track the number of complete sections so that we'll know when we have the whole
+            // table,
+            if self.sections[this_section].is_none() {
+                self.complete_section_count += 1;
+            }
             self.sections[this_section] = Some(s);
+        } else {
+            println!("insert_section() failed to parse {:?} {:?}", header, table_syntax_header);
         }
 
-        if self.complete() {
-            self.table_processor.process(Table { sections: &self.sections[..] });
-            println!(
-                "TODO: consume the table! {:?} {:?}",
-                header,
-                table_syntax_header
-            );
-            self.reset();
-        }
+        self.maybe_complete_table(table_syntax_header.version)
     }
 }
 
@@ -216,21 +258,22 @@ where
     TP: TableProcessor<T>,
     T: TableSection<T>
 {
-    fn process(&mut self, header: &SectionCommonHeader, payload: &[u8]) {
+    fn process(&mut self, header: &SectionCommonHeader, payload: &[u8]) -> Option<demultiplex::FilterChangeset> {
         if !header.section_syntax_indicator {
             println!(
                 "TableSectionConsumer requires that section_syntax_indicator be set in the section header"
             );
-            return;
+            return None;
         }
+        // TODO: caller to strip-off CRC bytes?
         let crc_len = 4;
         if payload.len() < TABLE_SYNTAX_HEADER_SIZE + crc_len {
             println!("section too short {}", payload.len());
-            return;
+            return None;
         }
         let table_syntax_header = TableSyntaxHeader::new(payload);
         let rest = &payload[TABLE_SYNTAX_HEADER_SIZE..payload.len()-crc_len];
-        self.insert_section(header, &table_syntax_header, rest);
+        self.insert_section(header, &table_syntax_header, rest)
     }
 }
 
@@ -244,12 +287,12 @@ pub struct SectionCommonHeader {
 
 impl SectionCommonHeader {
     pub fn new(buf: &[u8]) -> SectionCommonHeader {
-        assert!(buf.len() == 3);
+        assert_eq!(buf.len(), 3);
         SectionCommonHeader {
             table_id: buf[0],
             section_syntax_indicator: buf[1] & 0b10000000 != 0,
             private_indicator: buf[1] & 0b01000000 != 0,
-            section_length: ((((buf[1] & 0b00001111) as u16) << 8) | (buf[2] as u16)) as usize,
+            section_length: ((u16::from(buf[1] & 0b00001111) << 8) | u16::from(buf[2])) as usize,
         }
     }
 }
@@ -262,7 +305,7 @@ enum SectionParseState {
     WaitingForEnd,
 }
 
-/// A PacketConsumer for buffering Programe Specific Information, which may be split across
+/// A `PacketConsumer` for buffering Programe Specific Information, which may be split across
 /// multiple TS packets, and passing a complete PSI table to the given `SectionProcessor` when a
 /// complete, valid section has been recieved.
 pub struct SectionPacketConsumer<P>
@@ -274,6 +317,12 @@ where
     common_header: Option<SectionCommonHeader>,
     processor: P,
 }
+
+
+#[cfg(not(fuzz))]
+const CRC_CHECK: bool = true;
+#[cfg(fuzz)]
+const CRC_CHECK: bool = false;
 
 impl<P> SectionPacketConsumer<P>
 where
@@ -296,7 +345,7 @@ where
         self.get_common_header().section_length
     }
 
-    fn begin_new_section(&mut self, data: &[u8]) {
+    fn begin_new_section(&mut self, data: &[u8]) -> Option<demultiplex::FilterChangeset> {
         if self.parse_state == SectionParseState::WaitingForEnd {
             let expected = self.expected_length();
             println!(
@@ -310,7 +359,7 @@ where
         if data.len() < 4 {
             println!("section_length {} is too small", data.len());
             self.reset();
-            return;
+            return None;
         }
         let header = SectionCommonHeader::new(&data[..3]);
         if header.section_length > SECTION_LIMIT {
@@ -320,17 +369,17 @@ where
                 SECTION_LIMIT
             );
             self.reset();
-            return;
+            return None;
         }
         self.common_header = Some(header);
         self.parse_state = SectionParseState::WaitingForEnd;
-        self.append_to_current(data);
+        self.append_to_current(data)
     }
 
-    fn append_to_current(&mut self, data: &[u8]) {
+    fn append_to_current(&mut self, data: &[u8]) -> Option<demultiplex::FilterChangeset> {
         if self.parse_state != SectionParseState::WaitingForEnd {
             println!("no current section, ignoring section continuation");
-            return;
+            return None;
         }
         let common_header_size = 3;
         let expected = self.expected_length() + common_header_size;
@@ -347,7 +396,9 @@ where
             self.buf.extend(data);
         }
         if self.buf.len() == expected {
-            self.finalise_current_section();
+            self.finalise_current_section()
+        } else {
+            None
         }
     }
 
@@ -361,23 +412,25 @@ where
         }
     }
 
-    fn finalise_current_section(&mut self) {
-        if self.get_common_header().section_syntax_indicator {
-            if mpegts_crc::sum32(&self.buf[..]) != 0 {
-                println!(
-                    "section crc check failed for table_id {}",
-                    self.get_common_header().table_id
-                );
-                self.reset();
-                return;
-            }
+    fn finalise_current_section(&mut self) -> Option<demultiplex::FilterChangeset> {
+        if self.get_common_header().section_syntax_indicator &&
+            CRC_CHECK &&
+            mpegts_crc::sum32(&self.buf[..]) != 0
+        {
+            println!(
+                "section crc check failed for table_id {}",
+                self.get_common_header().table_id
+            );
+            self.reset();
+            return None;
         }
-        self.processor.process(
-            &self.common_header.as_ref().unwrap(),
+        let result = self.processor.process(
+            self.common_header.as_ref().unwrap(),
             // skip the 3 bytes of the common header,
             &self.buf[3..],
         );
         self.reset();
+        result
     }
 
     fn reset(&mut self) {
@@ -387,11 +440,11 @@ where
     }
 }
 
-impl<P> packet::PacketConsumer for SectionPacketConsumer<P>
+impl<P> packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer<P>
 where
     P: SectionProcessor,
 {
-    fn consume(&mut self, pk: packet::Packet) {
+    fn consume(&mut self, pk: packet::Packet) -> Option<demultiplex::FilterChangeset> {
         match pk.payload() {
             Some(pk_buf) => {
                 if pk.payload_unit_start_indicator() {
@@ -402,7 +455,7 @@ where
                         if pointer > section_data.len() {
                             println!("PSI pointer beyond end of packet payload");
                             self.reset();
-                            return;
+                            return None;
                         }
                         let remainder = &section_data[..pointer];
                         self.append_to_current(remainder);
@@ -412,11 +465,12 @@ where
                     self.begin_new_section(&section_data[pointer..])
                 } else {
                     // this packet is a continuation of an existing PSI section
-                    self.append_to_current(pk_buf);
+                    self.append_to_current(pk_buf)
                 }
             }
             None => {
                 println!("no payload present in PSI packet");
+                None
             }
         }
     }
@@ -424,6 +478,9 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+    use std::rc::Rc;
+    use std::cell::RefCell;
     use data_encoding::base16;
     use psi::SectionPacketConsumer;
     use psi::TableSectionConsumer;
@@ -431,12 +488,13 @@ mod test {
     use psi::SectionCommonHeader;
     use packet::Packet;
     use packet::PacketConsumer;
-    use demultiplex::PatSection;
+    use demultiplex;
     use demultiplex::PatProcessor;
+    use demultiplex::FilterChange;
 
     struct NullSectionProcessor {}
     impl SectionProcessor for NullSectionProcessor {
-        fn process(&mut self, _header: &SectionCommonHeader, _section_payload: &[u8]) {}
+        fn process(&mut self, _header: &SectionCommonHeader, _section_payload: &[u8]) -> Option<demultiplex::FilterChangeset> { None }
     }
 
     #[test]
@@ -465,8 +523,14 @@ mod test {
     fn example() {
         let buf = base16::decode(b"474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
         let pk = Packet::new(&buf[..]);
-        let mut table_sec: TableSectionConsumer<PatProcessor, PatSection> = TableSectionConsumer::new(PatProcessor::new());
+        let processor_by_pid = Rc::new(RefCell::new(HashMap::new()));
+        let table_sec = TableSectionConsumer::new(PatProcessor::new(processor_by_pid.clone()));
         let mut section_pk = SectionPacketConsumer::new(table_sec);
-        section_pk.consume(pk);
+        if let Some(changeset) = section_pk.consume(pk) {
+            let mut iter = changeset.into_iter();
+            assert!(if let Some(FilterChange::Insert(pid, _)) = iter.next() { pid == 480 } else { false });
+        } else {
+            assert!(false, "consuming PAT packet should have created a new filter entry");
+        }
     }
 }

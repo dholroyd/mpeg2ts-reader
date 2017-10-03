@@ -65,6 +65,8 @@ impl<'buf> AdaptationField<'buf> {
 }
 
 /// A counter value used within a transport stream to detect discontinuities in a sequence of packets.
+/// The continuity counter should increase by one for each packet with a given PID for which
+/// `adaptation_control` indicates that a payload should be present.
 ///
 /// See [`Packet.continuity_counter()`](struct.Packet.html#method.continuity_counter)
 #[derive(PartialEq,Debug)]
@@ -131,7 +133,7 @@ impl<'buf> Packet<'buf> {
     /// have the correct value (`0x47`).  Calling code is expected to have already checked those
     /// conditions.
     pub fn new(buf: &'buf [u8]) -> Packet {
-        assert!(buf.len() == PACKET_SIZE);
+        assert_eq!(buf.len(),  PACKET_SIZE);
         assert!(Packet::is_sync_byte(buf[0]));
         Packet { buf }
     }
@@ -155,7 +157,7 @@ impl<'buf> Packet<'buf> {
     /// The substream to which a particular packet belongs is indicated by this Packet Idnetifier
     /// value.
     pub fn pid(&self) -> u16 {
-        ((self.buf[1] & 0b00011111) as u16) << 8 | self.buf[2] as u16
+        u16::from(self.buf[1] & 0b00011111) | u16::from(self.buf[2])
     }
 
     pub fn transport_scrambling_control(&self) -> TransportScramblingControl {
@@ -183,8 +185,7 @@ impl<'buf> Packet<'buf> {
     /// An `AdaptationField` contains additional packet headers that may be present in the packet.
     pub fn adaptation_field(&self) -> Option<AdaptationField> {
         match self.adaptation_control() {
-            AdaptationControl::Reserved => None,
-            AdaptationControl::PayloadOnly => None,
+            AdaptationControl::Reserved | AdaptationControl::PayloadOnly => None,
             AdaptationControl::AdaptationFieldOnly => {
                 let len = self.adaptation_field_length();
                 if len != (PACKET_SIZE - ADAPTATION_FIELD_OFFSET) {
@@ -223,10 +224,8 @@ impl<'buf> Packet<'buf> {
     /// If `Some` payload is returned, it is guarenteed not to be an empty slice.
     pub fn payload(&self) -> Option<&'buf [u8]> {
         match self.adaptation_control() {
-            AdaptationControl::Reserved => None,
-            AdaptationControl::PayloadOnly => self.mk_payload(),
-            AdaptationControl::AdaptationFieldOnly => None,
-            AdaptationControl::AdaptationFieldAndPayload => self.mk_payload(),
+            AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => None,
+            AdaptationControl::PayloadOnly | AdaptationControl::AdaptationFieldAndPayload => self.mk_payload(),
         }
     }
 
@@ -256,8 +255,8 @@ impl<'buf> Packet<'buf> {
 }
 
 /// trait for objects which process transport stream packets
-pub trait PacketConsumer {
-    fn consume(&mut self, pk: Packet);
+pub trait PacketConsumer<Ret> {
+    fn consume(&mut self, pk: Packet) -> Option<Ret>;
 }
 
 #[cfg(test)]
