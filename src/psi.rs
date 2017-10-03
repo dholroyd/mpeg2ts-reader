@@ -59,7 +59,7 @@ pub trait SectionProcessor {
 }
 
 #[derive(Debug,PartialEq)]
-enum CurrentNext {
+pub enum CurrentNext {
     Current,
     Next,
 }
@@ -75,28 +75,33 @@ impl CurrentNext {
 }
 
 #[derive(Debug)]
-pub struct TableSyntaxHeader {
-    id: u16,                    // 16 bits
-    reserved: u8,               // 2 bits
-    version: u8,                // 5 bits
-    current_next_indicator: CurrentNext, // 1 bit
-    section_number: u8,         // 8 bits
-    last_section_number: u8,    // bits
+pub struct TableSyntaxHeader<'buf> {
+    buf: &'buf[u8],
 }
 
 const TABLE_SYNTAX_HEADER_SIZE: usize = 5;
 
-impl TableSyntaxHeader {
-    pub fn new(data: &[u8]) -> TableSyntaxHeader {
-        assert!(data.len() >= TABLE_SYNTAX_HEADER_SIZE);
+impl<'buf> TableSyntaxHeader<'buf> {
+    pub fn new(buf: &'buf[u8]) -> TableSyntaxHeader {
+        assert!(buf.len() >= TABLE_SYNTAX_HEADER_SIZE);
         TableSyntaxHeader {
-            id: u16::from(data[0]) << 8 | u16::from(data[1]),
-            reserved: data[2] >> 6,
-            version: (data[2] >> 1) & 0b00011111,
-            current_next_indicator: CurrentNext::from(data[2] & 1),
-            section_number: data[3],
-            last_section_number: data[4],
+            buf
         }
+    }
+    pub fn id(&self) -> u16 {
+        u16::from(self.buf[0]) << 8 | u16::from(self.buf[1])
+    }
+    pub fn version(&self) -> u8 {
+        (self.buf[2] >> 1) & 0b00011111
+    }
+    pub fn current_next_indicator(&self) -> CurrentNext {
+        CurrentNext::from(self.buf[2] & 1)
+    }
+    pub fn section_number(&self) -> u8 {
+        self.buf[3]
+    }
+    pub fn last_section_number(&self) -> u8 {
+        self.buf[4]
     }
 }
 
@@ -197,7 +202,7 @@ where
 
     fn is_new_version(&self, table_syntax_header: &TableSyntaxHeader) -> bool {
         if let Some(ver) = self.current_version {
-            ver == table_syntax_header.version
+            ver == table_syntax_header.version()
         } else {
             // there isn't yet a known version, so of course the given one is new to us
             true
@@ -205,7 +210,7 @@ where
     }
 
     fn make_space_for(&mut self, table_syntax_header: &TableSyntaxHeader) {
-        let required_size = table_syntax_header.last_section_number as usize + 1;
+        let required_size = table_syntax_header.last_section_number() as usize + 1;
         // Vec<T>.resize() requires T:Clone, which we don't have, so go the long way around,
         while self.sections.len() < required_size {
             self.sections.push(None);
@@ -223,21 +228,21 @@ where
     }
 
     fn insert_section(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, rest: &[u8]) -> Option<demultiplex::FilterChangeset> {
-        if table_syntax_header.current_next_indicator == CurrentNext::Next {
+        if table_syntax_header.current_next_indicator() == CurrentNext::Next {
             println!("skipping section where current_next_indicator indicates for future use, in table id {}", header.table_id);
             return None;
         }
         if self.is_new_version(table_syntax_header) {
             self.reset();
-            self.current_version = Some(table_syntax_header.version);
-            self.expected_last_section_number = Some(table_syntax_header.last_section_number);
+            self.current_version = Some(table_syntax_header.version());
+            self.expected_last_section_number = Some(table_syntax_header.last_section_number());
             self.make_space_for(table_syntax_header);
-        } else if table_syntax_header.last_section_number != self.expected_last_section_number.unwrap() {
-            println!("last_section_number changed from {} to {}, but version remains {}", self.expected_last_section_number.unwrap(), table_syntax_header.last_section_number, table_syntax_header.version);
+        } else if table_syntax_header.last_section_number() != self.expected_last_section_number.unwrap() {
+            println!("last_section_number changed from {} to {}, but version remains {}", self.expected_last_section_number.unwrap(), table_syntax_header.last_section_number(), table_syntax_header.version());
             self.reset();
             return None;
         }
-        let this_section = table_syntax_header.section_number as usize;
+        let this_section = table_syntax_header.section_number() as usize;
         if let Some(s) = T::from_bytes(header, table_syntax_header, rest) {
             // track the number of complete sections so that we'll know when we have the whole
             // table,
@@ -249,7 +254,7 @@ where
             println!("insert_section() failed to parse {:?} {:?}", header, table_syntax_header);
         }
 
-        self.maybe_complete_table(table_syntax_header.version)
+        self.maybe_complete_table(table_syntax_header.version())
     }
 }
 
