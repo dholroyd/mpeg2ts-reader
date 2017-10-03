@@ -1,3 +1,4 @@
+#[cfg_attr(feature = "cargo-clippy", allow(unreadable_literal))]
 const CRC_TABLE:[u32; 256] = [
 	0x00000000, 0x04c11db7, 0x09823b6e, 0x0d4326d9, 0x130476dc, 0x17c56b6b,
 	0x1a864db2, 0x1e475005, 0x2608edb8, 0x22c9f00f, 0x2f8ad6d6, 0x2b4bcb61,
@@ -46,10 +47,10 @@ const CRC_TABLE:[u32; 256] = [
 
 pub fn sum32(data: &[u8]) -> u32
 {
-    let mut crc:u32 = 0xffffffff;
+    let mut crc:u32 = 0xffff_ffff;
     
     for &d in data {
-        let index = ((crc >> 24) ^ d as u32) & 0xff;
+        let index = ((crc >> 24) ^ u32::from(d)) & 0xff;
         crc = (crc << 8) ^ CRC_TABLE[index as usize];
     }
 
