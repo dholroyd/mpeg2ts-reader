@@ -182,7 +182,7 @@ impl StreamInfo {
 
         let descriptor_end = header_size + result.es_info_length as usize;
         if descriptor_end > data.len() {
-            print!("PMT section of size {} is not large enough to contain program_info_length of {}", data.len(), result.es_info_length);
+            print!("PMT section of size {} is not large enough to contain es_info_length of {}", data.len(), result.es_info_length);
             return None;
         }
         let descriptor_data = &data[header_size..descriptor_end];
