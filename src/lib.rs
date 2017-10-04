@@ -28,6 +28,8 @@ extern crate bitreader;
 #[cfg(test)]
 #[macro_use]
 extern crate matches;
+#[cfg(test)]
+extern crate bitstream_io;
 
 pub mod unpacketise;
 pub mod packet;

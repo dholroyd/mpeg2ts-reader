@@ -422,6 +422,9 @@ mod test {
     use std::cell::RefCell;
     use std::rc::Rc;
     use data_encoding::base16;
+    use bitstream_io::{BE, BitWriter};
+    use std::io;
+
     use demultiplex;
     use packet;
     use packet::PacketConsumer;
@@ -554,6 +557,15 @@ mod test {
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Remove(101,)));
     }
 
+    fn make_test_data<F>(builder: F) -> Vec<u8>
+    where
+        F: Fn(BitWriter<BE>)->Result<(), io::Error>
+    {
+        let mut data: Vec<u8> = Vec::new();
+        builder(BitWriter::<BE>::new(&mut data)).unwrap();
+        data
+    }
+
     #[test]
     fn pmt_new_stream() {
         let pid_table = Rc::new(RefCell::new(HashMap::new()));
@@ -561,39 +573,42 @@ mod test {
         pid_table.borrow_mut().insert(101u16, null_proc());
         let program_number = 1001;
         let mut processor = demultiplex::PmtProcessor::new(pid_table, program_number);
-        let header = psi::SectionCommonHeader::new(&[
-            0,              // table_id
-            0b10000000|     // section_syntax_indicator (mask 0x10000000)
-            0b00000000|     // private_indicator (mask 0b01000000)
-            0b0000,         // top-4 bits of section_length
-            20,             // bottom-8 bits of section_length
-            
-        ]);
-        let table_syntax_header = psi::TableSyntaxHeader::new(&[
-            0,0,    // id: 16 bits
-            0|      // reserved: 2 bits
-            0|      // version: 5 bits
-            1,      // current_next_indicator: 1 bit  (0x1 == Current)
-            0,      // section_number: 8 bits
-            0       // last_section_number: 8 bits
-        ]);
-        // TODO: really need a bit-writer!
+        let header_data = make_test_data(|mut w| {
+            w.write(8, 0)?;      // table_id
+            w.write_bit(true)?;  // section_syntax_indicator
+            w.write_bit(false)?; // private_indicator
+            w.write(2, 3)?;      // reserved
+            w.write(12, 20)      // section_length
+        });
+        let header = psi::SectionCommonHeader::new(&header_data[..]);
+        let table_syntax_header_data = make_test_data(|mut w| {
+            w.write(16, 0)?;    // id
+            w.write(2, 3)?;     // reserved
+            w.write(5, 0)?;     // version
+            w.write(1, 1)?;     // current_next_indicator
+            w.write(8, 0)?;     // section_number
+            w.write(8, 0)       // last_section_number
+        });
+        let table_syntax_header = psi::TableSyntaxHeader::new(&table_syntax_header_data[..]);
+        let section_data = make_test_data(|mut w| {
+            w.write(3, 7)?;     // reserved
+            w.write(13, 123)?;  // pcr_pid
+            w.write(4, 15)?;    // reserved
+            w.write(12, 0)?;    // program_info_length
+            // program_info_length=0, so no descriptors follow; straight into stream info
+            w.write(8, 0)?;     // stream_type
+            w.write(3, 7)?;     // reserved
+            w.write(13, 201)?;  // elementry_pid
+            w.write(4, 15)?;    // reserved
+            w.write(12, 3)?;    // es_info_length
+            // and now, a made-up descriiptor which needs to fill up es_info_length-bytes
+            w.write(8, 0)?;     // descriptor_tag
+            w.write(8, 1)?;     // descriptor_length
+            w.write(8, 0)       // made-up descriptor data not following any spec
+        });
+
         let sections = [
-            demultiplex::PmtSection::from_bytes(&header, &table_syntax_header, &[
-                0, 123,       // 3 bits reserved / 13 bits PCR pid
-                0, 0,         // 4 bits reserved / 12 bit program_info_length
-                // program_info_length=0, so no descriptors follow; straight into stream info
-                    0,      // stream_type: 8 bits
-                    0|      // reserved1: 3 bits
-                    0,      // elementry_pid: top 5 bits
-                    201,    // elementry_pid: bottom 8 bits
-                    0|      // reserved2: 4 bits
-                    0,      // es_info_length: top 4 bits
-                    3,      // es_info_length: bottom 8 bits
-                        0,  // descriptor_tag: 8 bits
-                        1,  // descriptor_length: 9 bits
-                        0,  // made-up descriptor data not following any spec
-            ])
+            demultiplex::PmtSection::from_bytes(&header, &table_syntax_header, &section_data[..])
         ];
         let version = 0;
         let pat_table = psi::Table::new(version, &sections);

@@ -13,3 +13,4 @@ bitreader = { git = "https://github.com/irauta/bitreader.git" }
 
 [dev-dependencies]
 matches = "0.1.6"
+bitstream-io = "0.6.3"

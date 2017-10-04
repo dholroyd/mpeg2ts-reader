@@ -4,6 +4,7 @@ version = "0.1.0"
 dependencies = [
  "amphora 0.1.0 (git+https://github.com/irauta/amphora.git)",
  "bitreader 0.3.1 (git+https://github.com/irauta/bitreader.git)",
+ "bitstream-io 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "crc 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "data-encoding 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -33,6 +34,11 @@ dependencies = [
 name = "bitreader"
 version = "0.3.1"
 source = "git+https://github.com/irauta/bitreader.git#4e34c5adfd2f45fb5f671f34d0ffe1d29adc77dc"
+
+[[package]]
+name = "bitstream-io"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "build_const"
@@ -156,6 +162,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum amphora 0.1.0 (git+https://github.com/irauta/amphora.git)" = "<none>"
 "checksum arrayvec 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)" = "699e63a93b79d717e8c3b5eb1b28b7780d0d6d9e59a72eb769291c83b0c8dc67"
 "checksum bitreader 0.3.1 (git+https://github.com/irauta/bitreader.git)" = "<none>"
+"checksum bitstream-io 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "48f26d7f042e5a120b0956c7546bbb971151f6e6e895b3f5d141ecbd17c90d67"
 "checksum build_const 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e90dc84f5e62d2ebe7676b83c22d33b6db8bd27340fb6ffbff0a364efa0cb9c9"
 "checksum byteorder 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ff81738b726f5d099632ceaffe7fb65b90212e8dce59d518729e7e8634032d3d"
 "checksum crc 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fba69ea0e15e720f7e1cfe1cf3bc55007fbd41e32b8ae11cfa343e7e5961e79a"
