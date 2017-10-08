@@ -157,7 +157,7 @@ impl<'buf> Packet<'buf> {
     /// The substream to which a particular packet belongs is indicated by this Packet Idnetifier
     /// value.
     pub fn pid(&self) -> u16 {
-        u16::from(self.buf[1] & 0b00011111) | u16::from(self.buf[2])
+        u16::from(self.buf[1] & 0b00011111) << 8 | u16::from(self.buf[2])
     }
 
     pub fn transport_scrambling_control(&self) -> TransportScramblingControl {
@@ -279,6 +279,7 @@ mod test {
         buf[0] = packet::SYNC_BYTE;
         buf[4] = 3;
         let pk = Packet::new(&buf[..]);
+        assert_eq!(pk.pid(), 0b1111111111111);
         assert!(pk.transport_error_indicator());
         assert!(pk.payload_unit_start_indicator());
         assert!(pk.transport_priority());
