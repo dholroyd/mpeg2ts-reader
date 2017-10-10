@@ -1,14 +1,14 @@
-//! Types for processing tables of *Programe Specific Information* in a transport stream.
+//! Types for processing tables of *Program Specific Information* in a transport stream.
 //!
 //! # Concepts
 //!
-//! * There are multiple standard types of Programme Specific Information, like the *Probram
-//!   Association Table* and *Programe Map Table*.  Standards derived from mpegts may define their
+//! * There are multiple standard types of Programme Specific Information, like the *Program
+//!   Association Table* and *Program Map Table*.  Standards derived from mpegts may define their
 //!   own table types.
 //! * A PSI *Table* can split into *Sections*
 //! * A Section can be split across a small number of individual transport stream *Packets*
 //! * A Section may use a syntax common across a number of the standard table types, or may be an
-//!   opaque bag of bytes within the transport stream whose intepretation is defined within a
+//!   opaque bag of bytes within the transport stream whose interpretation is defined within a
 //!   derived standard (and therefore not in this library).
 //!
 //! # Core types
@@ -53,7 +53,7 @@ use mpegts_crc;
 /// `TableSectionConsumer` implementation of this trait should be used.
 pub trait SectionProcessor {
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
-    /// been supplied to this call in the `header` parameter.  This is to allow implementors to
+    /// been supplied to this call in the `header` parameter.  This is to allow implementers to
     /// calculate a CRC over the whole section if required.
     fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<demultiplex::FilterChangeset>;
 }
@@ -161,7 +161,7 @@ where
 }
 
 pub trait TableSection<T> {
-    /// attempts to convert the given bytes into a table section, returning None if therw is a
+    /// attempts to convert the given bytes into a table section, returning None if there is a
     /// syntax or other error
     fn from_bytes(header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &[u8]) -> Option<T>;  // TODO: Result instead of Option?
 }
@@ -312,7 +312,7 @@ enum SectionParseState {
 
 /// A `PacketConsumer` for buffering Programe Specific Information, which may be split across
 /// multiple TS packets, and passing a complete PSI table to the given `SectionProcessor` when a
-/// complete, valid section has been recieved.
+/// complete, valid section has been received.
 pub struct SectionPacketConsumer<P>
 where
     P: SectionProcessor,
@@ -502,6 +502,10 @@ mod test {
         fn process(&mut self, _header: &SectionCommonHeader, _section_payload: &[u8]) -> Option<demultiplex::FilterChangeset> { None }
     }
 
+    fn empty_stream_constructor() -> demultiplex::StreamConstructor {
+        demultiplex::StreamConstructor::new(HashMap::new())
+    }
+
     #[test]
     fn continuation_outside_section() {
         let mut buf = [0u8; 188];
@@ -529,7 +533,7 @@ mod test {
         let buf = base16::decode(b"474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
         let pk = Packet::new(&buf[..]);
         let processor_by_pid = Rc::new(RefCell::new(HashMap::new()));
-        let table_sec = TableSectionConsumer::new(PatProcessor::new(processor_by_pid.clone()));
+        let table_sec = TableSectionConsumer::new(PatProcessor::new(processor_by_pid.clone(), empty_stream_constructor()));
         let mut section_pk = SectionPacketConsumer::new(table_sec);
         if let Some(changeset) = section_pk.consume(pk) {
             let mut iter = changeset.into_iter();

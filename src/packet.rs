@@ -1,4 +1,4 @@
-//! A [`Packet`](./struct.Packet.html) struct and associated infrastructure to read an MPEG Trapsport Stream packet
+//! A [`Packet`](./struct.Packet.html) struct and associated infrastructure to read an MPEG Transport Stream packet
 
 
 /// the different values indicating whether a `Packet`'s `adaptation_field()` and `payload()`
@@ -24,6 +24,13 @@ impl AdaptationControl {
             2 => AdaptationControl::AdaptationFieldOnly,
             3 => AdaptationControl::AdaptationFieldAndPayload,
             _ => panic!("invalid value {}", val),
+        }
+    }
+
+    pub fn has_payload(self) -> bool {
+        match self {
+            AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => false,
+            AdaptationControl::PayloadOnly | AdaptationControl::AdaptationFieldAndPayload => true,
         }
     }
 }
@@ -69,7 +76,7 @@ impl<'buf> AdaptationField<'buf> {
 /// `adaptation_control` indicates that a payload should be present.
 ///
 /// See [`Packet.continuity_counter()`](struct.Packet.html#method.continuity_counter)
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone,Copy)]
 pub struct ContinuityCounter {
     val: u8,
 }
@@ -92,7 +99,7 @@ impl ContinuityCounter {
         self.val
     }
 
-    /// true iff the given ContinuityCounter value follows this one.  Note that the maximum counter
+    /// true iff the given `ContinuityCounter` value follows this one.  Note that the maximum counter
     /// value is 15, and the counter 'wraps around':
     ///
     /// ```rust
@@ -154,7 +161,7 @@ impl<'buf> Packet<'buf> {
         self.buf[1] & 0b00100000 != 0
     }
 
-    /// The substream to which a particular packet belongs is indicated by this Packet Idnetifier
+    /// The sub-stream to which a particular packet belongs is indicated by this Packet Identifier
     /// value.
     pub fn pid(&self) -> u16 {
         u16::from(self.buf[1] & 0b00011111) << 8 | u16::from(self.buf[2])
@@ -171,8 +178,8 @@ impl<'buf> Packet<'buf> {
     }
 
     /// Each packet with a given `pid()` value within a transport stream should have a continuity
-    /// counter value which increases by 1 from the last counter value seen.  Unexpecte continuity
-    /// counter values allow the reciever of the transport stream to detect discontinuities in the
+    /// counter value which increases by 1 from the last counter value seen.  Unexpected continuity
+    /// counter values allow the receiver of the transport stream to detect discontinuities in the
     /// stream (e.g. due to data loss during transmission).
     pub fn continuity_counter(&self) -> ContinuityCounter {
         ContinuityCounter::new(self.buf[3] & 0b00001111)
@@ -219,9 +226,10 @@ impl<'buf> Packet<'buf> {
         )
     }
 
-    /// The opaque payload data contained within the packets, to be intepreted based on the
-    /// stream's Programme Specific Information tables.
-    /// If `Some` payload is returned, it is guarenteed not to be an empty slice.
+    /// The data contained within the packet, not including the packet headers.
+    /// Not all packets have a payload, and `None` is returned if `adaptation_control()` indicates
+    /// that no payload is present.  None may also be returned if the packet is malformed.
+    /// If `Some` payload is returned, it is guaranteed not to be an empty slice.
     pub fn payload(&self) -> Option<&'buf [u8]> {
         match self.adaptation_control() {
             AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => None,
@@ -240,6 +248,11 @@ impl<'buf> Packet<'buf> {
         } else {
             Some(&self.buf[offset..])
         }
+    }
+
+    // borrow a reference to the underlying buffer of this packet
+    pub fn buffer(&self) -> &'buf[u8] {
+        self.buf
     }
 
     fn content_offset(&self) -> usize {
