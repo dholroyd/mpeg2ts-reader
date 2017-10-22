@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use mpeg2ts_reader::unpacketise;
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::pes;
+use mpeg2ts_reader::StreamType;
 
 
 struct NullElementaryStreamConsumer { }
@@ -39,9 +40,9 @@ fn run<R>(mut r: R) -> io::Result<()>
 {
     let mut buf = [0u8; 188*1024];
     let reading = true;
-    let mut table: HashMap<u8, fn(&[Box<amphora::descriptor::Descriptor>])->Box<std::cell::RefCell<demultiplex::PacketFilter>>>
+    let mut table: HashMap<StreamType, fn(&[Box<amphora::descriptor::Descriptor>])->Box<std::cell::RefCell<demultiplex::PacketFilter>>>
         = HashMap::new();
-    table.insert(0x1bu8, NullElementaryStreamConsumer::construct);
+    table.insert(StreamType::H264, NullElementaryStreamConsumer::construct);
     let stream_constructor = demultiplex::StreamConstructor::new(table);
     let demultiplex = demultiplex::Demultiplex::new(stream_constructor);
     let mut parser = unpacketise::Unpacketise::new(demultiplex);

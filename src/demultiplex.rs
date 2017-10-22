@@ -10,6 +10,7 @@ use psi;
 use std;
 use hexdump;
 use fixedbitset;
+use StreamType;
 
 // TODO: Pid = u16;
 
@@ -126,10 +127,10 @@ impl std::iter::IntoIterator for FilterChangeset {
 /// the `stream_type` value which will appear in the Program Mapping Table of a Transport Stream.
 #[derive(Clone)]
 pub struct StreamConstructor {
-    ctors_by_type: Rc<HashMap<u8, fn(&[Box<amphora::descriptor::Descriptor>])->Box<RefCell<PacketFilter>>>>
+    ctors_by_type: Rc<HashMap<StreamType, fn(&[Box<amphora::descriptor::Descriptor>])->Box<RefCell<PacketFilter>>>>
 }
 impl StreamConstructor {
-    pub fn new(ctors_by_type: HashMap<u8, fn(&[Box<amphora::descriptor::Descriptor>])->Box<RefCell<PacketFilter>>>) -> StreamConstructor {
+    pub fn new(ctors_by_type: HashMap<StreamType, fn(&[Box<amphora::descriptor::Descriptor>])->Box<RefCell<PacketFilter>>>) -> StreamConstructor {
         StreamConstructor {
             ctors_by_type: Rc::new(ctors_by_type),
         }
@@ -164,7 +165,7 @@ impl PmtProcessor {
             for stream_info in &sect.streams {
                 match *pid_table.get(stream_info.elementary_pid) {
                     Some(_) => {
-                        println!("updated table for pid {}, type {}, but pid is already being processed", stream_info.elementary_pid, stream_info.stream_type);
+                        println!("updated table for pid {}, type {:?}, but pid is already being processed", stream_info.elementary_pid, stream_info.stream_type);
                         if let Some(pes_packet_consumer) = self.stream_constructor.construct(stream_info) {
                             changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
                         }
@@ -207,7 +208,7 @@ impl psi::TableProcessor<PmtSection> for PmtProcessor {
 
 #[derive(Debug)]
 pub struct StreamInfo {
-    stream_type: u8,    // 8 bits
+    stream_type: StreamType,    // 8 bits
     reserved1: u8,      // 3 bits
     elementary_pid: u16, // 13 bits
     reserved2: u8,      // 4 bits
@@ -240,7 +241,7 @@ impl StreamInfo {
             return None;
         }
         let mut result = StreamInfo {
-            stream_type: data[0],
+            stream_type: data[0].into(),
             reserved1: data[1] >> 5,
             elementary_pid: u16::from(data[1] & 0b00011111) << 8 | u16::from(data[2]),
             reserved2: data[3] >> 4,
