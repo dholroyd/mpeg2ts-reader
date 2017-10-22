@@ -2,7 +2,7 @@
 //!
 //! # Concepts
 //!
-//! * There are multiple standard types of Programme Specific Information, like the *Program
+//! * There are multiple standard types of Program Specific Information, like the *Program
 //!   Association Table* and *Program Map Table*.  Standards derived from mpegts may define their
 //!   own table types.
 //! * A PSI *Table* can split into *Sections*
@@ -532,7 +532,7 @@ mod test {
     fn example() {
         let buf = base16::decode(b"474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
         let pk = Packet::new(&buf[..]);
-        let processor_by_pid = Rc::new(RefCell::new(HashMap::new()));
+        let processor_by_pid = Rc::new(RefCell::new(demultiplex::Filters::new()));
         let table_sec = TableSectionConsumer::new(PatProcessor::new(processor_by_pid.clone(), empty_stream_constructor()));
         let mut section_pk = SectionPacketConsumer::new(table_sec);
         if let Some(changeset) = section_pk.consume(pk) {

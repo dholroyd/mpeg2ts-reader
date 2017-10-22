@@ -35,6 +35,7 @@ extern crate bitreader;
 extern crate matches;
 #[cfg(test)]
 extern crate bitstream_io;
+extern crate fixedbitset;
 
 pub mod unpacketise;
 pub mod packet;

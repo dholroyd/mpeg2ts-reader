@@ -10,6 +10,7 @@ data-encoding = "1.2.0"
 crc = "1.0.0"
 amphora = { git = "https://github.com/irauta/amphora.git" }
 bitreader = { git = "https://github.com/irauta/bitreader.git" }
+fixedbitset = "0.1.8"
 
 [dev-dependencies]
 matches = "0.1.6"
