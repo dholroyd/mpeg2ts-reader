@@ -31,7 +31,7 @@ impl Filters {
     }
 
     pub fn get(&self, pid: u16) -> &Option<Box<RefCell<PacketFilter>>> {
-        if pid as usize > self.filters_by_pid.len() {
+        if pid as usize >= self.filters_by_pid.len() {
             &None
         } else {
             &self.filters_by_pid[pid as usize]
