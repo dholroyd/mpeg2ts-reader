@@ -216,16 +216,34 @@ pub struct StreamInfo {
     descriptors: Vec<Box<amphora::descriptor::Descriptor>>,
 }
 
+use amphora::base::Deserialize;
 fn parse_descriptor_list(descriptors: &mut Vec<Box<amphora::descriptor::Descriptor>>, descriptor_data: &[u8]) -> Option<()> {
-    let mut reader = BitReader::new(descriptor_data);
+    let mut remaining = &descriptor_data[..];
     let mut count = 0;
-    while (reader.position() as usize) < descriptor_data.len() {
+    while remaining.len() > 0 {
+        if remaining.len() < 2 {
+            println!("not enough data left for a descriptor");
+            return None;
+        }
+        let mut reader = BitReader::new(remaining);
         match amphora::descriptor::deserialize_descriptor(&mut reader) {
-            Ok(desc) => descriptors.push(desc),
+            Ok(desc) => {
+                descriptors.push(desc);
+                remaining = &remaining[(reader.position()/8) as usize..];
+            },
             Err(err) => {
                 println!("problem deserialising descriptor {}: {:?}", count, err);
-                hexdump::hexdump(descriptor_data);
-                return None;
+                match amphora::descriptor::basic::UnknownDescriptor::from_bytes(remaining) {
+                    Ok(desc) => {
+                        hexdump::hexdump(&remaining[..desc.descriptor_length as usize]);
+                        remaining = &remaining[desc.descriptor_length as usize..];
+                        descriptors.push(Box::new(desc));
+                    },
+                    Err(_) => {
+                        hexdump::hexdump(remaining);
+                        return None;
+                    }
+                }
             },
         }
         count += 1;
@@ -677,8 +695,12 @@ mod test {
             w.write(3, 7)?;     // reserved
             w.write(13, 201)?;  // elementary_pid
             w.write(4, 15)?;    // reserved
-            w.write(12, 3)?;    // es_info_length
-            // and now, a made-up descriiptor which needs to fill up es_info_length-bytes
+            w.write(12, 6)?;    // es_info_length
+            // and now, two made-up descriiptors which nees to fill up es_info_length-bytes
+            w.write(8, 0)?;     // descriptor_tag
+            w.write(8, 1)?;     // descriptor_length
+            w.write(8, 0)?;     // made-up descriptor data not following any spec
+            // second descriiptor
             w.write(8, 0)?;     // descriptor_tag
             w.write(8, 1)?;     // descriptor_length
             w.write(8, 0)       // made-up descriptor data not following any spec
