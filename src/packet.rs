@@ -261,7 +261,7 @@ impl<'buf> Packet<'buf> {
             AdaptationControl::PayloadOnly => FIXED_HEADER_SIZE,
             AdaptationControl::AdaptationFieldOnly |
             AdaptationControl::AdaptationFieldAndPayload => {
-                ADAPTATION_FIELD_OFFSET + self.adaptation_field_length() + 1
+                ADAPTATION_FIELD_OFFSET + self.adaptation_field_length()
             }
         }
     }
