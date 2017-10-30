@@ -235,8 +235,8 @@ fn parse_descriptor_list(descriptors: &mut Vec<Box<amphora::descriptor::Descript
                 println!("problem deserialising descriptor {}: {:?}", count, err);
                 match amphora::descriptor::basic::UnknownDescriptor::from_bytes(remaining) {
                     Ok(desc) => {
-                        hexdump::hexdump(&remaining[..desc.descriptor_length as usize]);
-                        remaining = &remaining[desc.descriptor_length as usize..];
+                        hexdump::hexdump(&remaining[..desc.descriptor_length as usize+2]);
+                        remaining = &remaining[desc.descriptor_length as usize+2..];
                         descriptors.push(Box::new(desc));
                     },
                     Err(_) => {
