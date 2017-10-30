@@ -16,6 +16,18 @@ use StreamType;
 
 pub type PacketFilter = packet::PacketConsumer<FilterChangeset>;
 
+pub struct NullPacketFilter { }
+impl NullPacketFilter {
+    pub fn construct(_stream_info: &StreamInfo) -> Box<RefCell<packet::PacketConsumer<FilterChangeset>>> {
+        Box::new(RefCell::new(NullPacketFilter { }))
+    }
+}
+impl packet::PacketConsumer<FilterChangeset> for NullPacketFilter {
+    fn consume(&mut self, _pk: packet::Packet) -> Option<FilterChangeset> {
+        None
+    }
+}
+
 // TODO: rather than Box all filters, have an enum for internal implementations, and allow
 //       extension via one of the enum variants (that presumably then carries a boxed trait)
 type PidTable = Rc<RefCell<Filters>>;
@@ -127,16 +139,23 @@ impl std::iter::IntoIterator for FilterChangeset {
 /// the `stream_type` value which will appear in the Program Mapping Table of a Transport Stream.
 #[derive(Clone)]
 pub struct StreamConstructor {
-    ctors_by_type: Rc<HashMap<StreamType, fn(&[Box<amphora::descriptor::Descriptor>])->Box<RefCell<PacketFilter>>>>
+    default_ctor: fn(&StreamInfo)->Box<RefCell<PacketFilter>>,
+    ctors_by_type: Rc<HashMap<StreamType, fn(&StreamInfo)->Box<RefCell<PacketFilter>>>>
+
 }
 impl StreamConstructor {
-    pub fn new(ctors_by_type: HashMap<StreamType, fn(&[Box<amphora::descriptor::Descriptor>])->Box<RefCell<PacketFilter>>>) -> StreamConstructor {
+    pub fn new(default_ctor: fn(&StreamInfo)->Box<RefCell<PacketFilter>>, ctors_by_type: HashMap<StreamType, fn(&StreamInfo)->Box<RefCell<PacketFilter>>>) -> StreamConstructor {
         StreamConstructor {
+            default_ctor,
             ctors_by_type: Rc::new(ctors_by_type),
         }
     }
-    fn construct(&self, stream_info: &StreamInfo) -> Option<Box<RefCell<PacketFilter>>> {
-        self.ctors_by_type.get(&stream_info.stream_type).map(|ctor| ctor(&stream_info.descriptors[..]) )
+    fn construct(&self, stream_info: &StreamInfo) -> Box<RefCell<PacketFilter>> {
+        self
+            .ctors_by_type
+            .get(&stream_info.stream_type)
+            .map(|ctor| ctor(&stream_info) )
+            .unwrap_or_else(|| (self.default_ctor)(&stream_info) )
     }
 }
 
@@ -145,6 +164,7 @@ pub struct PmtProcessor {
     pid_table: PidTable,
     current_version: Option<u8>,
     stream_constructor: StreamConstructor,
+    filters_registered: fixedbitset::FixedBitSet,
 }
 
 impl PmtProcessor {
@@ -154,10 +174,13 @@ impl PmtProcessor {
             pid_table,
             current_version: None,
             stream_constructor,
+            filters_registered: fixedbitset::FixedBitSet::with_capacity(0x2000),
         }
     }
 
     fn new_table(&mut self, table: psi::Table<PmtSection>) -> Option<FilterChangeset> {
+        // TODO: should probably assert that the table_id is 0x02 for PMT, but we've not managed to
+        // pass the table_id value this far!
         let pid_table = self.pid_table.borrow();
         let mut changeset = FilterChangeset::new();
         let mut pids_seen = HashSet::new();
@@ -166,24 +189,26 @@ impl PmtProcessor {
                 match *pid_table.get(stream_info.elementary_pid) {
                     Some(_) => {
                         println!("updated table for pid {}, type {:?}, but pid is already being processed", stream_info.elementary_pid, stream_info.stream_type);
-                        if let Some(pes_packet_consumer) = self.stream_constructor.construct(stream_info) {
-                            changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
-                        }
+                        let pes_packet_consumer = self.stream_constructor.construct(stream_info);
+                        changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
                     },
                     None => {
                         println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid, self.program_number);
-                        if let Some(pes_packet_consumer) = self.stream_constructor.construct(stream_info) {
-                            changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
-                        }
+                        let pes_packet_consumer = self.stream_constructor.construct(stream_info);
+                        changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
                     },
                 }
                 pids_seen.insert(stream_info.elementary_pid);
+                self.filters_registered.insert(stream_info.elementary_pid as usize);
             }
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
-        for removed_pid in pid_table.pids().iter().filter(|pid| !pids_seen.contains(pid) ) {
-            changeset.remove(*removed_pid);
+        for pid in 0..0x1fff {
+            if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
+                changeset.remove(pid as u16);
+                self.filters_registered.set(pid, false);
+            }
         }
         self.current_version = Some(table.ver());
         Some(changeset)
@@ -342,6 +367,7 @@ pub struct PatProcessor {
     pid_table: PidTable,
     current_version: Option<u8>,
     stream_constructor: StreamConstructor,
+    filters_registered: fixedbitset::FixedBitSet,
 }
 
 impl PatProcessor {
@@ -350,6 +376,7 @@ impl PatProcessor {
             pid_table,
             current_version: None,
             stream_constructor,
+            filters_registered: fixedbitset::FixedBitSet::with_capacity(0x2000),
         }
     }
 
@@ -375,12 +402,16 @@ impl PatProcessor {
                     },
                 }
                 pids_seen.insert(desc.pid);
+                self.filters_registered.insert(desc.pid as usize);
             }
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
-        for removed_pid in pid_table.pids().iter().filter(|pid| !pids_seen.contains(pid) ) {
-            changeset.remove(*removed_pid);
+        for pid in 0..0x1fff {
+            if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
+                changeset.remove(pid as u16);
+                self.filters_registered.set(pid, false);
+            }
         }
 
         self.current_version = Some(table.ver());
@@ -524,7 +555,7 @@ mod test {
     use psi::TableSection;
 
     fn empty_stream_constructor() -> demultiplex::StreamConstructor {
-        demultiplex::StreamConstructor::new(HashMap::new())
+        demultiplex::StreamConstructor::new(demultiplex::NullPacketFilter::construct, HashMap::new())
     }
 
     #[test]
@@ -601,16 +632,8 @@ mod test {
         }
     }
 
-    #[derive(Default)]
-    struct NullConsumer { }
-    impl packet::PacketConsumer<demultiplex::FilterChangeset> for NullConsumer {
-        fn consume(&mut self, _pk: packet::Packet) -> Option<demultiplex::FilterChangeset> {
-            None
-        }
-    }
-
     fn null_proc() -> Box<RefCell<packet::PacketConsumer<demultiplex::FilterChangeset>>>{
-        Box::new(RefCell::new(NullConsumer::default()))
+        Box::new(RefCell::new(demultiplex::NullPacketFilter { }))
     }
 
     #[test]
@@ -637,18 +660,33 @@ mod test {
     #[test]
     fn pat_remove_existing_program() {
         let pid_table = Rc::new(RefCell::new(demultiplex::Filters::new()));
-        // arrange for the filter table to already contain an entry for PID 101
-        pid_table.borrow_mut().insert(101u16, null_proc());
         let mut processor = demultiplex::PatProcessor::new(pid_table, empty_stream_constructor());
-        let version = 0;
-        let descriptors = vec!(
-            // empty PMT - simulate removal of PID 101
-        );
-        let sections = [
-            Some(demultiplex::PatSection::new(descriptors))
-        ];
-        let pat_table = psi::Table::new(version, &sections);
-        let mut changes = processor.process(pat_table).unwrap().into_iter();
+        let mut version = 0;
+        {
+            let descriptors = vec!(
+                demultiplex::ProgramDescriptor::from_bytes(&[
+                    // PAT with a single program; next version of the  table removes this,
+                    0, 1,   // program_number
+                    0, 101  // pid
+                ])
+            );
+            let sections = [
+                Some(demultiplex::PatSection::new(descriptors))
+            ];
+            let pat_table = psi::Table::new(version, &sections);
+            let mut changes = processor.process(pat_table).unwrap().into_iter();
+        }
+        version += 1;
+        let mut changes = {
+            let descriptors = vec!(
+                // empty PMT - simulate removal of PID 101
+            );
+            let sections = [
+                Some(demultiplex::PatSection::new(descriptors))
+            ];
+            let pat_table = psi::Table::new(version, &sections);
+            processor.process(pat_table).unwrap().into_iter()
+        };
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Remove(101,)));
     }
 
@@ -711,7 +749,7 @@ mod test {
         ];
         let version = 0;
         let pat_table = psi::Table::new(version, &sections);
-        let changes = processor.process(pat_table).unwrap().into_iter();
-        //assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(201,_)));
+        let mut changes = processor.process(pat_table).unwrap().into_iter();
+        assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(201,_)));
     }
 }

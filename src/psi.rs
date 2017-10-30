@@ -503,7 +503,7 @@ mod test {
     }
 
     fn empty_stream_constructor() -> demultiplex::StreamConstructor {
-        demultiplex::StreamConstructor::new(HashMap::new())
+        demultiplex::StreamConstructor::new(demultiplex::NullPacketFilter::construct, HashMap::new())
     }
 
     #[test]
