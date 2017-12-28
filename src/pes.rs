@@ -99,7 +99,7 @@ where
                     }
                 }
             } else {
-                println!("Ignoring elementary stream content without a payload_start_indicator");
+                println!("pid={}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
             }
         }
         None
