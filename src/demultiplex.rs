@@ -333,6 +333,7 @@ impl psi::TableSection<PmtSection> for PmtSection {
 
         if header.private_indicator {
             println!("private PMT section - most unexpected! {:?}", header);
+            return None;
         }
         let descriptor_end = header_size + result.program_info_length as usize;
         if descriptor_end > data.len() {
