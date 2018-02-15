@@ -15,3 +15,8 @@ fixedbitset = "0.1.8"
 [dev-dependencies]
 matches = "0.1.6"
 bitstream-io = "0.6.3"
+bencher = "0.1.5"
+
+[[bench]]
+name = "bench"
+harness = false
