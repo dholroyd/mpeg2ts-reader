@@ -233,12 +233,12 @@ impl psi::TableProcessor<PmtSection> for PmtProcessor {
 
 #[derive(Debug)]
 pub struct StreamInfo {
-    stream_type: StreamType,    // 8 bits
+    pub stream_type: StreamType,    // 8 bits
     reserved1: u8,      // 3 bits
-    elementary_pid: u16, // 13 bits
+    pub elementary_pid: u16, // 13 bits
     reserved2: u8,      // 4 bits
     es_info_length: u16,// 12 bits
-    descriptors: Vec<Box<amphora::descriptor::Descriptor>>,
+    pub descriptors: Vec<Box<amphora::descriptor::Descriptor>>,
 }
 
 use amphora::base::Deserialize;
