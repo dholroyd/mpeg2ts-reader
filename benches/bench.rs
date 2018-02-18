@@ -1,11 +1,12 @@
 #[macro_use]
-extern crate bencher;
+extern crate criterion;
 extern crate mpeg2ts_reader;
+
+use criterion::{Criterion,Benchmark,Throughput};
 use std::fs::File;
 use std::io::Read;
 use std::cell;
 use std::collections::HashMap;
-use bencher::Bencher;
 use mpeg2ts_reader::unpacketise;
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::pes;
@@ -36,17 +37,20 @@ fn create_demux() -> demultiplex::Demultiplex {
     demultiplex::Demultiplex::new(ctor)
 }
 
-fn mpeg2ts_reader(bench: &mut Bencher) {
+fn mpeg2ts_reader(c: &mut Criterion) {
     let mut f = File::open("big_buck_bunny_1080p_24fps_h264.ts").expect("file not found");
     let l = f.metadata().unwrap().len() as usize;
-    let mut buf = vec![0; l];
+    let mut buf = vec![0; l.min(188*100_000)];
     f.read(&mut buf[..]).unwrap();
-    let mut demux = create_demux();
+    let demux = create_demux();
     let mut parser = unpacketise::Unpacketise::new(demux);
-    bench.iter(move || {
-        parser.push(&buf[..]);
-    });
+    c.bench("parse", Benchmark::new("parse", move |b| {
+        b.iter(|| {
+            parser.push(&buf[..]);
+        } );
+    }).throughput(Throughput::Bytes(l as u32)));
 }
 
-benchmark_group!(benches, mpeg2ts_reader);
-benchmark_main!(benches);
+
+criterion_group!(benches, mpeg2ts_reader);
+criterion_main!(benches);
