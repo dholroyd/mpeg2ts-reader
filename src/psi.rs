@@ -179,9 +179,11 @@ where
     TP: TableProcessor<T>,
     T: TableSection<T>
 {
+    const MAX_SECTIONS: usize = u8::max_value() as usize;  // given 1 byte section_number
+
     pub fn new(table_processor: TP) -> TableSectionConsumer<TP, T> {
         TableSectionConsumer {
-            sections: Vec::with_capacity(0xff),  // maximum number of table sections given 1 byte section_number
+            sections: Vec::with_capacity(Self::MAX_SECTIONS),
             expected_last_section_number: None,
             complete_section_count: 0,
             current_version: None,
