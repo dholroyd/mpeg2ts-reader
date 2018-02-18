@@ -532,8 +532,7 @@ mod test {
     fn example() {
         let buf = base16::decode(b"474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
         let pk = Packet::new(&buf[..]);
-        let processor_by_pid = Rc::new(RefCell::new(demultiplex::Filters::new()));
-        let table_sec = TableSectionConsumer::new(PatProcessor::new(processor_by_pid.clone(), empty_stream_constructor()));
+        let table_sec = TableSectionConsumer::new(PatProcessor::new(empty_stream_constructor()));
         let mut section_pk = SectionPacketConsumer::new(table_sec);
         if let Some(changeset) = section_pk.consume(pk) {
             let mut iter = changeset.into_iter();
