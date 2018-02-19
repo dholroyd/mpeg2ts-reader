@@ -239,9 +239,13 @@ where
             self.current_version = Some(table_syntax_header.version());
             self.expected_last_section_number = Some(table_syntax_header.last_section_number());
             self.make_space_for(table_syntax_header);
-        } else if table_syntax_header.last_section_number() != self.expected_last_section_number.unwrap() {
-            println!("last_section_number changed from {} to {}, but version remains {}", self.expected_last_section_number.unwrap(), table_syntax_header.last_section_number(), table_syntax_header.version());
-            self.reset();
+        } else {
+            if let Some(current_last) = self.expected_last_section_number {
+                if current_last != table_syntax_header.last_section_number() {
+                    println!("last_section_number changed from {} to {}, but version remains {}", self.expected_last_section_number.unwrap(), table_syntax_header.last_section_number(), table_syntax_header.version());
+                    self.reset();
+                }
+            }
             return None;
         }
         let this_section = table_syntax_header.section_number() as usize;
