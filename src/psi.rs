@@ -204,7 +204,7 @@ where
 
     fn is_new_version(&self, table_syntax_header: &TableSyntaxHeader) -> bool {
         if let Some(ver) = self.current_version {
-            ver == table_syntax_header.version()
+            ver != table_syntax_header.version()
         } else {
             // there isn't yet a known version, so of course the given one is new to us
             true
