@@ -132,6 +132,7 @@ const ADAPTATION_FIELD_OFFSET: usize = FIXED_HEADER_SIZE + 1;
 impl<'buf> Packet<'buf> {
     /// returns `true` if the given value is a valid synchronisation byte, the value `0x42`, which
     /// must appear at the start of every transport stream packet.
+    #[inline(always)]
     pub fn is_sync_byte(b: u8) -> bool {
         b == SYNC_BYTE
     }
