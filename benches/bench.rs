@@ -40,7 +40,8 @@ fn create_demux() -> demultiplex::Demultiplex {
 fn mpeg2ts_reader(c: &mut Criterion) {
     let mut f = File::open("big_buck_bunny_1080p_24fps_h264.ts").expect("file not found");
     let l = f.metadata().unwrap().len() as usize;
-    let mut buf = vec![0; l.min(188*100_000)];
+    let size = l.min(188*200_000);
+    let mut buf = vec![0; size];
     f.read(&mut buf[..]).unwrap();
     let demux = create_demux();
     let mut parser = unpacketise::Unpacketise::new(demux);
@@ -48,7 +49,7 @@ fn mpeg2ts_reader(c: &mut Criterion) {
         b.iter(|| {
             parser.push(&buf[..]);
         } );
-    }).throughput(Throughput::Bytes(l as u32)));
+    }).throughput(Throughput::Bytes(size as u32)));
 }
 
 
