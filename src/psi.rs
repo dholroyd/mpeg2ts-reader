@@ -495,8 +495,6 @@ impl packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsu
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
-    use std::rc::Rc;
-    use std::cell::RefCell;
     use data_encoding::base16;
     use psi::SectionPacketConsumer;
     use psi::TableSectionConsumer;

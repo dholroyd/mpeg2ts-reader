@@ -538,7 +538,6 @@ mod test {
         let mut pts = make_test_data(|mut w| {
             write_ts(&mut w, 1234, pts_prefix)
         });
-        let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
         // make the prefix bits invalid by flipping a 0 to a 1,
         pts[0] |= 0b10000000;
         assert_matches!(pes::Timestamp::from_pts_bytes(&pts[..]), Err(pes::TimestampError::IncorrectPrefixBits{ expected: 0b0010, actual: 0b1010 }))
@@ -550,7 +549,6 @@ mod test {
         let mut pts = make_test_data(|mut w| {
             write_ts(&mut w, 1234, pts_prefix)
         });
-        let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
         // make the first maker_bit (at index 7) invalid, by flipping a 1 to a 0,
         pts[0] &= 0b11111110;
         assert_matches!(pes::Timestamp::from_pts_bytes(&pts[..]), Err(pes::TimestampError::MarkerBitNotSet{ bit_number: 7 }))
@@ -584,10 +582,10 @@ mod test {
         fn start_stream(&mut self) {
             self.state.borrow_mut().start_stream_called = true;
         }
-        fn begin_packet(&mut self, header: pes::PesHeader) {
+        fn begin_packet(&mut self, _header: pes::PesHeader) {
             self.state.borrow_mut().begin_packet_called = true;
         }
-        fn continue_packet(&mut self, data: &[u8]) {
+        fn continue_packet(&mut self, _data: &[u8]) {
         }
         fn end_packet(&mut self) {
         }

@@ -507,8 +507,6 @@ impl packet::PacketConsumer<()> for Demultiplex {
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
-    use std::cell::RefCell;
-    use std::rc::Rc;
     use data_encoding::base16;
     use bitstream_io::{BE, BitWriter};
     use std::io;
@@ -594,10 +592,6 @@ mod test {
         }
     }
 
-    fn null_proc() -> Box<RefCell<packet::PacketConsumer<demultiplex::FilterChangeset>>>{
-        Box::new(RefCell::new(demultiplex::NullPacketFilter { }))
-    }
-
     #[test]
     fn pat_no_existing_program() {
         let mut processor = demultiplex::PatProcessor::new(empty_stream_constructor());
@@ -632,7 +626,7 @@ mod test {
                 Some(demultiplex::PatSection::new(descriptors))
             ];
             let pat_table = psi::Table::new(version, &sections);
-            let mut changes = processor.process(pat_table).unwrap().into_iter();
+            let _changes = processor.process(pat_table).unwrap().into_iter();
         }
         version += 1;
         let mut changes = {
