@@ -4,7 +4,7 @@
 //!
 //!  * *Avoid copying and allocating* if possible.  Most of the implementation works by borrowing
 //!    slices of the underlying byte buffer.  The implementation tries to avoid buffering up
-//!    intermediate data were practical.
+//!    intermediate data where practical.
 //!  * *Non-blocking*.  It should be possible to integrate this library into a system non-blocking
 //!    event-loop.  The caller has to 'push' data.
 //!  * *Extensible*.  The standard calls out a number of 'reserved values' and other points of
@@ -24,6 +24,14 @@
 //!   - PAT and PMT mostly there, but no other tables currently implemented
 //! - Elementary Stream syntax
 //!   - most of the optional header fields (except PTS/DTS) are unimplemented
+//! - No 'context' objects
+//!   - Real usage will likely need to thread context objects through the API in order to
+//!     track application-specific details.
+//!   - Currently mutable state is stored in the instance for each type of syntax parser, and
+//!     it would be nice to explore extracting this out into parser-specific context types
+//! - Event generation / remove `println!()`
+//!   - currently all errors are reported with `println!()`, which must go
+//!   - come up with a way to emit 'events' for interesting data that can't just be a return-value
 
 #![feature(universal_impl_trait)]
 
