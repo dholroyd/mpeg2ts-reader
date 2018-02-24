@@ -25,6 +25,8 @@
 //! - Elementary Stream syntax
 //!   - most of the optional header fields (except PTS/DTS) are unimplemented
 
+#![feature(universal_impl_trait)]
+
 extern crate hexdump;
 extern crate byteorder;
 extern crate data_encoding;

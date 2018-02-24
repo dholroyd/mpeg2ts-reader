@@ -308,43 +308,28 @@ impl SectionCommonHeader {
     }
 }
 
-const SECTION_LIMIT: usize = 1021;
-
 #[derive(Eq, PartialEq, Debug)]
 enum SectionParseState {
     LookingForStart,
     WaitingForEnd,
 }
 
-/// A `PacketConsumer` for buffering Programe Specific Information, which may be split across
-/// multiple TS packets, and passing a complete PSI table to the given `SectionProcessor` when a
-/// complete, valid section has been received.
-pub struct SectionPacketConsumer<P>
-where
-    P: SectionProcessor,
-{
+/// Parser for MPEG TS PSI 'Section' syntax, which begins with the 8-bit `table_id` field.
+pub struct SectionParser<T> {
     buf: Vec<u8>,
     parse_state: SectionParseState,
     common_header: Option<SectionCommonHeader>,
-    processor: P,
+    cb: Box<FnMut(&SectionCommonHeader, &[u8]) -> Option<T>>,  // TODO: avoid Box
 }
+impl<T> SectionParser<T> {
+    const SECTION_LIMIT: usize = 1021;
 
-
-#[cfg(not(fuzz))]
-const CRC_CHECK: bool = true;
-#[cfg(fuzz)]
-const CRC_CHECK: bool = false;
-
-impl<P> SectionPacketConsumer<P>
-where
-    P: SectionProcessor,
-{
-    pub fn new(processor: P) -> SectionPacketConsumer<P> {
-        SectionPacketConsumer {
+    pub fn new(cb: impl FnMut(&SectionCommonHeader, &[u8]) -> Option<T> + 'static) -> SectionParser<T> {
+        SectionParser {
             buf: Vec::new(),
             parse_state: SectionParseState::LookingForStart,
             common_header: None,
-            processor: processor,
+            cb: Box::new(cb),
         }
     }
 
@@ -356,7 +341,7 @@ where
         self.get_common_header().section_length
     }
 
-    fn begin_new_section(&mut self, data: &[u8]) -> Option<demultiplex::FilterChangeset> {
+    pub fn begin_new_section(&mut self, data: &[u8]) -> Option<T> {
         if self.parse_state == SectionParseState::WaitingForEnd {
             let expected = self.expected_length();
             println!(
@@ -373,11 +358,11 @@ where
             return None;
         }
         let header = SectionCommonHeader::new(&data[..3]);
-        if header.section_length > SECTION_LIMIT {
+        if header.section_length > Self::SECTION_LIMIT {
             println!(
                 "section_length {} is too large, limit is {} bytes",
                 header.section_length,
-                SECTION_LIMIT
+                Self::SECTION_LIMIT
             );
             self.reset();
             return None;
@@ -387,7 +372,7 @@ where
         self.append_to_current(data)
     }
 
-    fn append_to_current(&mut self, data: &[u8]) -> Option<demultiplex::FilterChangeset> {
+    pub fn append_to_current(&mut self, data: &[u8]) -> Option<T> {
         if self.parse_state != SectionParseState::WaitingForEnd {
             println!("no current section, ignoring section continuation");
             return None;
@@ -423,19 +408,19 @@ where
         }
     }
 
-    fn finalise_current_section(&mut self) -> Option<demultiplex::FilterChangeset> {
+    fn finalise_current_section(&mut self) -> Option<T> {
         if self.get_common_header().section_syntax_indicator &&
             CRC_CHECK &&
             mpegts_crc::sum32(&self.buf[..]) != 0
-        {
-            println!(
-                "section crc check failed for table_id {}",
-                self.get_common_header().table_id
-            );
-            self.reset();
-            return None;
-        }
-        let result = self.processor.process(
+            {
+                println!(
+                    "section crc check failed for table_id {}",
+                    self.get_common_header().table_id
+                );
+                self.reset();
+                return None;
+            }
+        let result = (self.cb)(
             self.common_header.as_ref().unwrap(),
             // skip the 3 bytes of the common header,
             &self.buf[3..],
@@ -444,17 +429,37 @@ where
         result
     }
 
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.buf.clear();
         self.common_header = None;
         self.parse_state = SectionParseState::LookingForStart;
     }
 }
 
-impl<P> packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer<P>
-where
-    P: SectionProcessor,
-{
+/// A `PacketConsumer` for buffering Program Specific Information, which may be split across
+/// multiple TS packets, and passing a complete PSI table to the given `SectionProcessor` when a
+/// complete, valid section has been received.
+pub struct SectionPacketConsumer {
+    parser: SectionParser<demultiplex::FilterChangeset>,
+}
+
+
+#[cfg(not(fuzz))]
+const CRC_CHECK: bool = true;
+#[cfg(fuzz)]
+const CRC_CHECK: bool = false;
+
+impl SectionPacketConsumer {
+    pub fn new<P: SectionProcessor + 'static>(mut processor: P) -> SectionPacketConsumer {
+        SectionPacketConsumer {
+            parser: SectionParser::new(move |header: &SectionCommonHeader, data: &[u8]| {
+                processor.process(header, data)
+            })
+        }
+    }
+}
+
+impl packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer {
     fn consume(&mut self, pk: packet::Packet) -> Option<demultiplex::FilterChangeset> {
         match pk.payload() {
             Some(pk_buf) => {
@@ -465,18 +470,18 @@ where
                     if pointer > 0 {
                         if pointer > section_data.len() {
                             println!("PSI pointer beyond end of packet payload");
-                            self.reset();
+                            self.parser.reset();
                             return None;
                         }
                         let remainder = &section_data[..pointer];
-                        self.append_to_current(remainder);
+                        self.parser.append_to_current(remainder);
                         // the following call to begin_new_section() will assert that
                         // append_to_current() just finalised the preceding section
                     }
-                    self.begin_new_section(&section_data[pointer..])
+                    self.parser.begin_new_section(&section_data[pointer..])
                 } else {
                     // this packet is a continuation of an existing PSI section
-                    self.append_to_current(pk_buf)
+                    self.parser.append_to_current(pk_buf)
                 }
             }
             None => {
