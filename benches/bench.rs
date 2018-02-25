@@ -7,8 +7,8 @@ use std::fs::File;
 use std::io::Read;
 use std::cell;
 use std::collections::HashMap;
-use mpeg2ts_reader::unpacketise;
 use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::packet;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::StreamType;
 
@@ -44,7 +44,7 @@ fn mpeg2ts_reader(c: &mut Criterion) {
     let mut buf = vec![0; size];
     f.read(&mut buf[..]).unwrap();
     let demux = create_demux();
-    let mut parser = unpacketise::Unpacketise::new(demux);
+    let mut parser = packet::Unpack::new(demux);
     c.bench("parse", Benchmark::new("parse", move |b| {
         b.iter(|| {
             parser.push(&buf[..]);
