@@ -1,6 +1,6 @@
-//! Structures for parsing MPEG2 Transport Stream data
+//! Structures for parsing MPEG2 Transport Stream data, per the _ISO/IEC 13818-1_ standard.
 //!
-//! # Design Principals
+//! # Design principals
 //!
 //!  * *Avoid copying and allocating* if possible.  Most of the implementation works by borrowing
 //!    slices of the underlying byte buffer.  The implementation tries to avoid buffering up
@@ -10,28 +10,55 @@
 //!  * *Extensible*.  The standard calls out a number of 'reserved values' and other points of
 //!    extension.  This library should make it possible for other crates to implement such
 //!    extensions.
+//!  * *Minimal*.  Lots of commonly used Transport Stream functionality is specified in standards
+//!    from by ISDB / DVB / ATSC / SCTE / etc. and not in 13818-1 itself.  I hope support for these
+//!    features can be added via external crates.  (None implemented any yet!)
 //!  * *Transport Neutral*.  There is currently no code here supporting consuming from files or the
 //!    network.  The APIs accept `&[u8]`, and the caller handles providing the data from wherever.
 //!
 //!
-//! # TODO
+//! # Supported Transport Stream features
 //!
-//! - General API
-//!   - lots of places return `Option` but should probably return `Result`
-//! - TS packet
-//!   - Adaptation field is mostly unimplemented
-//! - PSI tables
-//!   - PAT and PMT mostly there, but no other tables currently implemented
-//! - Elementary Stream syntax
-//!   - most of the optional header fields (except PTS/DTS) are unimplemented
-//! - No 'context' objects
+//! Not all Transport Stream features are supported yet.  Here's a summary of what's available,
+//! and what's yet to come:
+//!
+//! - Framing
+//!   - ☑ _ISO/IEC 13818-1_ 188-byte packets
+//!   - ☐ m2ts 192-byte packets (would be nice if an external crate could support, at least)
+//! - ☑ Transport Stream packet
+//!   - ☐ Adaptation field
+//! - ☑ Program Specific Information tables
+//!   - ☑ Section syntax
+//!   - ☑ PAT - Program Association Table
+//!   - ☑ PMT - Program Mapping Table
+//!   - ☐ TSDT - Transport Stream Description Table
+//! - ☑ Packetised Elementary Stream syntax
+//!   - ☑ PES_packet_data
+//!   - ☑ PTS/DTS
+//!   - ☐ ESCR
+//!   - ☐ ES_rate
+//!   - ☐ DSM_trick_mode
+//!   - ☐ additional_copy_info
+//!   - ☐ PES_CRC
+//!   - ☐ PES_extension
+//!
+//! # Planned API changes
+//!
+//! - Add 'context' objects
 //!   - Real usage will likely need to thread context objects through the API in order to
 //!     track application-specific details.
 //!   - Currently mutable state is stored in the instance for each type of syntax parser, and
 //!     it would be nice to explore extracting this out into parser-specific context types
 //! - Event generation / remove `println!()`
-//!   - currently all errors are reported with `println!()`, which must go
-//!   - come up with a way to emit 'events' for interesting data that can't just be a return-value
+//!   - currently all errors are sent to stdout, which it no way to do things
+//!   - need a way to emit 'events' for interesting data that can't just be a return-value
+//! - General
+//!   - lots of places return `Option` but should return `Result` and a descriptive error
+//!
+//! # Rust nightly
+//!
+//! Currently uses _nightly_ in order to make use of `impl Trait`.  Will probably switch to
+//! _stable_ once `impl Trait` stabilises.
 
 #![feature(universal_impl_trait)]
 
