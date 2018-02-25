@@ -47,7 +47,6 @@ extern crate matches;
 extern crate bitstream_io;
 extern crate fixedbitset;
 
-pub mod unpacketise;
 pub mod packet;
 pub mod demultiplex;
 pub mod psi;
