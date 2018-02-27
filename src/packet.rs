@@ -273,43 +273,9 @@ pub trait PacketConsumer<Ret> {
     fn consume(&mut self, pk: Packet) -> Option<Ret>;
 }
 
-pub struct Unpack<C>
-    where C: PacketConsumer<()>
-{
-    consumer: C,
-    // TODO: store any remainder from end of last buffer
-}
-
-impl <C> Unpack<C>
-    where C: PacketConsumer<()>
-{
-    pub fn new(consumer: C) -> Unpack<C> {
-        Unpack { consumer }
-    }
-
-
-    // TODO: 'packet cursor' / iterator or something
-    pub fn push(&mut self, buf: &[u8]) {
-        for pk in buf.chunks(PACKET_SIZE) {
-            // TODO: move test out of loop?
-            if pk.len() < PACKET_SIZE {
-                println!("need to implement handling of remainder ({} bytes)", pk.len());
-                break;
-            }
-            if Packet::is_sync_byte(pk[0]) {
-                self.consumer.consume(Packet::new(pk));
-            } else {
-                // TODO: attempt to resynchronise
-                println!("not ts :( {:#x} {}", pk[0], buf.len());
-            }
-        }
-    }
-}
 #[cfg(test)]
 mod test {
     use packet::*;
-    use std::cell::RefCell;
-    use std::rc::Rc;
 
     #[test]
     #[should_panic]
@@ -339,53 +305,5 @@ mod test {
         assert_eq!(pk.continuity_counter().count(), 0b1111);
         assert!(pk.adaptation_field().is_some());
         assert!(pk.adaptation_field().unwrap().discontinuity_indicator());
-    }
-
-    struct MockPacketConsumer {
-        pub pids: Rc<RefCell<Vec<u16>>>
-    }
-    impl PacketConsumer<()> for MockPacketConsumer {
-        fn consume(&mut self, pk: Packet) -> Option<()> {
-            self.pids.borrow_mut().push(pk.pid());
-            None
-        }
-    }
-
-    #[test]
-    fn unpack() {
-        let pids = Rc::new(RefCell::new(vec!()));
-        let mock = MockPacketConsumer { pids: pids.clone() };
-        let mut buf = [0u8; 188*2];
-        buf[0] = 0x47;  // 1st packet sync-byte
-        buf[2] = 0x07;  // 1st packet pid
-        buf[188] = 0x47;  // 2nd packet sync-byte
-        buf[190] = 0x09;  // 2st packet pid
-        let mut unpack = Unpack::new(mock);
-        unpack.push(&buf[..]);
-        assert_eq!(*pids.borrow_mut(), vec!(0x07u16, 0x09u16));
-    }
-
-    struct NullPacketConsumer {
-    }
-    impl PacketConsumer<()> for NullPacketConsumer {
-        fn consume(&mut self, _: Packet) -> Option<()> {
-            None
-        }
-    }
-
-    #[test]
-    fn unpack_empty() {
-        let null = NullPacketConsumer { };
-        let mut unpack = Unpack::new(null);
-        let buf = [0u8; 0];
-        unpack.push(&buf[..]);
-    }
-
-    #[test]
-    fn unpack_byte() {
-        let null = NullPacketConsumer { };
-        let mut unpack = Unpack::new(null);
-        let buf = [0x0Au8; 1];
-        unpack.push(&buf[..]);
     }
 }

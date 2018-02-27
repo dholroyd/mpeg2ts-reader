@@ -43,11 +43,10 @@ fn mpeg2ts_reader(c: &mut Criterion) {
     let size = l.min(188*200_000);
     let mut buf = vec![0; size];
     f.read(&mut buf[..]).unwrap();
-    let demux = create_demux();
-    let mut parser = packet::Unpack::new(demux);
+    let mut demux = create_demux();
     c.bench("parse", Benchmark::new("parse", move |b| {
         b.iter(|| {
-            parser.push(&buf[..]);
+            demux.push(&buf[..]);
         } );
     }).throughput(Throughput::Bytes(size as u32)));
 }

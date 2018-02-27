@@ -45,13 +45,12 @@ fn run<R>(mut r: R) -> io::Result<()>
     table.insert(StreamType::H264, NullElementaryStreamConsumer::construct);
     table.insert(StreamType::Iso138183Audio, NullElementaryStreamConsumer::construct);
     let stream_constructor = demultiplex::StreamConstructor::new(demultiplex::NullPacketFilter::construct, table);
-    let demultiplex = demultiplex::Demultiplex::new(stream_constructor);
-    let mut parser = packet::Unpack::new(demultiplex);
+    let mut demultiplex = demultiplex::Demultiplex::new(stream_constructor);
     while reading {
         match r.read(&mut buf[..])? {
             0 => break,
             // TODO: if not all bytes are consumed, track buf remainder
-            n => parser.push(&buf[0..n]),
+            n => demultiplex.push(&buf[0..n]),
         }
     }
     Ok(())

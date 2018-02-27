@@ -488,19 +488,50 @@ impl Demultiplex {
 
         result
     }
-}
 
-impl packet::PacketConsumer<()> for Demultiplex {
-    fn consume(&mut self, pk: packet::Packet) -> Option<()> {
-        let maybe_changeset = match self.processor_by_pid.get(pk.pid()) {
-            &Some(ref processor) => processor.borrow_mut().consume(pk),
-            &None => self.default_processor.borrow_mut().consume(pk),
-        };
-        match maybe_changeset {
-            None => (),
-            Some(changeset) => changeset.apply(&mut self.processor_by_pid),
+    pub fn push(&mut self, buf: &[u8]) {
+        // TODO: simplify
+        let mut i=0;
+        loop {
+            let end = i+packet::PACKET_SIZE;
+            if end > buf.len() {
+                break;
+            }
+            let mut pk_buf = &buf[i..end];
+            if packet::Packet::is_sync_byte(pk_buf[0]) {
+                let mut maybe_changeset = None;
+                {
+                    let mut pk = packet::Packet::new(pk_buf);
+                    let this_pid = pk.pid();
+                    let mut this_proc = match self.processor_by_pid.get(this_pid) {
+                        &Some(ref processor) => processor.borrow_mut(),
+                        &None => self.default_processor.borrow_mut(),
+                    };
+                    while maybe_changeset.is_none() {
+                        maybe_changeset = this_proc.consume(pk);
+                        i += packet::PACKET_SIZE;
+                        let end = i+packet::PACKET_SIZE;
+                        if end > buf.len() {
+                            break;
+                        }
+                        pk_buf = &buf[i..end];
+                        pk = packet::Packet::new(pk_buf);
+                        if pk.pid() != this_pid {
+                            i -= packet::PACKET_SIZE;
+                            break;
+                        }
+                    }
+                }
+                match maybe_changeset {
+                    None => (),
+                    Some(changeset) => changeset.apply(&mut self.processor_by_pid),
+                }
+            } else {
+                // TODO: attempt to resynchronise
+                println!("not ts :( {:#x} {}", pk_buf[0], buf.len());
+            }
+            i += packet::PACKET_SIZE;
         }
-        None
     }
 }
 
@@ -512,8 +543,6 @@ mod test {
     use std::io;
 
     use demultiplex;
-    use packet;
-    use packet::PacketConsumer;
     use psi;
     use psi::TableProcessor;
     use psi::TableSection;
@@ -526,9 +555,8 @@ mod test {
     fn pat() {
         // TODO: better
         let buf = base16::decode(b"474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
-        let pk = packet::Packet::new(&buf[..]);
         let mut deplex = demultiplex::Demultiplex::new(empty_stream_constructor());
-        deplex.consume(pk);
+        deplex.push(&buf[..]);
     }
 
     #[test]
