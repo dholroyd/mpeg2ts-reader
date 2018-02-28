@@ -37,7 +37,7 @@ use mpegts_crc;
 /// struct MyProcessor { }
 /// # impl MyProcessor { pub fn new() -> MyProcessor { MyProcessor { } } }
 ///
-/// impl SectionProcessor for MyProcessor {
+/// impl SectionProcessor<demultiplex::FilterChangeset> for MyProcessor {
 ///     fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<demultiplex::FilterChangeset> {
 ///         println!("Got table section with id {}", header.table_id);
 ///         None
@@ -51,11 +51,11 @@ use mpegts_crc;
 /// This can be implemented directly to create parsers for private data that doesn't use the
 /// standard section syntax.  Where the standard 'section syntax' is used, the
 /// `TableSectionConsumer` implementation of this trait should be used.
-pub trait SectionProcessor {
+pub trait SectionProcessor<T> {
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
     /// been supplied to this call in the `header` parameter.  This is to allow implementers to
     /// calculate a CRC over the whole section if required.
-    fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<demultiplex::FilterChangeset>;
+    fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<T>;
 }
 
 #[derive(Debug,PartialEq)]
@@ -264,7 +264,7 @@ where
     }
 }
 
-impl<TP, T> SectionProcessor for TableSectionConsumer<TP, T>
+impl<TP, T> SectionProcessor<demultiplex::FilterChangeset> for TableSectionConsumer<TP, T>
 where
     TP: TableProcessor<T>,
     T: TableSection<T>
@@ -450,7 +450,7 @@ const CRC_CHECK: bool = true;
 const CRC_CHECK: bool = false;
 
 impl SectionPacketConsumer {
-    pub fn new<P: SectionProcessor + 'static>(mut processor: P) -> SectionPacketConsumer {
+    pub fn new<P: SectionProcessor<demultiplex::FilterChangeset> + 'static>(mut processor: P) -> SectionPacketConsumer {
         SectionPacketConsumer {
             parser: SectionParser::new(move |header: &SectionCommonHeader, data: &[u8]| {
                 processor.process(header, data)
@@ -507,7 +507,7 @@ mod test {
     use demultiplex::FilterChange;
 
     struct NullSectionProcessor {}
-    impl SectionProcessor for NullSectionProcessor {
+    impl SectionProcessor<demultiplex::FilterChangeset> for NullSectionProcessor {
         fn process(&mut self, _header: &SectionCommonHeader, _section_payload: &[u8]) -> Option<demultiplex::FilterChangeset> { None }
     }
 
