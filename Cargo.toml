@@ -2,6 +2,8 @@
 name = "mpeg2ts-reader"
 version = "0.1.0"
 authors = ["David Holroyd <dave@badgers-in-foil.co.uk>"]
+description = "Parser for MPEG Transport Stream data"
+repository = "https://github.com/dholroyd/mpeg2ts-reader"
 
 [dependencies]
 hexdump = "0.1.0"
