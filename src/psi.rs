@@ -412,14 +412,14 @@ impl<T> SectionParser<T> {
         if self.get_common_header().section_syntax_indicator &&
             CRC_CHECK &&
             mpegts_crc::sum32(&self.buf[..]) != 0
-            {
-                println!(
-                    "section crc check failed for table_id {}",
-                    self.get_common_header().table_id
-                );
-                self.reset();
-                return None;
-            }
+        {
+            println!(
+                "section crc check failed for table_id {}",
+                self.get_common_header().table_id
+            );
+            self.reset();
+            return None;
+        }
         let result = (self.cb)(
             self.common_header.as_ref().unwrap(),
             // skip the 3 bytes of the common header,
