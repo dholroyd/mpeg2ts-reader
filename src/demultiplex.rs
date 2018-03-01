@@ -2,11 +2,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::cell::RefCell;
 use std::rc::Rc;
-use bitreader::BitReader;
 use packet;
 use psi;
 use std;
-use hexdump;
 use fixedbitset;
 use StreamType;
 
@@ -234,7 +232,7 @@ impl<'buf> Iterator for DescriptorIter<'buf> {
         if self.buf.len() == 0 {
             return None;
         }
-        let tag = self.buf[0];
+        let _tag = self.buf[0];
         let len = self.buf[1] as usize;
         if len > self.buf.len()-2 {
             // ensure anther call to next() will yield None,
