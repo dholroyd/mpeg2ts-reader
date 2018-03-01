@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::cell::RefCell;
 use std::rc::Rc;
-use amphora;
 use bitreader::BitReader;
 use packet;
 use psi;
@@ -210,6 +209,45 @@ impl psi::TableProcessor<PmtSection> for PmtProcessor {
     }
 }
 
+pub struct Descriptor<'buf> {
+    buf: &'buf[u8]
+}
+impl<'buf> Descriptor<'buf> {
+    pub fn new(buf: &'buf[u8]) -> Descriptor {
+        assert!(buf.len() >= 2);
+        Descriptor {
+            buf,
+        }
+    }
+    pub fn tag(&self) -> u8 {
+        self.buf[0]
+    }
+}
+
+pub struct DescriptorIter<'buf> {
+    buf: &'buf[u8]
+}
+impl<'buf> Iterator for DescriptorIter<'buf> {
+    type Item = Result<Descriptor<'buf>, ()>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buf.len() == 0 {
+            return None;
+        }
+        let tag = self.buf[0];
+        let len = self.buf[1] as usize;
+        if len > self.buf.len()-2 {
+            // ensure anther call to next() will yield None,
+            self.buf = &self.buf[0..0];
+            Some(Err(()))
+        } else {
+            let (desc, rest) = self.buf.split_at(len+2);
+            self.buf = rest;
+            Some(Ok(Descriptor { buf: desc }))
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct StreamInfo {
     pub stream_type: StreamType,    // 8 bits
@@ -217,42 +255,7 @@ pub struct StreamInfo {
     pub elementary_pid: u16, // 13 bits
     reserved2: u8,      // 4 bits
     es_info_length: u16,// 12 bits
-    pub descriptors: Vec<Box<amphora::descriptor::Descriptor>>,
-}
-
-use amphora::base::Deserialize;
-fn parse_descriptor_list(descriptors: &mut Vec<Box<amphora::descriptor::Descriptor>>, descriptor_data: &[u8]) -> Option<()> {
-    let mut remaining = &descriptor_data[..];
-    let mut count = 0;
-    while remaining.len() > 0 {
-        if remaining.len() < 2 {
-            println!("not enough data left for a descriptor");
-            return None;
-        }
-        let mut reader = BitReader::new(remaining);
-        match amphora::descriptor::deserialize_descriptor(&mut reader) {
-            Ok(desc) => {
-                descriptors.push(desc);
-                remaining = &remaining[(reader.position()/8) as usize..];
-            },
-            Err(err) => {
-                println!("problem deserialising descriptor {}: {:?}", count, err);
-                match amphora::descriptor::basic::UnknownDescriptor::from_bytes(remaining) {
-                    Ok(desc) => {
-                        hexdump::hexdump(&remaining[..desc.descriptor_length as usize+2]);
-                        remaining = &remaining[desc.descriptor_length as usize+2..];
-                        descriptors.push(Box::new(desc));
-                    },
-                    Err(_) => {
-                        hexdump::hexdump(remaining);
-                        return None;
-                    }
-                }
-            },
-        }
-        count += 1;
-    }
-    Some(())
+    pub descriptor_data: Vec<u8>,
 }
 
 impl StreamInfo {
@@ -268,7 +271,7 @@ impl StreamInfo {
             elementary_pid: u16::from(data[1] & 0b00011111) << 8 | u16::from(data[2]),
             reserved2: data[3] >> 4,
             es_info_length: u16::from(data[3] & 0b00001111) << 8 | u16::from(data[4]),
-            descriptors: vec!(),
+            descriptor_data: vec!(),
         };
 
         let descriptor_end = header_size + result.es_info_length as usize;
@@ -276,11 +279,12 @@ impl StreamInfo {
             print!("PMT section of size {} is not large enough to contain es_info_length of {}", data.len(), result.es_info_length);
             return None;
         }
-        let descriptor_data = &data[header_size..descriptor_end];
-        if parse_descriptor_list(&mut result.descriptors, descriptor_data).is_none() {
-            return None;
-        }
+        result.descriptor_data.extend_from_slice(&data[header_size..descriptor_end]);
         Some((result, descriptor_end))
+    }
+
+    pub fn descriptors(&self) -> DescriptorIter {
+        DescriptorIter { buf: &self.descriptor_data[..] }
     }
 }
 
@@ -290,7 +294,7 @@ pub struct PmtSection {
     pcr_pid: u16,               // 13 bits
     reserved2: u8,              // 4 bits
     program_info_length: u16,   // 12 bits
-    descriptors: Vec<Box<amphora::descriptor::Descriptor>>,
+    descriptor_data: Vec<u8>,
     streams: Vec<StreamInfo>,
 }
 
@@ -306,7 +310,7 @@ impl psi::TableSection<PmtSection> for PmtSection {
             pcr_pid: u16::from(data[0] & 0b00011111) << 8 | u16::from(data[1]),
             reserved2: data[2] >> 4,
             program_info_length: u16::from(data[2] & 0b00001111) << 8 | u16::from(data[3]),
-            descriptors: vec!(),
+            descriptor_data: vec!(),
             streams: vec!(),
         };
 
@@ -320,10 +324,7 @@ impl psi::TableSection<PmtSection> for PmtSection {
             return None;
         }
         if result.program_info_length > 0 {
-            let descriptor_data = &data[header_size..descriptor_end];
-            if parse_descriptor_list(&mut result.descriptors, descriptor_data).is_none() {
-                return None;
-            }
+            result.descriptor_data.extend_from_slice(&data[header_size..descriptor_end]);
         }
 
         let mut pos = descriptor_end;

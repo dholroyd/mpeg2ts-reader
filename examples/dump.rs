@@ -1,12 +1,10 @@
 extern crate hexdump;
 extern crate mpeg2ts_reader;
-extern crate amphora;
 
 use std::env;
 use std::fs::File;
 use std::io;
 use std::collections::HashMap;
-use mpeg2ts_reader::packet;
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::StreamType;

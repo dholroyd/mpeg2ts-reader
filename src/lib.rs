@@ -65,7 +65,6 @@
 extern crate hexdump;
 extern crate byteorder;
 extern crate data_encoding;
-extern crate amphora;
 extern crate bitreader;
 #[cfg(test)]
 #[macro_use]
