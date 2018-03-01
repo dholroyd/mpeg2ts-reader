@@ -6,7 +6,7 @@ description = "Parser for MPEG Transport Stream data"
 repository = "https://github.com/dholroyd/mpeg2ts-reader"
 license = "MIT/Apache-2.0"
 categories = [ "multimedia::video", "parsing" ]
-keywords = [ "mpegts", "ISO-13818-1", "H.222.0" ]
+keywords = [ "mpegts", "ISO-13818-1", "H-222-0" ]
 
 [dependencies]
 hexdump = "0.1.0"
