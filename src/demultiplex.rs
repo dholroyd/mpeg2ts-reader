@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::cell::RefCell;
+use std::fmt;
 use std::rc::Rc;
 use packet;
 use psi;
@@ -219,6 +220,17 @@ impl<'buf> Descriptor<'buf> {
     }
     pub fn tag(&self) -> u8 {
         self.buf[0]
+    }
+    pub fn len(&self) -> u8 {
+        self.buf[1]
+    }
+    pub fn payload(&self) -> &[u8] {
+        &self.buf[2..self.len() as usize]
+    }
+}
+impl<'buf> fmt::Debug for Descriptor<'buf> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Descriptor {{ tag: {}, len: {} }}", self.tag(), self.len())
     }
 }
 
