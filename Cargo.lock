@@ -59,7 +59,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "bitreader"
 version = "0.3.1"
-source = "git+https://github.com/irauta/bitreader.git#43d912a3deb016906135530290f26d5cfcf716eb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "bitstream-io"
@@ -312,7 +312,7 @@ dependencies = [
 name = "mpeg2ts-reader"
 version = "0.1.0"
 dependencies = [
- "bitreader 0.3.1 (git+https://github.com/irauta/bitreader.git)",
+ "bitreader 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitstream-io 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "crc 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -649,7 +649,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum backtrace 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "ebbbf59b1c43eefa8c3ede390fcc36820b4999f7914104015be25025e0d62af2"
 "checksum backtrace-sys 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)" = "44585761d6161b0f57afc49482ab6bd067e4edef48c12a152c237eb0203f7661"
 "checksum bitflags 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "b3c30d3802dfb7281680d6285f2ccdaa8c2d8fee41f93805dba5c4cf50dc23cf"
-"checksum bitreader 0.3.1 (git+https://github.com/irauta/bitreader.git)" = "<none>"
+"checksum bitreader 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a13e712f6e04f0e507a913abf5e008ba2a342ec26d9fac34ba0766bd77ced5b8"
 "checksum bitstream-io 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "48f26d7f042e5a120b0956c7546bbb971151f6e6e895b3f5d141ecbd17c90d67"
 "checksum build_const 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e90dc84f5e62d2ebe7676b83c22d33b6db8bd27340fb6ffbff0a364efa0cb9c9"
 "checksum byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "652805b7e73fada9d85e9a6682a4abd490cb52d96aeecc12e33a0de34dfd0d23"
