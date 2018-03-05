@@ -17,31 +17,6 @@
 //!    network.  The APIs accept `&[u8]`, and the caller handles providing the data from wherever.
 //!
 //!
-//! # Supported Transport Stream features
-//!
-//! Not all Transport Stream features are supported yet.  Here's a summary of what's available,
-//! and what's yet to come:
-//!
-//! - Framing
-//!   - ☑ _ISO/IEC 13818-1_ 188-byte packets
-//!   - ☐ m2ts 192-byte packets (would be nice if an external crate could support, at least)
-//! - ☑ Transport Stream packet
-//!   - ☐ Adaptation field
-//! - ☑ Program Specific Information tables
-//!   - ☑ Section syntax
-//!   - ☑ PAT - Program Association Table
-//!   - ☑ PMT - Program Mapping Table
-//!   - ☐ TSDT - Transport Stream Description Table
-//! - ☑ Packetised Elementary Stream syntax
-//!   - ☑ PES_packet_data
-//!   - ☑ PTS/DTS
-//!   - ☐ ESCR
-//!   - ☐ ES_rate
-//!   - ☐ DSM_trick_mode
-//!   - ☐ additional_copy_info
-//!   - ☐ PES_CRC
-//!   - ☐ PES_extension
-//!
 //! # Planned API changes
 //!
 //! - Add 'context' objects
