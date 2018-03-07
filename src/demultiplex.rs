@@ -272,7 +272,7 @@ impl StreamInfo {
     fn from_bytes(data: &[u8]) -> Option<(StreamInfo, usize)> {
         let header_size = 5;
         if data.len() < header_size {
-            println!("only {} bytes remaining for stream info, lat least {} required", data.len(), header_size);
+            println!("only {} bytes remaining for stream info, at least {} required", data.len(), header_size);
             return None;
         }
         let mut result = StreamInfo {
