@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::cell::RefCell;
-use std::fmt;
 use std::rc::Rc;
 use packet;
 use psi;
+use descriptor;
 use std;
 use fixedbitset;
 use StreamType;
@@ -208,56 +208,6 @@ impl psi::TableProcessor<PmtSection> for PmtProcessor {
     }
 }
 
-pub struct Descriptor<'buf> {
-    buf: &'buf[u8]
-}
-impl<'buf> Descriptor<'buf> {
-    pub fn new(buf: &'buf[u8]) -> Descriptor {
-        assert!(buf.len() >= 2);
-        Descriptor {
-            buf,
-        }
-    }
-    pub fn tag(&self) -> u8 {
-        self.buf[0]
-    }
-    pub fn len(&self) -> u8 {
-        self.buf[1]
-    }
-    pub fn payload(&self) -> &[u8] {
-        &self.buf[2..2+self.len() as usize]
-    }
-}
-impl<'buf> fmt::Debug for Descriptor<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "Descriptor {{ tag: {}, len: {} }}", self.tag(), self.len())
-    }
-}
-
-pub struct DescriptorIter<'buf> {
-    buf: &'buf[u8]
-}
-impl<'buf> Iterator for DescriptorIter<'buf> {
-    type Item = Result<Descriptor<'buf>, ()>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.buf.len() == 0 {
-            return None;
-        }
-        let _tag = self.buf[0];
-        let len = self.buf[1] as usize;
-        if len > self.buf.len()-2 {
-            // ensure anther call to next() will yield None,
-            self.buf = &self.buf[0..0];
-            Some(Err(()))
-        } else {
-            let (desc, rest) = self.buf.split_at(len+2);
-            self.buf = rest;
-            Some(Ok(Descriptor::new(desc)))
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct StreamInfo {
     pub stream_type: StreamType,    // 8 bits
@@ -293,8 +243,8 @@ impl StreamInfo {
         Some((result, descriptor_end))
     }
 
-    pub fn descriptors(&self) -> DescriptorIter {
-        DescriptorIter { buf: &self.descriptor_data[..] }
+    pub fn descriptors(&self) -> descriptor::DescriptorIter {
+        descriptor::DescriptorIter::new(&self.descriptor_data[..])
     }
 }
 
@@ -349,6 +299,11 @@ impl psi::TableSection<PmtSection> for PmtSection {
         }
 
         Some(result)
+    }
+}
+impl PmtSection {
+    pub fn descriptors(&self) -> descriptor::DescriptorIter {
+        descriptor::DescriptorIter::new(&self.descriptor_data[..])
     }
 }
 
@@ -553,7 +508,7 @@ impl Demultiplex {
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
-    use data_encoding::{base16,hex};
+    use data_encoding::base16;
     use bitstream_io::{BE, BitWriter};
     use std::io;
 
@@ -750,14 +705,5 @@ mod test {
         let pat_table = psi::Table::new(version, &sections);
         let mut changes = processor.process(pat_table).unwrap().into_iter();
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(201,_)));
-    }
-
-    #[test]
-    fn descriptor() {
-        let data = hex::decode(b"050443554549").unwrap();
-        let desc = demultiplex::Descriptor::new(&data);
-        assert_eq!(5, desc.tag());
-        assert_eq!(4, desc.len());
-        assert_eq!(b"CUEI", desc.payload());
     }
 }

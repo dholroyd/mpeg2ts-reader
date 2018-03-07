@@ -38,6 +38,7 @@
 #![feature(universal_impl_trait)]
 
 extern crate hexdump;
+extern crate hex_slice;
 extern crate byteorder;
 extern crate data_encoding;
 extern crate bitreader;
@@ -52,6 +53,7 @@ pub mod packet;
 pub mod demultiplex;
 pub mod psi;
 pub mod pes;
+pub mod descriptor;
 mod mpegts_crc;
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone,Copy)]
