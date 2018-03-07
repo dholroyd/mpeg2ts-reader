@@ -253,7 +253,7 @@ impl<'buf> Iterator for DescriptorIter<'buf> {
         } else {
             let (desc, rest) = self.buf.split_at(len+2);
             self.buf = rest;
-            Some(Ok(Descriptor { buf: desc }))
+            Some(Ok(Descriptor::new(desc)))
         }
     }
 }
