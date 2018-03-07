@@ -14,7 +14,7 @@ use mpeg2ts_reader::StreamType;
 
 struct NullElementaryStreamConsumer { }
 impl NullElementaryStreamConsumer {
-    fn construct(stream_info: &demultiplex::StreamInfo) -> Box<std::cell::RefCell<demultiplex::PacketFilter>> {
+    fn construct(pmt_sect: &demultiplex::PmtSection,stream_info: &demultiplex::StreamInfo) -> Box<std::cell::RefCell<demultiplex::PacketFilter>> {
         println!("stream info: {:?}", stream_info);
         let consumer = pes::PesPacketConsumer::new(NullElementaryStreamConsumer { });
         Box::new(std::cell::RefCell::new(consumer))
@@ -29,7 +29,7 @@ impl pes::ElementaryStreamConsumer for NullElementaryStreamConsumer {
 }
 
 fn create_demux() -> demultiplex::Demultiplex {
-    let mut table: HashMap<StreamType, fn(&demultiplex::StreamInfo)->Box<cell::RefCell<demultiplex::PacketFilter>>>
+    let mut table: HashMap<StreamType, fn(&demultiplex::PmtSection,&demultiplex::StreamInfo)->Box<cell::RefCell<demultiplex::PacketFilter>>>
     = HashMap::new();
 
     table.insert(StreamType::Private(0x86), NullElementaryStreamConsumer::construct);

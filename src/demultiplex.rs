@@ -15,7 +15,7 @@ pub type PacketFilter = packet::PacketConsumer<FilterChangeset>;
 
 pub struct NullPacketFilter { }
 impl NullPacketFilter {
-    pub fn construct(_stream_info: &StreamInfo) -> Box<RefCell<packet::PacketConsumer<FilterChangeset>>> {
+    pub fn construct(_pmt: &PmtSection, _stream_info: &StreamInfo) -> Box<RefCell<packet::PacketConsumer<FilterChangeset>>> {
         Box::new(RefCell::new(NullPacketFilter { }))
     }
 }
@@ -128,23 +128,23 @@ impl std::iter::IntoIterator for FilterChangeset {
 /// the `stream_type` value which will appear in the Program Mapping Table of a Transport Stream.
 #[derive(Clone)]
 pub struct StreamConstructor {
-    default_ctor: fn(&StreamInfo)->Box<RefCell<PacketFilter>>,
-    ctors_by_type: Rc<HashMap<StreamType, fn(&StreamInfo)->Box<RefCell<PacketFilter>>>>
+    default_ctor: fn(&PmtSection,&StreamInfo)->Box<RefCell<PacketFilter>>,
+    ctors_by_type: Rc<HashMap<StreamType, fn(&PmtSection,&StreamInfo)->Box<RefCell<PacketFilter>>>>
 
 }
 impl StreamConstructor {
-    pub fn new(default_ctor: fn(&StreamInfo)->Box<RefCell<PacketFilter>>, ctors_by_type: HashMap<StreamType, fn(&StreamInfo)->Box<RefCell<PacketFilter>>>) -> StreamConstructor {
+    pub fn new(default_ctor: fn(&PmtSection,&StreamInfo)->Box<RefCell<PacketFilter>>, ctors_by_type: HashMap<StreamType, fn(&PmtSection,&StreamInfo)->Box<RefCell<PacketFilter>>>) -> StreamConstructor {
         StreamConstructor {
             default_ctor,
             ctors_by_type: Rc::new(ctors_by_type),
         }
     }
-    fn construct(&self, stream_info: &StreamInfo) -> Box<RefCell<PacketFilter>> {
+    fn construct(&self, sect: &PmtSection, stream_info: &StreamInfo) -> Box<RefCell<PacketFilter>> {
         self
             .ctors_by_type
             .get(&stream_info.stream_type)
-            .map(|ctor| ctor(&stream_info) )
-            .unwrap_or_else(|| (self.default_ctor)(&stream_info) )
+            .map(|ctor| ctor(sect, &stream_info) )
+            .unwrap_or_else(|| (self.default_ctor)(sect, &stream_info) )
     }
 }
 
@@ -173,7 +173,7 @@ impl PmtProcessor {
         for sect in table.section_iter() {
             for stream_info in &sect.streams {
                 println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid, self.program_number);
-                let pes_packet_consumer = self.stream_constructor.construct(stream_info);
+                let pes_packet_consumer = self.stream_constructor.construct(&sect, stream_info);
                 changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
                 pids_seen.insert(stream_info.elementary_pid);
                 self.filters_registered.insert(stream_info.elementary_pid as usize);

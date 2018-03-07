@@ -12,7 +12,7 @@ use mpeg2ts_reader::StreamType;
 
 struct NullElementaryStreamConsumer { }
 impl NullElementaryStreamConsumer {
-    fn construct(_stream_info: &demultiplex::StreamInfo) -> Box<std::cell::RefCell<demultiplex::PacketFilter>> {
+    fn construct(_pmt_sect: &demultiplex::PmtSection, stream_info: &demultiplex::StreamInfo) -> Box<std::cell::RefCell<demultiplex::PacketFilter>> {
         let consumer = pes::PesPacketConsumer::new(NullElementaryStreamConsumer { });
         Box::new(std::cell::RefCell::new(consumer))
     }
@@ -38,7 +38,7 @@ fn run<R>(mut r: R) -> io::Result<()>
 {
     let mut buf = [0u8; 188*1024];
     let reading = true;
-    let mut table: HashMap<StreamType, fn(&demultiplex::StreamInfo)->Box<std::cell::RefCell<demultiplex::PacketFilter>>>
+    let mut table: HashMap<StreamType, fn(&demultiplex::PmtSection,&demultiplex::StreamInfo)->Box<std::cell::RefCell<demultiplex::PacketFilter>>>
         = HashMap::new();
     table.insert(StreamType::H264, NullElementaryStreamConsumer::construct);
     table.insert(StreamType::Iso138183Audio, NullElementaryStreamConsumer::construct);
