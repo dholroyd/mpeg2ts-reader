@@ -526,6 +526,10 @@ impl Demultiplex {
                             break;
                         }
                         pk_buf = &buf[i..end];
+                        if !packet::Packet::is_sync_byte(pk_buf[0]) {
+                            // TODO: attempt to resynchronise
+                            return
+                        }
                         pk = packet::Packet::new(pk_buf);
                         if pk.pid() != this_pid {
                             i -= packet::PACKET_SIZE;
@@ -539,7 +543,7 @@ impl Demultiplex {
                 }
             } else {
                 // TODO: attempt to resynchronise
-                println!("not ts :( {:#x} {}", pk_buf[0], buf.len());
+                return
             }
             i += packet::PACKET_SIZE;
         }
