@@ -225,7 +225,7 @@ impl<'buf> Descriptor<'buf> {
         self.buf[1]
     }
     pub fn payload(&self) -> &[u8] {
-        &self.buf[2..self.len() as usize]
+        &self.buf[2..2+self.len() as usize]
     }
 }
 impl<'buf> fmt::Debug for Descriptor<'buf> {
