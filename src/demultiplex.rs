@@ -549,7 +549,7 @@ impl Demultiplex {
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
-    use data_encoding::base16;
+    use data_encoding::{base16,hex};
     use bitstream_io::{BE, BitWriter};
     use std::io;
 
@@ -560,6 +560,12 @@ mod test {
 
     fn empty_stream_constructor() -> demultiplex::StreamConstructor {
         demultiplex::StreamConstructor::new(demultiplex::NullPacketFilter::construct, HashMap::new())
+    }
+
+    #[test]
+    fn demux_empty() {
+        let mut deplex = demultiplex::Demultiplex::new(empty_stream_constructor());
+        deplex.push(&[0x0; 0][..]);
     }
 
     #[test]
@@ -740,5 +746,14 @@ mod test {
         let pat_table = psi::Table::new(version, &sections);
         let mut changes = processor.process(pat_table).unwrap().into_iter();
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(201,_)));
+    }
+
+    #[test]
+    fn descriptor() {
+        let data = hex::decode(b"050443554549").unwrap();
+        let desc = demultiplex::Descriptor::new(&data);
+        assert_eq!(5, desc.tag());
+        assert_eq!(4, desc.len());
+        assert_eq!(b"CUEI", desc.payload());
     }
 }
