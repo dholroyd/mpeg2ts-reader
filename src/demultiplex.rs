@@ -258,7 +258,7 @@ pub struct PmtSection {
     streams: Vec<StreamInfo>,
 }
 
-impl psi::TableSection<PmtSection> for PmtSection {
+impl psi::TableSection for PmtSection {
     fn from_bytes(header: &psi::SectionCommonHeader, _table_syntax_header: &psi::TableSyntaxHeader, data: &[u8]) -> Option<PmtSection> {
         let header_size = 4;
         if data.len() < header_size {
@@ -398,7 +398,7 @@ impl PatSection {
     }
 }
 
-impl psi::TableSection<PatSection> for PatSection {
+impl psi::TableSection for PatSection {
     fn from_bytes(_header: &psi::SectionCommonHeader, _table_syntax_header: &psi::TableSyntaxHeader, data: &[u8]) -> Option<PatSection> {
         if data.len() % 4 != 0 {
             println!("section length invalid, must be multiple of 4: {} bytes", data.len());

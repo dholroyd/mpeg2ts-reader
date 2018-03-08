@@ -108,7 +108,7 @@ impl<'buf> TableSyntaxHeader<'buf> {
 #[derive(Debug)]
 pub struct Table<'a, T>
 where
-    T: TableSection<T> + 'a,
+    T: TableSection + 'a,
 {
     version: u8,
     sections: &'a [Option<T>],
@@ -126,7 +126,7 @@ impl<'a, T> Iterator for TableSectionIter<'a, T> {
 
 impl<'a, T> Table<'a, T>
 where
-    T: TableSection<T>
+    T: TableSection
 {
     pub fn new(version: u8, sections: &'a [Option<T>]) -> Table<T> {
         Table {
@@ -155,15 +155,15 @@ where
 
 pub trait TableProcessor<T>
 where
-    T: TableSection<T>
+    T: TableSection
 {
     fn process(&mut self, table: Table<T>) -> Option<demultiplex::FilterChangeset>;
 }
 
-pub trait TableSection<T> {
+pub trait TableSection: Sized {
     /// attempts to convert the given bytes into a table section, returning None if there is a
     /// syntax or other error
-    fn from_bytes(header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &[u8]) -> Option<T>;  // TODO: Result instead of Option?
+    fn from_bytes(header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &[u8]) -> Option<Self>;  // TODO: Result instead of Option?
 }
 
 use std::marker::PhantomData;
@@ -179,7 +179,7 @@ pub struct TableSectionConsumer<TP, T> {
 impl<TP, T> TableSectionConsumer<TP, T>
 where
     TP: TableProcessor<T>,
-    T: TableSection<T>
+    T: TableSection
 {
     const MAX_SECTIONS: usize = u8::max_value() as usize;  // given 1 byte section_number
 
@@ -245,7 +245,7 @@ where
 impl<TP, T> SectionProcessor<demultiplex::FilterChangeset> for TableSectionConsumer<TP, T>
 where
     TP: TableProcessor<T>,
-    T: TableSection<T>
+    T: TableSection
 {
     fn process(&mut self, header: &SectionCommonHeader, payload: &[u8]) -> Option<demultiplex::FilterChangeset> {
         if !header.section_syntax_indicator {
