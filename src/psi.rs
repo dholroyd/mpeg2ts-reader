@@ -166,8 +166,10 @@ pub trait TableSection<T> {
     fn from_bytes(header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &[u8]) -> Option<T>;  // TODO: Result instead of Option?
 }
 
+use std::marker::PhantomData;
+
 pub struct TableSectionConsumer<TP, T> {
-    sections: Vec<Option<T>>,
+    phantom: PhantomData<T>,
     expected_last_section_number: Option<u8>,
     complete_section_count: u8,
     current_version: Option<u8>,
@@ -183,7 +185,7 @@ where
 
     pub fn new(table_processor: TP) -> TableSectionConsumer<TP, T> {
         TableSectionConsumer {
-            sections: Vec::with_capacity(Self::MAX_SECTIONS),
+            phantom: PhantomData,
             expected_last_section_number: None,
             complete_section_count: 0,
             current_version: None,
@@ -193,7 +195,6 @@ where
 
     pub fn reset(&mut self) {
         // TODO: can some of this code be shared with new() somehow?
-        self.sections.clear();
         self.expected_last_section_number = None;
         self.complete_section_count = 0;
     }
@@ -211,24 +212,6 @@ where
         }
     }
 
-    fn make_space_for(&mut self, table_syntax_header: &TableSyntaxHeader) {
-        let required_size = table_syntax_header.last_section_number() as usize + 1;
-        // Vec<T>.resize() requires T:Clone, which we don't have, so go the long way around,
-        while self.sections.len() < required_size {
-            self.sections.push(None);
-        }
-    }
-
-    fn maybe_complete_table(&mut self, version: u8) -> Option<demultiplex::FilterChangeset> {
-        if self.complete() {
-            let result = self.table_processor.process(Table::new(version, &self.sections[..]));
-            self.reset();
-            result
-        } else {
-            None
-        }
-    }
-
     fn insert_section(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, rest: &[u8]) -> Option<demultiplex::FilterChangeset> {
         if table_syntax_header.current_next_indicator() == CurrentNext::Next {
             println!("skipping section where current_next_indicator indicates for future use, in table id {}", header.table_id);
@@ -238,7 +221,6 @@ where
             self.reset();
             self.current_version = Some(table_syntax_header.version());
             self.expected_last_section_number = Some(table_syntax_header.last_section_number());
-            self.make_space_for(table_syntax_header);
         } else {
             if let Some(current_last) = self.expected_last_section_number {
                 if current_last != table_syntax_header.last_section_number() {
@@ -248,19 +230,15 @@ where
             }
             return None;
         }
-        let this_section = table_syntax_header.section_number() as usize;
         if let Some(s) = T::from_bytes(header, table_syntax_header, rest) {
             // track the number of complete sections so that we'll know when we have the whole
             // table,
-            if self.sections[this_section].is_none() {
-                self.complete_section_count += 1;
-            }
-            self.sections[this_section] = Some(s);
+            let sections = [Some(s)];
+            self.table_processor.process(Table::new(table_syntax_header.version(), &sections))
         } else {
             println!("insert_section() failed to parse {:?} {:?}", header, table_syntax_header);
+            None
         }
-
-        self.maybe_complete_table(table_syntax_header.version())
     }
 }
 
