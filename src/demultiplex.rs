@@ -346,13 +346,13 @@ impl PatProcessor {
         let mut pids_seen = HashSet::new();
         // add or update filters for descriptors we've not seen before,
         for sect in table.section_iter() {
-            for desc in &sect.programs {
-                println!("new table for pid {}, program {}", desc.pid, desc.program_number);
-                let pmt_proc = PmtProcessor::new(self.stream_constructor.clone(), desc.program_number);
+            for desc in sect.programs() {
+                println!("new table for pid {}, program {}", desc.pid(), desc.program_number());
+                let pmt_proc = PmtProcessor::new(self.stream_constructor.clone(), desc.program_number());
                 let pmt_section_packet_consumer = psi::SectionPacketConsumer::new(psi::TableSectionConsumer::new(pmt_proc));
-                changeset.insert(desc.pid, Box::new(RefCell::new(pmt_section_packet_consumer)));
-                pids_seen.insert(desc.pid);
-                self.filters_registered.insert(desc.pid as usize);
+                changeset.insert(desc.pid(), Box::new(RefCell::new(pmt_section_packet_consumer)));
+                pids_seen.insert(desc.pid());
+                self.filters_registered.insert(desc.pid() as usize);
             }
         }
         // remove filters for descriptors we've seen before that are not present in this updated
@@ -386,32 +386,58 @@ impl psi::TableProcessor<PatSection> for PatProcessor {
 }
 
 #[derive(Clone,Debug)]
-struct ProgramDescriptor {
-    pub program_number: u16,
-    pub reserved: u8,
-    pub pid: u16,
+struct ProgramDescriptor<'buf> {
+    data: &'buf[u8],
 }
 
-impl ProgramDescriptor {
+impl<'buf> ProgramDescriptor<'buf> {
     /// panics if fewer than 4 bytes are provided
-    pub fn from_bytes(data: &[u8]) -> ProgramDescriptor {
+    pub fn from_bytes(data: &'buf[u8]) -> ProgramDescriptor<'buf> {
         ProgramDescriptor {
-            program_number: (u16::from(data[0]) << 8) | u16::from(data[1]),
-            reserved: data[2] >> 5,
-            pid: (u16::from(data[2]) & 0b00011111) << 8 | u16::from(data[3]),
+            data,
         }
+    }
+
+    pub fn program_number(&self) -> u16 {
+        (u16::from(self.data[0]) << 8) | u16::from(self.data[1])
+
+    }
+    fn reserved(&self) -> u8 {
+        self.data[2] >> 5
+
+    }
+    pub fn pid(&self) -> u16 {
+        (u16::from(self.data[2]) & 0b00011111) << 8 | u16::from(self.data[3])
     }
 }
 
 #[derive(Clone,Debug)]
 pub struct PatSection {
-    programs: Vec<ProgramDescriptor>
+    program_data: Vec<u8>
 }
 impl PatSection {
-    fn new(programs: Vec<ProgramDescriptor>) -> PatSection {
+    fn new(program_data: Vec<u8>) -> PatSection {
         PatSection {
-            programs
+            program_data,
         }
+    }
+    fn programs(&self) -> ProgramIter {
+        ProgramIter { buf: &self.program_data[..] }
+    }
+}
+struct ProgramIter<'buf> {
+    buf: &'buf[u8],
+}
+impl<'buf> Iterator for ProgramIter<'buf> {
+    type Item = ProgramDescriptor<'buf>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buf.is_empty() {
+            return None;
+        }
+        let (head, tail) = self.buf.split_at(4);
+        self.buf = tail;
+        Some(ProgramDescriptor::from_bytes(head))
     }
 }
 
@@ -421,11 +447,9 @@ impl psi::TableSection for PatSection {
             println!("section length invalid, must be multiple of 4: {} bytes", data.len());
             return None;
         }
-        let descriptors = data
-            .chunks(4)
-            .map(ProgramDescriptor::from_bytes)
-            .collect();
-        Some(PatSection::new(descriptors))
+        let mut program_data = vec!();
+        program_data.extend_from_slice(data);
+        Some(PatSection::new(program_data))
     }
 }
 
@@ -559,10 +583,8 @@ mod test {
 
         {
             let descriptors = vec!(
-                demultiplex::ProgramDescriptor::from_bytes(&[
-                    0, 1,   // program_number
-                    0, 100  // pid
-                ])
+                0, 1,   // program_number
+                0, 100  // pid
             );
             let sections = [
                 Some(demultiplex::PatSection::new(descriptors))
@@ -577,10 +599,8 @@ mod test {
 
         {
             let descriptors = vec!(
-                demultiplex::ProgramDescriptor::from_bytes(&[
-                    0, 1,   // program_number
-                    0, 100  // pid
-                ])
+                0, 1,   // program_number
+                0, 100  // pid
             );
             let sections = [
                 Some(demultiplex::PatSection::new(descriptors))
@@ -596,10 +616,8 @@ mod test {
             // New version!
             let version = 1;
             let descriptors = vec!(
-                demultiplex::ProgramDescriptor::from_bytes(&[
-                    0, 1,   // program_number
-                    0, 100  // pid
-                ])
+                0, 1,   // program_number
+                0, 100  // pid
             );
             let sections = [
                 Some(demultiplex::PatSection::new(descriptors))
@@ -618,10 +636,8 @@ mod test {
         let mut processor = demultiplex::PatProcessor::new(empty_stream_constructor());
         let version = 0;
         let descriptors = vec!(
-            demultiplex::ProgramDescriptor::from_bytes(&[
-                0, 1,   // program_number
-                0, 101  // pid
-            ])
+            0, 1,   // program_number
+            0, 101  // pid
         );
         let sections = [
             Some(demultiplex::PatSection::new(descriptors))
@@ -637,11 +653,9 @@ mod test {
         let mut version = 0;
         {
             let descriptors = vec!(
-                demultiplex::ProgramDescriptor::from_bytes(&[
-                    // PAT with a single program; next version of the  table removes this,
-                    0, 1,   // program_number
-                    0, 101  // pid
-                ])
+                // PAT with a single program; next version of the  table removes this,
+                0, 1,   // program_number
+                0, 101  // pid
             );
             let sections = [
                 Some(demultiplex::PatSection::new(descriptors))
