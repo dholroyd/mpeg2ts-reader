@@ -171,9 +171,9 @@ impl PmtProcessor {
         let mut changeset = FilterChangeset::new();
         let mut pids_seen = HashSet::new();
         for sect in table.section_iter() {
-            for stream_info in &sect.streams {
+            for stream_info in sect.streams() {
                 println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid, self.program_number);
-                let pes_packet_consumer = self.stream_constructor.construct(&sect, stream_info);
+                let pes_packet_consumer = self.stream_constructor.construct(&sect, &stream_info);
                 changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
                 pids_seen.insert(stream_info.elementary_pid);
                 self.filters_registered.insert(stream_info.elementary_pid as usize);
@@ -255,7 +255,7 @@ pub struct PmtSection {
     reserved2: u8,              // 4 bits
     program_info_length: u16,   // 12 bits
     descriptor_data: Vec<u8>,
-    streams: Vec<StreamInfo>,
+    stream_data: Vec<u8>,
 }
 
 impl psi::TableSection for PmtSection {
@@ -271,7 +271,7 @@ impl psi::TableSection for PmtSection {
             reserved2: data[2] >> 4,
             program_info_length: u16::from(data[2] & 0b00001111) << 8 | u16::from(data[3]),
             descriptor_data: vec!(),
-            streams: vec!(),
+            stream_data: vec!(),
         };
 
         if header.private_indicator {
@@ -287,16 +287,7 @@ impl psi::TableSection for PmtSection {
             result.descriptor_data.extend_from_slice(&data[header_size..descriptor_end]);
         }
 
-        let mut pos = descriptor_end;
-        while pos < data.len() {
-            let stream_data = &data[pos..];
-            if let Some((stream_info, info_len)) = StreamInfo::from_bytes(stream_data) {
-                result.streams.push(stream_info);
-                pos += info_len;
-            } else  {
-                return None;
-            }
-        }
+        result.stream_data.extend_from_slice(&data[descriptor_end..]);
 
         Some(result)
     }
@@ -304,6 +295,32 @@ impl psi::TableSection for PmtSection {
 impl PmtSection {
     pub fn descriptors(&self) -> descriptor::DescriptorIter {
         descriptor::DescriptorIter::new(&self.descriptor_data[..])
+    }
+    pub fn streams(&self) -> StreamInfoIter {
+        StreamInfoIter::new(&self.stream_data[..])
+    }
+}
+pub struct StreamInfoIter<'buf> {
+    buf: &'buf[u8],
+}
+impl<'buf> StreamInfoIter<'buf> {
+   fn new(buf: &'buf[u8]) -> StreamInfoIter<'buf> {
+       StreamInfoIter { buf }
+   }
+}
+impl<'buf> Iterator for StreamInfoIter<'buf> {
+    type Item = StreamInfo;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buf.is_empty() {
+            return None;
+        }
+        if let Some((stream_info, info_len)) = StreamInfo::from_bytes(self.buf) {
+            self.buf = &self.buf[info_len..];
+            Some(stream_info)
+        } else {
+            None
+        }
     }
 }
 
