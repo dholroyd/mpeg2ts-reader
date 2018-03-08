@@ -142,7 +142,7 @@ impl StreamConstructor {
     fn construct(&self, sect: &PmtSection, stream_info: &StreamInfo) -> Box<RefCell<PacketFilter>> {
         self
             .ctors_by_type
-            .get(&stream_info.stream_type)
+            .get(&stream_info.stream_type())
             .map(|ctor| ctor(sect, &stream_info) )
             .unwrap_or_else(|| (self.default_ctor)(sect, &stream_info) )
     }
@@ -172,11 +172,11 @@ impl PmtProcessor {
         let mut pids_seen = HashSet::new();
         for sect in table.section_iter() {
             for stream_info in sect.streams() {
-                println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid, self.program_number);
+                println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid(), self.program_number);
                 let pes_packet_consumer = self.stream_constructor.construct(&sect, &stream_info);
-                changeset.insert(stream_info.elementary_pid, pes_packet_consumer);
-                pids_seen.insert(stream_info.elementary_pid);
-                self.filters_registered.insert(stream_info.elementary_pid as usize);
+                changeset.insert(stream_info.elementary_pid(), pes_packet_consumer);
+                pids_seen.insert(stream_info.elementary_pid());
+                self.filters_registered.insert(stream_info.elementary_pid() as usize);
             }
         }
         // remove filters for descriptors we've seen before that are not present in this updated
@@ -209,42 +209,49 @@ impl psi::TableProcessor<PmtSection> for PmtProcessor {
 }
 
 #[derive(Debug)]
-pub struct StreamInfo {
-    pub stream_type: StreamType,    // 8 bits
-    reserved1: u8,      // 3 bits
-    pub elementary_pid: u16, // 13 bits
-    reserved2: u8,      // 4 bits
-    es_info_length: u16,// 12 bits
-    pub descriptor_data: Vec<u8>,
+pub struct StreamInfo<'buf> {
+    data: &'buf[u8],
 }
 
-impl StreamInfo {
-    fn from_bytes(data: &[u8]) -> Option<(StreamInfo, usize)> {
-        let header_size = 5;
-        if data.len() < header_size {
-            println!("only {} bytes remaining for stream info, at least {} required", data.len(), header_size);
+impl<'buf> StreamInfo<'buf> {
+    const HEADER_SIZE: usize = 5;
+
+    fn from_bytes(data: &'buf[u8]) -> Option<(StreamInfo<'buf>, usize)> {
+        if data.len() < Self::HEADER_SIZE {
+            println!("only {} bytes remaining for stream info, at least {} required", data.len(), Self::HEADER_SIZE);
             return None;
         }
-        let mut result = StreamInfo {
-            stream_type: data[0].into(),
-            reserved1: data[1] >> 5,
-            elementary_pid: u16::from(data[1] & 0b00011111) << 8 | u16::from(data[2]),
-            reserved2: data[3] >> 4,
-            es_info_length: u16::from(data[3] & 0b00001111) << 8 | u16::from(data[4]),
-            descriptor_data: vec!(),
+        let result = StreamInfo {
+            data,
         };
 
-        let descriptor_end = header_size + result.es_info_length as usize;
+        let descriptor_end = Self::HEADER_SIZE + result.es_info_length() as usize;
         if descriptor_end > data.len() {
-            print!("PMT section of size {} is not large enough to contain es_info_length of {}", data.len(), result.es_info_length);
+            print!("PMT section of size {} is not large enough to contain es_info_length of {}", data.len(), result.es_info_length());
             return None;
         }
-        result.descriptor_data.extend_from_slice(&data[header_size..descriptor_end]);
         Some((result, descriptor_end))
     }
 
+    pub fn stream_type(&self) -> StreamType {
+        self.data[0].into()
+    }
+    pub fn reserved1(&self) -> u8 {
+        self.data[1] >> 5
+    }
+    pub fn elementary_pid(&self) -> u16 {
+       u16::from(self.data[1] & 0b00011111) << 8 | u16::from(self.data[2])
+    }
+    pub fn reserved2(&self) -> u8 {
+        self.data[3] >> 4
+    }
+    pub fn es_info_length(&self) -> u16 {
+        u16::from(self.data[3] & 0b00001111) << 8 | u16::from(self.data[4])
+    }
+
     pub fn descriptors(&self) -> descriptor::DescriptorIter {
-        descriptor::DescriptorIter::new(&self.descriptor_data[..])
+        let descriptor_end = Self::HEADER_SIZE + self.es_info_length() as usize;
+        descriptor::DescriptorIter::new(&self.data[Self::HEADER_SIZE..descriptor_end])
     }
 }
 
@@ -309,7 +316,7 @@ impl<'buf> StreamInfoIter<'buf> {
    }
 }
 impl<'buf> Iterator for StreamInfoIter<'buf> {
-    type Item = StreamInfo;
+    type Item = StreamInfo<'buf>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.buf.is_empty() {
