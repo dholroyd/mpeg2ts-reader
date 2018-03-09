@@ -257,54 +257,56 @@ impl<'buf> StreamInfo<'buf> {
 
 #[derive(Debug)]
 pub struct PmtSection {
-    reserved1: u8,              // 3 bits
-    pcr_pid: u16,               // 13 bits
-    reserved2: u8,              // 4 bits
-    program_info_length: u16,   // 12 bits
-    descriptor_data: Vec<u8>,
-    stream_data: Vec<u8>,
+    data: Vec<u8>,
 }
 
 impl psi::TableSection for PmtSection {
+
     fn from_bytes(header: &psi::SectionCommonHeader, _table_syntax_header: &psi::TableSyntaxHeader, data: &[u8]) -> Option<PmtSection> {
-        let header_size = 4;
-        if data.len() < header_size {
-            println!("must be at least {} bytes in a PMT section: {}", header_size, data.len());
+        if data.len() < Self::HEADER_SIZE {
+            println!("must be at least {} bytes in a PMT section: {}", Self::HEADER_SIZE, data.len());
             return None;
         }
-        let mut result = PmtSection {
-            reserved1: data[0] >> 5,
-            pcr_pid: u16::from(data[0] & 0b00011111) << 8 | u16::from(data[1]),
-            reserved2: data[2] >> 4,
-            program_info_length: u16::from(data[2] & 0b00001111) << 8 | u16::from(data[3]),
-            descriptor_data: vec!(),
-            stream_data: vec!(),
+        let result = PmtSection {
+            data: data.into(),
         };
 
         if header.private_indicator {
             println!("private PMT section - most unexpected! {:?}", header);
             return None;
         }
-        let descriptor_end = header_size + result.program_info_length as usize;
+        let descriptor_end = Self::HEADER_SIZE + result.program_info_length() as usize;
         if descriptor_end > data.len() {
-            print!("PMT section of size {} is not large enough to contain program_info_length of {}", data.len(), result.program_info_length);
+            print!("PMT section of size {} is not large enough to contain program_info_length of {}", data.len(), result.program_info_length());
             return None;
         }
-        if result.program_info_length > 0 {
-            result.descriptor_data.extend_from_slice(&data[header_size..descriptor_end]);
-        }
-
-        result.stream_data.extend_from_slice(&data[descriptor_end..]);
 
         Some(result)
     }
 }
 impl PmtSection {
+    const HEADER_SIZE: usize = 4;
+
+    pub fn reserved1(&self) -> u8 {
+        self.data[0] >> 5
+    }
+    pub fn pcr_pid(&self) -> u16 {
+        u16::from(self.data[0] & 0b00011111) << 8 | u16::from(self.data[1])
+    }
+    pub fn reserved2(&self) -> u8 {
+        self.data[2] >> 4
+    }
+    pub fn program_info_length(&self) -> u16 {
+        u16::from(self.data[2] & 0b00001111) << 8 | u16::from(self.data[3])
+    }
     pub fn descriptors(&self) -> descriptor::DescriptorIter {
-        descriptor::DescriptorIter::new(&self.descriptor_data[..])
+        let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
+        let descriptor_data = &self.data[Self::HEADER_SIZE..descriptor_end];
+        descriptor::DescriptorIter::new(descriptor_data)
     }
     pub fn streams(&self) -> StreamInfoIter {
-        StreamInfoIter::new(&self.stream_data[..])
+        let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
+        StreamInfoIter::new(&self.data[descriptor_end..])
     }
 }
 pub struct StreamInfoIter<'buf> {
