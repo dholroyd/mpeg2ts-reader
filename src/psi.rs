@@ -19,7 +19,6 @@
 //! Note that the specific types of table such as Program Association Table are defined elsewhere
 //! with only the generic functionality in this module.
 
-use std;
 use packet;
 use demultiplex;
 use hexdump;
@@ -105,59 +104,11 @@ impl<'buf> TableSyntaxHeader<'buf> {
     }
 }
 
-#[derive(Debug)]
-pub struct Table<'a, T>
-where
-    T: TableSection + 'a,
-{
-    version: u8,
-    sections: &'a [Option<T>],
-}
-
-pub struct TableSectionIter<'a, T: 'a> ( std::slice::Iter<'a, Option<T>> );
-
-impl<'a, T> Iterator for TableSectionIter<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map( |o| o.as_ref().unwrap() )
-    }
-}
-
-impl<'a, T> Table<'a, T>
-where
-    T: TableSection
-{
-    pub fn new(version: u8, sections: &'a [Option<T>]) -> Table<T> {
-        Table {
-            version,
-            sections,
-        }
-    }
-
-    pub fn ver(&self) -> u8 {
-        self.version
-    }
-
-    pub fn len(&'a self) -> usize {
-        self.sections.len()
-    }
-
-    pub fn section_iter(&self) -> TableSectionIter<T> {
-        TableSectionIter ( self.sections.iter() )
-    }
-
-    pub fn index(&'a self, index: usize) -> &'a T {
-        self.sections[index].as_ref().unwrap()
-    }
-}
-
-
 pub trait TableProcessor<T>
 where
     T: TableSection
 {
-    fn process(&mut self, table: Table<T>) -> Option<demultiplex::FilterChangeset>;
+    fn process(&mut self, table_syntax_header: &TableSyntaxHeader, sect: &T) -> Option<demultiplex::FilterChangeset>;
 }
 
 pub trait TableSection: Sized {
@@ -230,11 +181,10 @@ where
             }
             return None;
         }
-        if let Some(s) = T::from_bytes(header, table_syntax_header, rest) {
+        if let Some(section) = T::from_bytes(header, table_syntax_header, rest) {
             // track the number of complete sections so that we'll know when we have the whole
             // table,
-            let sections = [Some(s)];
-            self.table_processor.process(Table::new(table_syntax_header.version(), &sections))
+            self.table_processor.process(table_syntax_header, &section)
         } else {
             println!("insert_section() failed to parse {:?} {:?}", header, table_syntax_header);
             None

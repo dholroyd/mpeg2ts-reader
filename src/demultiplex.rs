@@ -165,19 +165,17 @@ impl PmtProcessor {
         }
     }
 
-    fn new_table(&mut self, table: psi::Table<PmtSection>) -> Option<FilterChangeset> {
+    fn new_table(&mut self, table_syntax_header: &psi::TableSyntaxHeader, sect: &PmtSection) -> Option<FilterChangeset> {
         // TODO: should probably assert that the table_id is 0x02 for PMT, but we've not managed to
         // pass the table_id value this far!
         let mut changeset = FilterChangeset::new();
         let mut pids_seen = HashSet::new();
-        for sect in table.section_iter() {
-            for stream_info in sect.streams() {
-                println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid(), self.program_number);
-                let pes_packet_consumer = self.stream_constructor.construct(&sect, &stream_info);
-                changeset.insert(stream_info.elementary_pid(), pes_packet_consumer);
-                pids_seen.insert(stream_info.elementary_pid());
-                self.filters_registered.insert(stream_info.elementary_pid() as usize);
-            }
+        for stream_info in sect.streams() {
+            println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid(), self.program_number);
+            let pes_packet_consumer = self.stream_constructor.construct(&sect, &stream_info);
+            changeset.insert(stream_info.elementary_pid(), pes_packet_consumer);
+            pids_seen.insert(stream_info.elementary_pid());
+            self.filters_registered.insert(stream_info.elementary_pid() as usize);
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
@@ -187,23 +185,23 @@ impl PmtProcessor {
                 self.filters_registered.set(pid, false);
             }
         }
-        self.current_version = Some(table.ver());
+        self.current_version = Some(table_syntax_header.version());
         Some(changeset)
     }
 }
 
 impl psi::TableProcessor<PmtSection> for PmtProcessor {
-    fn process(&mut self, table: psi::Table<PmtSection>) -> Option<FilterChangeset> {
+    fn process(&mut self, table_syntax_header: &psi::TableSyntaxHeader, sect: &PmtSection) -> Option<FilterChangeset> {
         // don't process repetitions of the version of the table we've already seem
         // TODO: maybe move this logic into the caller
         if let Some(v) = self.current_version {
-            if v != table.ver() {
-                self.new_table(table)
+            if v != table_syntax_header.version() {
+                self.new_table(table_syntax_header, sect)
             } else {
                 None
             }
         } else {
-            self.new_table(table)
+            self.new_table(table_syntax_header, sect)
         }
     }
 }
@@ -260,6 +258,13 @@ pub struct PmtSection {
     data: Vec<u8>,
 }
 
+impl PmtSection {
+    fn new(data: Vec<u8>) -> PmtSection {
+        PmtSection {
+            data,
+        }
+    }
+}
 impl psi::TableSection for PmtSection {
 
     fn from_bytes(header: &psi::SectionCommonHeader, _table_syntax_header: &psi::TableSyntaxHeader, data: &[u8]) -> Option<PmtSection> {
@@ -267,9 +272,7 @@ impl psi::TableSection for PmtSection {
             println!("must be at least {} bytes in a PMT section: {}", Self::HEADER_SIZE, data.len());
             return None;
         }
-        let result = PmtSection {
-            data: data.into(),
-        };
+        let result = PmtSection::new(data.into());
 
         if header.private_indicator {
             println!("private PMT section - most unexpected! {:?}", header);
@@ -350,19 +353,17 @@ impl PatProcessor {
         }
     }
 
-    fn new_table(&mut self, table: psi::Table<PatSection>) -> Option<FilterChangeset> {
+    fn new_table(&mut self, table_syntax_header: &psi::TableSyntaxHeader, sect: &PatSection) -> Option<FilterChangeset> {
         let mut changeset = FilterChangeset::new();
         let mut pids_seen = HashSet::new();
         // add or update filters for descriptors we've not seen before,
-        for sect in table.section_iter() {
-            for desc in sect.programs() {
-                println!("new table for pid {}, program {}", desc.pid(), desc.program_number());
-                let pmt_proc = PmtProcessor::new(self.stream_constructor.clone(), desc.program_number());
-                let pmt_section_packet_consumer = psi::SectionPacketConsumer::new(psi::TableSectionConsumer::new(pmt_proc));
-                changeset.insert(desc.pid(), Box::new(RefCell::new(pmt_section_packet_consumer)));
-                pids_seen.insert(desc.pid());
-                self.filters_registered.insert(desc.pid() as usize);
-            }
+        for desc in sect.programs() {
+            println!("new table for pid {}, program {}", desc.pid(), desc.program_number());
+            let pmt_proc = PmtProcessor::new(self.stream_constructor.clone(), desc.program_number());
+            let pmt_section_packet_consumer = psi::SectionPacketConsumer::new(psi::TableSectionConsumer::new(pmt_proc));
+            changeset.insert(desc.pid(), Box::new(RefCell::new(pmt_section_packet_consumer)));
+            pids_seen.insert(desc.pid());
+            self.filters_registered.insert(desc.pid() as usize);
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
@@ -373,23 +374,23 @@ impl PatProcessor {
             }
         }
 
-        self.current_version = Some(table.ver());
+        self.current_version = Some(table_syntax_header.version());
         Some(changeset)
     }
 }
 
 impl psi::TableProcessor<PatSection> for PatProcessor {
-    fn process(&mut self, table: psi::Table<PatSection>) -> Option<FilterChangeset> {
+    fn process(&mut self, table_syntax_header: &psi::TableSyntaxHeader, sect: &PatSection) -> Option<FilterChangeset> {
         // don't process repetitions of the version of the table we've already seem
         // TODO: maybe move this logic into the caller
         if let Some(v) = self.current_version {
-            if v != table.ver() {
-                self.new_table(table)
+            if v != table_syntax_header.version() {
+                self.new_table(table_syntax_header, sect)
             } else {
                 None
             }
         } else {
-            self.new_table(table)
+            self.new_table(table_syntax_header, sect)
         }
     }
 }
@@ -565,7 +566,6 @@ mod test {
     use demultiplex;
     use psi;
     use psi::TableProcessor;
-    use psi::TableSection;
 
     fn empty_stream_constructor() -> demultiplex::StreamConstructor {
         demultiplex::StreamConstructor::new(demultiplex::NullPacketFilter::construct, HashMap::new())
@@ -588,20 +588,17 @@ mod test {
     #[test]
     fn pat_new_program() {
         let mut processor = demultiplex::PatProcessor::new(empty_stream_constructor());
-        let version = 0;
-
+        let syntax_header_data = [0x0D, 0x00, 0b00000001, 0xC1, 0x00];
+        let table_syntax_header = psi::TableSyntaxHeader::new(&syntax_header_data[..]);
         {
             let descriptors = vec!(
                 0, 1,   // program_number
                 0, 100  // pid
             );
-            let sections = [
-                Some(demultiplex::PatSection::new(descriptors))
-            ];
-            let pat_table = psi::Table::new(version, &sections);
+            let section = demultiplex::PatSection::new(descriptors);
 
             // processing the PAT the first time should result in a FilterChange::Insert,
-            let changes = processor.process(pat_table).unwrap();
+            let changes = processor.process(&table_syntax_header, &section).unwrap();
             let mut i = changes.into_iter();
             assert_matches!(i.next(), Some(demultiplex::FilterChange::Insert(100, _)));
         }
@@ -611,30 +608,25 @@ mod test {
                 0, 1,   // program_number
                 0, 100  // pid
             );
-            let sections = [
-                Some(demultiplex::PatSection::new(descriptors))
-            ];
-            let pat_table = psi::Table::new(version, &sections);
+            let section = demultiplex::PatSection::new(descriptors);
 
             // processing PAT wih the same version a second time should mean no FilterChangeset
-            let new_changes = processor.process(pat_table);
+            let new_changes = processor.process(&table_syntax_header, &section);
             assert!(new_changes.is_none());
         }
 
         {
             // New version!
-            let version = 1;
+            let syntax_header_data = [0x0D, 0x00, 0b00000011, 0xC1, 0x00];
+            let table_syntax_header = psi::TableSyntaxHeader::new(&syntax_header_data[..]);
             let descriptors = vec!(
                 0, 1,   // program_number
                 0, 100  // pid
             );
-            let sections = [
-                Some(demultiplex::PatSection::new(descriptors))
-            ];
-            let pat_table = psi::Table::new(version, &sections);
+            let section = demultiplex::PatSection::new(descriptors);
 
             // since the version has changed, this time the new table will not be filtered out
-            let changes = processor.process(pat_table).unwrap();
+            let changes = processor.process(&table_syntax_header, &section).unwrap();
             let mut i = changes.into_iter();
             assert_matches!(i.next(), Some(demultiplex::FilterChange::Insert(100, _)));
         }
@@ -643,45 +635,39 @@ mod test {
     #[test]
     fn pat_no_existing_program() {
         let mut processor = demultiplex::PatProcessor::new(empty_stream_constructor());
-        let version = 0;
+        let syntax_header_data = [0x0D, 0x00, 0x01, 0xC1, 0x00];
+        let table_syntax_header = psi::TableSyntaxHeader::new(&syntax_header_data[..]);
         let descriptors = vec!(
             0, 1,   // program_number
             0, 101  // pid
         );
-        let sections = [
-            Some(demultiplex::PatSection::new(descriptors))
-        ];
-        let pat_table = psi::Table::new(version, &sections);
-        let mut changes = processor.process(pat_table).unwrap().into_iter();
+        let section = demultiplex::PatSection::new(descriptors);
+        let mut changes = processor.process(&table_syntax_header, &section).unwrap().into_iter();
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(101, _)));
     }
 
     #[test]
     fn pat_remove_existing_program() {
         let mut processor = demultiplex::PatProcessor::new(empty_stream_constructor());
-        let mut version = 0;
         {
+            let syntax_header_data = [0x0D, 0x00, 0b00000001, 0xC1, 0x00];
+            let table_syntax_header = psi::TableSyntaxHeader::new(&syntax_header_data[..]);
             let descriptors = vec!(
                 // PAT with a single program; next version of the  table removes this,
                 0, 1,   // program_number
                 0, 101  // pid
             );
-            let sections = [
-                Some(demultiplex::PatSection::new(descriptors))
-            ];
-            let pat_table = psi::Table::new(version, &sections);
-            let _changes = processor.process(pat_table).unwrap().into_iter();
+            let section = demultiplex::PatSection::new(descriptors);
+            let _changes = processor.process(&table_syntax_header, &section).unwrap().into_iter();
         }
-        version += 1;
         let mut changes = {
+            let syntax_header_data = [0x0D, 0x00, 0b00000011, 0xC1, 0x00];
+            let table_syntax_header = psi::TableSyntaxHeader::new(&syntax_header_data[..]);
             let descriptors = vec!(
                 // empty PMT - simulate removal of PID 101
             );
-            let sections = [
-                Some(demultiplex::PatSection::new(descriptors))
-            ];
-            let pat_table = psi::Table::new(version, &sections);
-            processor.process(pat_table).unwrap().into_iter()
+            let section = demultiplex::PatSection::new(descriptors);
+            processor.process(&table_syntax_header, &section).unwrap().into_iter()
         };
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Remove(101,)));
     }
@@ -728,22 +714,18 @@ mod test {
             w.write(13, 201)?;  // elementary_pid
             w.write(4, 15)?;    // reserved
             w.write(12, 6)?;    // es_info_length
-            // and now, two made-up descriiptors which nees to fill up es_info_length-bytes
+            // and now, two made-up descriptors which need to fill up es_info_length-bytes
             w.write(8, 0)?;     // descriptor_tag
             w.write(8, 1)?;     // descriptor_length
             w.write(8, 0)?;     // made-up descriptor data not following any spec
-            // second descriiptor
+            // second descriptor
             w.write(8, 0)?;     // descriptor_tag
             w.write(8, 1)?;     // descriptor_length
             w.write(8, 0)       // made-up descriptor data not following any spec
         });
 
-        let sections = [
-            demultiplex::PmtSection::from_bytes(&header, &table_syntax_header, &section_data[..])
-        ];
-        let version = 0;
-        let pat_table = psi::Table::new(version, &sections);
-        let mut changes = processor.process(pat_table).unwrap().into_iter();
+        let section = demultiplex::PmtSection::new(section_data);
+        let mut changes = processor.process(&table_syntax_header, &section).unwrap().into_iter();
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(201,_)));
     }
 }
