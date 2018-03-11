@@ -432,7 +432,7 @@ where
     fn consume(&mut self, pk: packet::Packet) -> Option<demultiplex::FilterChangeset> {
         match pk.payload() {
             Some(pk_buf) => {
-                if pk.payload_unit_start_indicator() {
+                let res = if pk.payload_unit_start_indicator() {
                     // this packet payload contains the start of a new PSI section
                     let pointer = pk_buf[0] as usize;
                     let section_data = &pk_buf[1..];
@@ -447,20 +447,15 @@ where
                         // the following call to begin_new_section() will assert that
                         // append_to_current() just finalised the preceding section
                     }
-                    let res = self.parser.begin_new_section(&section_data[pointer..]);
-                    if let Some((table_syntax_header, section)) = res {
-                        self.table_processor.process(&table_syntax_header, &section)
-                    } else {
-                        None
-                    }
+                    self.parser.begin_new_section(&section_data[pointer..])
                 } else {
                     // this packet is a continuation of an existing PSI section
-                    let res = self.parser.append_to_current(pk_buf);
-                    if let Some((table_syntax_header, section)) = res {
-                        self.table_processor.process(&table_syntax_header, &section)
-                    } else {
-                        None
-                    }
+                    self.parser.append_to_current(pk_buf)
+                };
+                if let Some((table_syntax_header, section)) = res {
+                    self.table_processor.process(&table_syntax_header, &section)
+                } else {
+                    None
                 }
             }
             None => {
