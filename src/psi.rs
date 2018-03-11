@@ -25,36 +25,20 @@ use hexdump;
 use mpegts_crc;
 
 
-/// Trait to be implemented by types that will process sections of a Program Specific Information
-/// table, provided by a `SectionPacketConsumer`.
+/// Trait for types which process the data within a PSI section following the 12-byte
+/// `section_length` field (which is one of the items available in the `SectionCommonHeader` that
+/// is passed in.
 ///
-/// ```rust
-/// # use mpeg2ts_reader::psi::SectionPacketConsumer;
-/// # use mpeg2ts_reader::psi::SectionProcessor;
-/// # use mpeg2ts_reader::psi::SectionCommonHeader;
-/// # use mpeg2ts_reader::demultiplex;
-/// struct MyProcessor { }
-/// # impl MyProcessor { pub fn new() -> MyProcessor { MyProcessor { } } }
-///
-/// impl SectionProcessor<demultiplex::FilterChangeset> for MyProcessor {
-///     fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<demultiplex::FilterChangeset> {
-///         println!("Got table section with id {}", header.table_id);
-///         None
-///     }
-/// }
-///
-/// let psi = SectionPacketConsumer::new(MyProcessor::new());
-/// // feed some packets into psi.consume()
-/// ```
-///
-/// This can be implemented directly to create parsers for private data that doesn't use the
-/// standard section syntax.  Where the standard 'section syntax' is used, the
-/// `TableSectionConsumer` implementation of this trait should be used.
+///  - For PSI tables that use 'section syntax', the existing
+///    [`TableSectionConsumer`](struct.TableSectionConsumer.html) implementation of this trait
+///    can be used.
+///  - This trait should be implemented directly for PSI tables that use 'compact' syntax (i.e.
+///    they lack the 5-bytes-worth of fields represented by [`TableSyntaxHeader`](struct.TableSyntaxHeader.html))
 pub trait SectionProcessor<T> {
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
     /// been supplied to this call in the `header` parameter.  This is to allow implementers to
     /// calculate a CRC over the whole section if required.
-    fn process(&mut self, header: &SectionCommonHeader, section_data: &[u8]) -> Option<T>;
+    fn process<'a>(&mut self, header: &SectionCommonHeader, section_data: &'a[u8]) -> Option<(TableSyntaxHeader<'a>, T)>;
 }
 
 #[derive(Debug,PartialEq)]
@@ -119,28 +103,25 @@ pub trait TableSection: Sized {
 
 use std::marker::PhantomData;
 
-pub struct TableSectionConsumer<TP, T> {
+pub struct TableSectionConsumer<T> {
     phantom: PhantomData<T>,
     expected_last_section_number: Option<u8>,
     complete_section_count: u8,
     current_version: Option<u8>,
-    table_processor: TP,
 }
 
-impl<TP, T> TableSectionConsumer<TP, T>
+impl<T> TableSectionConsumer<T>
 where
-    TP: TableProcessor<T>,
     T: TableSection
 {
     const MAX_SECTIONS: usize = u8::max_value() as usize;  // given 1 byte section_number
 
-    pub fn new(table_processor: TP) -> TableSectionConsumer<TP, T> {
+    pub fn new() -> TableSectionConsumer<T> {
         TableSectionConsumer {
             phantom: PhantomData,
             expected_last_section_number: None,
             complete_section_count: 0,
             current_version: None,
-            table_processor,
         }
     }
 
@@ -163,12 +144,12 @@ where
         }
     }
 
-    fn insert_section(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, rest: &[u8]) -> Option<demultiplex::FilterChangeset> {
+    fn insert_section<'a>(&mut self, header: &SectionCommonHeader, table_syntax_header: TableSyntaxHeader<'a>, rest: &[u8]) -> Option<(TableSyntaxHeader<'a>, T)> {
         if table_syntax_header.current_next_indicator() == CurrentNext::Next {
             println!("skipping section where current_next_indicator indicates for future use, in table id {}", header.table_id);
             return None;
         }
-        if self.is_new_version(table_syntax_header) {
+        if self.is_new_version(&table_syntax_header) {
             self.reset();
             self.current_version = Some(table_syntax_header.version());
             self.expected_last_section_number = Some(table_syntax_header.last_section_number());
@@ -181,10 +162,10 @@ where
             }
             return None;
         }
-        if let Some(section) = T::from_bytes(header, table_syntax_header, rest) {
+        if let Some(section) = T::from_bytes(header, &table_syntax_header, rest) {
             // track the number of complete sections so that we'll know when we have the whole
             // table,
-            self.table_processor.process(table_syntax_header, &section)
+            Some((table_syntax_header, section))
         } else {
             println!("insert_section() failed to parse {:?} {:?}", header, table_syntax_header);
             None
@@ -192,12 +173,11 @@ where
     }
 }
 
-impl<TP, T> SectionProcessor<demultiplex::FilterChangeset> for TableSectionConsumer<TP, T>
+impl<T> SectionProcessor<T> for TableSectionConsumer<T>
 where
-    TP: TableProcessor<T>,
     T: TableSection
 {
-    fn process(&mut self, header: &SectionCommonHeader, payload: &[u8]) -> Option<demultiplex::FilterChangeset> {
+    fn process<'a>(&mut self, header: &SectionCommonHeader, payload: &'a[u8]) -> Option<(TableSyntaxHeader<'a>, T)> {
         if !header.section_syntax_indicator {
             println!(
                 "TableSectionConsumer requires that section_syntax_indicator be set in the section header"
@@ -212,7 +192,7 @@ where
         }
         let table_syntax_header = TableSyntaxHeader::new(payload);
         let rest = &payload[TABLE_SYNTAX_HEADER_SIZE..payload.len()-crc_len];
-        self.insert_section(header, &table_syntax_header, rest)
+        self.insert_section(header, table_syntax_header, rest)
     }
 }
 
@@ -240,6 +220,7 @@ impl SectionCommonHeader {
 enum SectionParseState {
     LookingForStart,
     WaitingForEnd,
+    Finalised,
 }
 
 use std::marker;
@@ -279,7 +260,14 @@ where
         self.get_common_header().section_length
     }
 
-    pub fn begin_new_section(&mut self, data: &[u8]) -> Option<T> {
+    fn maybe_reset(&mut self) {
+        if self.parse_state == SectionParseState::Finalised {
+            self.reset();
+        }
+    }
+
+    pub fn begin_new_section(&mut self, data: &[u8]) -> Option<(TableSyntaxHeader, T)> {
+        self.maybe_reset();
         if self.parse_state == SectionParseState::WaitingForEnd {
             let expected = self.expected_length();
             println!(
@@ -310,7 +298,8 @@ where
         self.append_to_current(data)
     }
 
-    pub fn append_to_current(&mut self, data: &[u8]) -> Option<T> {
+    pub fn append_to_current(&mut self, data: &[u8]) -> Option<(TableSyntaxHeader, T)> {
+        self.maybe_reset();
         if self.parse_state != SectionParseState::WaitingForEnd {
             println!("no current section, ignoring section continuation");
             return None;
@@ -346,7 +335,7 @@ where
         }
     }
 
-    fn finalise_current_section(&mut self) -> Option<T> {
+    fn finalise_current_section(&mut self) -> Option<(TableSyntaxHeader, T)> {
         if self.get_common_header().section_syntax_indicator &&
             CRC_CHECK &&
             mpegts_crc::sum32(&self.buf[..]) != 0
@@ -358,12 +347,12 @@ where
             self.reset();
             return None;
         }
+        self.parse_state = SectionParseState::Finalised;
         let result = self.processor.process(
             self.common_header.as_ref().unwrap(),
             // skip the 3 bytes of the common header,
             &self.buf[3..],
         );
-        self.reset();
         result
     }
 
@@ -377,11 +366,15 @@ where
 /// A `PacketConsumer` for buffering Program Specific Information, which may be split across
 /// multiple TS packets, and passing a complete PSI table to the given `SectionProcessor` when a
 /// complete, valid section has been received.
-pub struct SectionPacketConsumer<P>
+pub struct SectionPacketConsumer<P,TP,T>
 where
-    P: SectionProcessor<demultiplex::FilterChangeset> + 'static
+    P: SectionProcessor<T> + 'static,
+    TP: TableProcessor<T>,
+    T: TableSection
 {
-    parser: SectionParser<demultiplex::FilterChangeset,P>,
+    phantom: marker::PhantomData<T>,
+    parser: SectionParser<T,P>,
+    table_processor: TP,
 }
 
 
@@ -390,20 +383,26 @@ const CRC_CHECK: bool = true;
 #[cfg(fuzz)]
 const CRC_CHECK: bool = false;
 
-impl<P> SectionPacketConsumer<P>
+impl<P, TP, T> SectionPacketConsumer<P, TP, T>
 where
-    P: SectionProcessor<demultiplex::FilterChangeset> + 'static
+    P: SectionProcessor<T> + 'static,
+    TP: TableProcessor<T>,
+    T: TableSection
 {
-    pub fn new(processor: P) -> SectionPacketConsumer<P> {
+    pub fn new(processor: P, table_processor: TP) -> SectionPacketConsumer<P,TP,T> {
         SectionPacketConsumer {
-            parser: SectionParser::new(processor)
+            phantom: marker::PhantomData,
+            parser: SectionParser::new(processor),
+            table_processor,
         }
     }
 }
 
-impl<P> packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer<P>
+impl<P,TP,T> packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer<P,TP,T>
 where
-    P: SectionProcessor<demultiplex::FilterChangeset> + 'static
+    P: SectionProcessor<T> + 'static,
+    TP: TableProcessor<T>,
+    T: TableSection
 {
     fn consume(&mut self, pk: packet::Packet) -> Option<demultiplex::FilterChangeset> {
         match pk.payload() {
@@ -423,10 +422,20 @@ where
                         // the following call to begin_new_section() will assert that
                         // append_to_current() just finalised the preceding section
                     }
-                    self.parser.begin_new_section(&section_data[pointer..])
+                    let res = self.parser.begin_new_section(&section_data[pointer..]);
+                    if let Some((table_syntax_header, section)) = res {
+                        self.table_processor.process(&table_syntax_header, &section)
+                    } else {
+                        None
+                    }
                 } else {
                     // this packet is a continuation of an existing PSI section
-                    self.parser.append_to_current(pk_buf)
+                    let res = self.parser.append_to_current(pk_buf);
+                    if let Some((table_syntax_header, section)) = res {
+                        self.table_processor.process(&table_syntax_header, &section)
+                    } else {
+                        None
+                    }
                 }
             }
             None => {
@@ -439,21 +448,30 @@ where
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::collections::HashMap;
     use data_encoding::base16;
-    use psi::SectionPacketConsumer;
-    use psi::TableSectionConsumer;
-    use psi::SectionProcessor;
-    use psi::SectionCommonHeader;
     use packet::Packet;
     use packet::PacketConsumer;
     use demultiplex;
     use demultiplex::PatProcessor;
     use demultiplex::FilterChange;
 
-    struct NullSectionProcessor {}
-    impl SectionProcessor<demultiplex::FilterChangeset> for NullSectionProcessor {
-        fn process(&mut self, _header: &SectionCommonHeader, _section_payload: &[u8]) -> Option<demultiplex::FilterChangeset> { None }
+    struct NullSection;
+    impl TableSection for NullSection {
+        fn from_bytes(header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &[u8]) -> Option<Self> {
+            Some(NullSection)
+        }
+    }
+    struct NullSectionProcessor;
+    impl SectionProcessor<NullSection> for NullSectionProcessor {
+        fn process<'a>(&mut self, _header: &SectionCommonHeader, _section_payload: &'a[u8]) -> Option<(TableSyntaxHeader<'a>, NullSection)> { None }
+    }
+    struct NullTableProcessor;
+    impl TableProcessor<NullSection> for NullTableProcessor {
+        fn process(&mut self, table_syntax_header: &TableSyntaxHeader, sect: &NullSection) -> Option<demultiplex::FilterChangeset> {
+            None
+        }
     }
 
     fn empty_stream_constructor() -> demultiplex::StreamConstructor {
@@ -466,7 +484,7 @@ mod test {
         buf[0] = 0x47;
         buf[3] |= 0b00010000; // PayloadOnly
         let pk = Packet::new(&buf[..]);
-        let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor {});
+        let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor, NullTableProcessor);
         psi_buf.consume(pk);
     }
 
@@ -478,7 +496,7 @@ mod test {
         buf[3] |= 0b00010000; // PayloadOnly
         buf[7] = 3; // section_length
         let pk = Packet::new(&buf[..]);
-        let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor {});
+        let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor, NullTableProcessor);
         psi_buf.consume(pk);
     }
 
@@ -486,8 +504,9 @@ mod test {
     fn example() {
         let buf = base16::decode(b"474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap();
         let pk = Packet::new(&buf[..]);
-        let table_sec = TableSectionConsumer::new(PatProcessor::new(empty_stream_constructor()));
-        let mut section_pk = SectionPacketConsumer::new(table_sec);
+        let pat_proc = PatProcessor::new(empty_stream_constructor());
+        let table_sec = TableSectionConsumer::new();
+        let mut section_pk = SectionPacketConsumer::new(table_sec, pat_proc);
         if let Some(changeset) = section_pk.consume(pk) {
             let mut iter = changeset.into_iter();
             assert!(if let Some(FilterChange::Insert(pid, _)) = iter.next() { pid == 480 } else { false });

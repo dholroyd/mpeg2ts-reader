@@ -360,7 +360,7 @@ impl PatProcessor {
         for desc in sect.programs() {
             println!("new table for pid {}, program {}", desc.pid(), desc.program_number());
             let pmt_proc = PmtProcessor::new(self.stream_constructor.clone(), desc.program_number());
-            let pmt_section_packet_consumer = psi::SectionPacketConsumer::new(psi::TableSectionConsumer::new(pmt_proc));
+            let pmt_section_packet_consumer = psi::SectionPacketConsumer::new(psi::TableSectionConsumer::new(), pmt_proc);
             changeset.insert(desc.pid(), Box::new(RefCell::new(pmt_section_packet_consumer)));
             pids_seen.insert(desc.pid());
             self.filters_registered.insert(desc.pid() as usize);
@@ -499,7 +499,8 @@ impl Demultiplex {
             default_processor: Box::new(RefCell::new(UnhandledPid::new())),
         };
 
-        let pat_section_packet_consumer = psi::SectionPacketConsumer::new(psi::TableSectionConsumer::new(PatProcessor::new(stream_constructor)));
+        let pat_proc = PatProcessor::new(stream_constructor);
+        let pat_section_packet_consumer = psi::SectionPacketConsumer::new(psi::TableSectionConsumer::new(), pat_proc);
 
         result.processor_by_pid.insert(0, Box::new(RefCell::new(pat_section_packet_consumer)));
 
