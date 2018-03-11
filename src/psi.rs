@@ -58,6 +58,11 @@ impl CurrentNext {
 }
 
 #[derive(Debug)]
+/// Represents the fields that appear within table sections that use the common 'section syntax'.
+///
+/// This will only be used for a table section if the
+/// [`section_syntax_indicator`](struct.SectionCommonHeader.html#structfield.section_syntax_indicator)
+/// field in the `SectionCommonHeader` of the section is `true`.
 pub struct TableSyntaxHeader<'buf> {
     buf: &'buf[u8],
 }
@@ -71,18 +76,38 @@ impl<'buf> TableSyntaxHeader<'buf> {
             buf
         }
     }
+    /// The initial 16-bit field within a 'section syntax' PSI table (which immediately follows the
+    /// `section_length` field).
+    /// _13818-1_ refers to this field as,
+    ///  - `transport_stream_id` when it appears within a Program Association Section
+    ///  - part of the `reserved` field when it appears within a Conditional Access Section
+    ///  - `program_number` when it appears within a Program Map Section
+    ///  - `table_id_extension` when it appears within a Private Section
     pub fn id(&self) -> u16 {
         u16::from(self.buf[0]) << 8 | u16::from(self.buf[1])
     }
+    /// A 5-bit value that can be used to quickly check if this table has changed since the last
+    /// time it was periodically inserted within the transport stream being read.
     pub fn version(&self) -> u8 {
         (self.buf[2] >> 1) & 0b00011111
     }
+    /// Is this table applicable now, or will it become applicable at some future time.
+    /// NB I've not seen sample data that uses anything other than `CurrentNext::Current`, so
+    /// handling of tables with 'future' applicability may not actually work properly.
     pub fn current_next_indicator(&self) -> CurrentNext {
         CurrentNext::from(self.buf[2] & 1)
     }
+    /// The number of this section, within a potentially multi-section table.
+    ///
+    /// It is common for only one section to appear within any PSI table, in which case this value
+    /// will always be `0` within a given stream.  The value of `last_section_number()` can be
+    /// used to tell if multiple sections are expected.
     pub fn section_number(&self) -> u8 {
         self.buf[3]
     }
+    /// Indicates the value of `section_number()` that will appear within the last section within
+    /// a table.  In many streams, this value is always `0`, however multiple table sections may
+    /// need be used if the table needs to carry a large number of entries.
     pub fn last_section_number(&self) -> u8 {
         self.buf[4]
     }
