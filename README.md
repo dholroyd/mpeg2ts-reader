@@ -14,14 +14,17 @@ and what's yet to come:
 - Framing
   - [x] _ISO/IEC 13818-1_ 188-byte packets
   - [ ] m2ts 192-byte packets (would be nice if an external crate could support, at least)
-- [x] Transport Stream packet
-  - [ ] Adaptation field
-- [x] Program Specific Information tables
+  - [ ] recovery after loss of synchronisation
+- Transport Stream packet
+  - [x] Fixed headers
+  - [ ] Adaptation field (Adaptation field size is accounted for in finding packet payload, adaptation field details are not yet exposed)
+- Program Specific Information tables
   - [x] Section syntax
+  - [ ] 'Multi-section' tables
   - [x] PAT - Program Association Table
   - [x] PMT - Program Mapping Table
   - [ ] TSDT - Transport Stream Description Table
-- [x] Packetised Elementary Stream syntax
+- Packetised Elementary Stream syntax
   - [x] PES_packet_data
   - [x] PTS/DTS
   - [ ] ESCR
