@@ -242,22 +242,32 @@ enum SectionParseState {
     WaitingForEnd,
 }
 
+use std::marker;
+
 /// Parser for MPEG TS PSI 'Section' syntax, which begins with the 8-bit `table_id` field.
-pub struct SectionParser<T> {
+pub struct SectionParser<T,P>
+where
+    P: SectionProcessor<T>
+{
+    phantom: marker::PhantomData<T>,
     buf: Vec<u8>,
     parse_state: SectionParseState,
     common_header: Option<SectionCommonHeader>,
-    cb: Box<FnMut(&SectionCommonHeader, &[u8]) -> Option<T>>,  // TODO: avoid Box
+    processor: P
 }
-impl<T> SectionParser<T> {
+impl<T,P> SectionParser<T,P>
+where
+    P: SectionProcessor<T>
+{
     const SECTION_LIMIT: usize = 1021;
 
-    pub fn new(cb: impl FnMut(&SectionCommonHeader, &[u8]) -> Option<T> + 'static) -> SectionParser<T> {
+    pub fn new(cb: P) -> SectionParser<T,P> {
         SectionParser {
+            phantom: marker::PhantomData,
             buf: Vec::new(),
             parse_state: SectionParseState::LookingForStart,
             common_header: None,
-            cb: Box::new(cb),
+            processor: cb,
         }
     }
 
@@ -348,7 +358,7 @@ impl<T> SectionParser<T> {
             self.reset();
             return None;
         }
-        let result = (self.cb)(
+        let result = self.processor.process(
             self.common_header.as_ref().unwrap(),
             // skip the 3 bytes of the common header,
             &self.buf[3..],
@@ -367,8 +377,11 @@ impl<T> SectionParser<T> {
 /// A `PacketConsumer` for buffering Program Specific Information, which may be split across
 /// multiple TS packets, and passing a complete PSI table to the given `SectionProcessor` when a
 /// complete, valid section has been received.
-pub struct SectionPacketConsumer {
-    parser: SectionParser<demultiplex::FilterChangeset>,
+pub struct SectionPacketConsumer<P>
+where
+    P: SectionProcessor<demultiplex::FilterChangeset> + 'static
+{
+    parser: SectionParser<demultiplex::FilterChangeset,P>,
 }
 
 
@@ -377,17 +390,21 @@ const CRC_CHECK: bool = true;
 #[cfg(fuzz)]
 const CRC_CHECK: bool = false;
 
-impl SectionPacketConsumer {
-    pub fn new<P: SectionProcessor<demultiplex::FilterChangeset> + 'static>(mut processor: P) -> SectionPacketConsumer {
+impl<P> SectionPacketConsumer<P>
+where
+    P: SectionProcessor<demultiplex::FilterChangeset> + 'static
+{
+    pub fn new(processor: P) -> SectionPacketConsumer<P> {
         SectionPacketConsumer {
-            parser: SectionParser::new(move |header: &SectionCommonHeader, data: &[u8]| {
-                processor.process(header, data)
-            })
+            parser: SectionParser::new(processor)
         }
     }
 }
 
-impl packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer {
+impl<P> packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer<P>
+where
+    P: SectionProcessor<demultiplex::FilterChangeset> + 'static
+{
     fn consume(&mut self, pk: packet::Packet) -> Option<demultiplex::FilterChangeset> {
         match pk.payload() {
             Some(pk_buf) => {

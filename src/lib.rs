@@ -35,8 +35,6 @@
 //! Currently uses _nightly_ in order to make use of `impl Trait`.  Will probably switch to
 //! _stable_ once `impl Trait` stabilises.
 
-#![feature(universal_impl_trait)]
-
 extern crate hexdump;
 extern crate hex_slice;
 extern crate byteorder;
