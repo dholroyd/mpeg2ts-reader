@@ -6,6 +6,12 @@ Rust reader for MPEG2 Transport Stream data
 [![Build Status](https://travis-ci.org/dholroyd/mpeg2ts-reader.svg?branch=master)](https://travis-ci.org/dholroyd/mpeg2ts-reader)
 [![crates.io version](https://img.shields.io/crates/v/mpeg2ts-reader.svg)](https://crates.io/crates/mpeg2ts-reader)
 
+# Performance
+
+On my _i7-7820HQ_ laptop, a microbenchmark that parses TS structure, but ignores the audio and video contained within,
+can process at a rate of **6 GiBytes/s** (48 Gibits/s).  This is when the data is already cached in memory, and
+processing is happening on a single core.
+
 # Supported Transport Stream features
 
 Not all Transport Stream features are supported yet.  Here's a summary of what's available,
