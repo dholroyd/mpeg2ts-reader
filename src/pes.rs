@@ -28,6 +28,13 @@ pub trait ElementaryStreamConsumer {
     fn continuity_error(&mut self);
 }
 
+#[derive(Debug,PartialEq)]
+enum PesState {
+    Begin,
+    Started,
+    IgnoreRest,
+}
+
 /// Extracts elementary stream data from a series of transport stream packets which are passed
 /// one-by-one.
 ///
@@ -39,7 +46,7 @@ where
 {
     stream_consumer: C,
     ccounter: Option<packet::ContinuityCounter>,
-    payload_started: bool,
+    state: PesState,
 }
 impl<C> PesPacketConsumer<C>
 where
@@ -49,7 +56,7 @@ where
         PesPacketConsumer {
             stream_consumer,
             ccounter: None,
-            payload_started: false,
+            state: PesState::Begin,
         }
     }
 
@@ -77,14 +84,14 @@ where
     fn consume(&mut self, packet: packet::Packet) -> Option<demultiplex::FilterChangeset> {
         if !self.is_continuous(&packet) {
             self.stream_consumer.continuity_error();
-            self.payload_started = false;
+            self.state = PesState::IgnoreRest;
         }
         self.ccounter = Some(packet.continuity_counter());
         if packet.payload_unit_start_indicator() {
-            if self.payload_started {
+            if self.state == PesState::Started {
                 self.stream_consumer.end_packet();
             } else {
-                self.payload_started = true;
+                self.state = PesState::Started;
             }
             if let Some(payload) = packet.payload() {
                 if let Some(header) = PesHeader::from_bytes(payload) {
@@ -92,14 +99,19 @@ where
                 }
             }
         } else {
-            if self.payload_started {
-                if let Some(payload) = packet.payload() {
-                    if payload.len() > 0 {
-                        self.stream_consumer.continue_packet(payload);
+            match self.state {
+                PesState::Started => {
+                    if let Some(payload) = packet.payload() {
+                        if payload.len() > 0 {
+                            self.stream_consumer.continue_packet(payload);
+                        }
                     }
-                }
-            } else {
-                println!("pid={}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
+                },
+                PesState::Begin => {
+                    println!("pid={}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
+                    self.state = PesState::IgnoreRest;
+                },
+                PesState::IgnoreRest => ()
             }
         }
         None
