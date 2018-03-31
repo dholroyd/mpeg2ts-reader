@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::fmt;
 use packet;
 use psi;
 use descriptor;
@@ -202,7 +203,6 @@ impl psi::WholeSectionSyntaxPayloadParser for PmtProcessor {
     }
 }
 
-#[derive(Debug)]
 pub struct StreamInfo<'buf> {
     data: &'buf[u8],
 }
@@ -246,6 +246,15 @@ impl<'buf> StreamInfo<'buf> {
     pub fn descriptors(&self) -> descriptor::DescriptorIter {
         let descriptor_end = Self::HEADER_SIZE + self.es_info_length() as usize;
         descriptor::DescriptorIter::new(&self.data[Self::HEADER_SIZE..descriptor_end])
+    }
+}
+impl<'buf> fmt::Debug for StreamInfo<'buf> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_struct("StreamInfo")
+            .field("stream_type", &self.stream_type())
+            .field("elementry_pid", &self.elementary_pid())
+            .field("es_info_length", &self.es_info_length())
+            .finish()
     }
 }
 
