@@ -199,7 +199,9 @@ impl psi::WholeSectionSyntaxPayloadParser for PmtProcessor {
     type Ret = FilterChangeset;
 
     fn section<'a>(&mut self, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret> {
-        self.new_table(header, table_syntax_header, &PmtSection::new(&data[psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE..]))
+        let start = psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE;
+        let end = data.len() - 4;  // remove CRC bytes
+        self.new_table(header, table_syntax_header, &PmtSection::new(&data[start..end]))
     }
 }
 
@@ -212,7 +214,7 @@ impl<'buf> StreamInfo<'buf> {
 
     fn from_bytes(data: &'buf[u8]) -> Option<(StreamInfo<'buf>, usize)> {
         if data.len() < Self::HEADER_SIZE {
-            println!("only {} bytes remaining for stream info, at least {} required", data.len(), Self::HEADER_SIZE);
+            println!("only {} bytes remaining for stream info, at least {} required {:?}", data.len(), Self::HEADER_SIZE, data);
             return None;
         }
         let result = StreamInfo {
@@ -385,7 +387,9 @@ impl psi::WholeSectionSyntaxPayloadParser for PatProcessor {
     type Ret = FilterChangeset;
 
     fn section<'a>(&mut self, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret> {
-        self.new_table(header, table_syntax_header, &PatSection::new(&data[psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE..]))
+        let start = psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE;
+        let end = data.len() - 4;  // remove CRC bytes
+        self.new_table(header, table_syntax_header, &PatSection::new(&data[start..end]))
     }
 }
 
@@ -584,7 +588,8 @@ mod test {
             0x0D, 0x00, 0b00000001, 0xC1, 0x00,
 
             0, 1,   // program_number
-            0, 101  // pid
+            0, 101,  // pid
+            0, 0, 0, 0  // CRC (incorrect!)
         );
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
         let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
@@ -605,7 +610,9 @@ mod test {
 
                 // PAT with a single program; next version of the  table removes this,
                 0, 1,   // program_number
-                0, 101  // pid
+                0, 101, // pid
+
+                0, 0, 0, 0,  // CRC (incorrect)
             );
             let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
             let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
@@ -620,6 +627,8 @@ mod test {
                 0x0D, 0x00, 0b00000011, 0xC1, 0x00,  // new version!
 
                 // empty PMT - simulate removal of PID 101
+
+                0, 0, 0, 0,  // CRC (incorrect)
             );
             let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
             let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
@@ -676,7 +685,8 @@ mod test {
             // second descriptor
             w.write(8, 0)?;     // descriptor_tag
             w.write(8, 1)?;     // descriptor_length
-            w.write(8, 0)       // made-up descriptor data not following any spec
+            w.write(8, 0)?;     // made-up descriptor data not following any spec
+            w.write(32, 0)      // CRC (incorrect)
         });
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
         let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
