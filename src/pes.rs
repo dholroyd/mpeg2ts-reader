@@ -158,7 +158,7 @@ impl<'buf> PesHeader<'buf> {
     }
 
     // maaaaaybe just have parsed_contents(&self) + payload(&self)
-    pub fn contents(self) -> PesContents<'buf> {
+    pub fn contents(&self) -> PesContents<'buf> {
         let header_len = 6;
         let rest = &self.buf[header_len..];
         if is_parsed(self.stream_id()) {
