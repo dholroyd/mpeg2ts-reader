@@ -35,13 +35,13 @@ use mpegts_crc;
 ///  - This trait should be implemented directly for PSI tables that use 'compact' syntax (i.e.
 ///    they lack the 5-bytes-worth of fields represented by [`TableSyntaxHeader`](struct.TableSyntaxHeader.html))
 pub trait SectionProcessor {
-    type Ret;
+    type Context;
 
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
     /// been supplied to this call in the `header` parameter.  This is to allow implementers to
     /// calculate a CRC over the whole section if required.
-    fn start_section<'a>(&mut self, header: &SectionCommonHeader, section_data: &'a[u8]) -> Option<Self::Ret>;
-    fn continue_section<'a>(&mut self, section_data: &'a[u8]) -> Option<Self::Ret>;
+    fn start_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, section_data: &'a[u8]);
+    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, section_data: &'a[u8]);
     fn reset(&mut self);
 }
 
@@ -139,9 +139,9 @@ impl<P> WholeSectionSyntaxPayloadParser for CrcCheckWholeSectionSyntaxPayloadPar
 where
     P: WholeSectionSyntaxPayloadParser
 {
-    type Ret = P::Ret;
+    type Context = P::Context;
 
-    fn section<'a>(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret> {
+    fn section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
         assert!(header.section_syntax_indicator);
         if CRC_CHECK && mpegts_crc::sum32(data) != 0 {
             println!(
@@ -149,16 +149,16 @@ where
                 header.table_id,
             );
             hexdump::hexdump(data);
-            return None;
+            return;
         }
-        self.inner.section(header, table_syntax_header, data)
+        self.inner.section(ctx, header, table_syntax_header, data);
     }
 }
 
 pub trait WholeSectionSyntaxPayloadParser {
-    type Ret;
+    type Context;
 
-    fn section<'a>(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret>;
+    fn section<'a>(&mut self, &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]);
 }
 
 pub fn section_syntax_payload(buf: &[u8]) -> &[u8] { &buf[SectionCommonHeader::SIZE+TableSyntaxHeader::SIZE..] }
@@ -195,12 +195,12 @@ impl<P> SectionSyntaxPayloadParser for BufferSectionSyntaxParser<P>
 where
     P: WholeSectionSyntaxPayloadParser
 {
-    type Ret = P::Ret;
+    type Context = P::Context;
 
-    fn start_syntax_section<'a>(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret> {
+    fn start_syntax_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
         if header.section_length <=  data.len() - SectionCommonHeader::SIZE {
             self.state = BufferSectionState::Complete;
-            self.parser.section(header, table_syntax_header, &data[..header.section_length + SectionCommonHeader::SIZE])
+            self.parser.section(ctx, header, table_syntax_header, &data[..header.section_length + SectionCommonHeader::SIZE])
         } else {
             let to_read = if data.len() > header.section_length {
                 header.section_length
@@ -210,15 +210,13 @@ where
             self.state = BufferSectionState::Buffering(to_read);
             self.buf.clear();
             self.buf.extend_from_slice(data);
-            None
         }
     }
 
-    fn continue_syntax_section<'a>(&mut self, data: &'a [u8]) -> Option<Self::Ret> {
+    fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
         match self.state {
             BufferSectionState::Complete => {
                 println!("attempt to add extra data when section already complete");
-                None
             },
             BufferSectionState::Buffering(remaining) => {
                 assert!(remaining >= data.len());
@@ -228,9 +226,7 @@ where
                     self.state = BufferSectionState::Complete;
                     let header = SectionCommonHeader::new(&self.buf[..]);
                     let table_syntax_header = TableSyntaxHeader::new(&self.buf[SectionCommonHeader::SIZE..]);
-                    self.parser.section(&header, &table_syntax_header, payload)
-                } else {
-                    None
+                    self.parser.section(ctx, &header, &table_syntax_header, payload);
                 }
             }
         }
@@ -271,25 +267,23 @@ impl<SSPP> SectionSyntaxPayloadParser for DedupSectionSyntaxPayloadParser<SSPP>
 where
     SSPP: SectionSyntaxPayloadParser
 {
-    type Ret = SSPP::Ret;
+    type Context = SSPP::Context;
 
-    fn start_syntax_section<'a>(&mut self, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret> {
+    fn start_syntax_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
         if let Some(last) = self.last_version {
             if last == table_syntax_header.version() {
                 self.ignore_rest = true;
-                return None;
+                return;
             }
         }
         self.ignore_rest = false;
         self.last_version = Some(table_syntax_header.version());
-        self.inner.start_syntax_section(header, table_syntax_header, data)
+        self.inner.start_syntax_section(ctx, header, table_syntax_header, data);
     }
 
-    fn continue_syntax_section<'a>(&mut self, data: &'a [u8]) -> Option<Self::Ret> {
-        if self.ignore_rest {
-            None
-        } else {
-            self.inner.continue_syntax_section(data)
+    fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+        if !self.ignore_rest {
+            self.inner.continue_syntax_section(ctx, data)
         }
     }
     fn reset(&mut self) {
@@ -301,17 +295,17 @@ where
 
 /// Trait for types that will handle MPEGTS PSI table sections with 'section syntax'.
 pub trait SectionSyntaxPayloadParser {
-    type Ret;
+    type Context;
 
     /// NB the `data` buffer passed to _will_ include the bytes which are represented by `header`
     /// and `table_syntax_header` (in order that the called code can check any CRC that covers the
     /// whole section).
     fn start_syntax_section<'a>(&mut self,
+                            ctx: &mut Self::Context,
                             header: &SectionCommonHeader,
-                            table_syntax_header: &TableSyntaxHeader, data: &'a [u8])
-        -> Option<Self::Ret>;
+                            table_syntax_header: &TableSyntaxHeader, data: &'a [u8]);
 
-    fn continue_syntax_section<'a>(&mut self, data: &'a [u8]) -> Option<Self::Ret>;
+    fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]);
 
     fn reset(&mut self);
 }
@@ -340,36 +334,34 @@ impl<SP> SectionProcessor for SectionSyntaxSectionProcessor<SP>
 where
     SP: SectionSyntaxPayloadParser
 {
-    type Ret = SP::Ret;
+    type Context = SP::Context;
 
-    fn start_section<'a>(&mut self, header: &SectionCommonHeader, data: &'a [u8]) -> Option<Self::Ret> {
+    fn start_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, data: &'a [u8]) {
         if !header.section_syntax_indicator {
             println!(
                 "SectionSyntaxSectionProcessor requires that section_syntax_indicator be set in the section header"
             );
             self.ignore_rest = true;
-            return None;
+            return;
         }
         if data.len() < SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE {
             println!("data too short for header (TODO: implement buffering)");
             self.ignore_rest = true;
-            return None;
+            return;
         }
         if header.section_length > Self::SECTION_LIMIT {
             println!("section_length={} is too large (limit {})", header.section_length, Self::SECTION_LIMIT);
             self.ignore_rest = true;
-            return None;
+            return;
         }
         self.ignore_rest = false;
         let table_syntax_header = TableSyntaxHeader::new(&data[SectionCommonHeader::SIZE..]);
-        self.payload_parser.start_syntax_section(header, &table_syntax_header, data)
+        self.payload_parser.start_syntax_section(ctx, header, &table_syntax_header, data)
     }
 
-    fn continue_section<'a>(&mut self, data: &'a [u8]) -> Option<Self::Ret> {
+    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
         if !self.ignore_rest {
-            self.payload_parser.continue_syntax_section(data)
-        } else {
-            None
+            self.payload_parser.continue_syntax_section(ctx, data)
         }
     }
     fn reset(&mut self) {
@@ -416,7 +408,7 @@ const CRC_CHECK: bool = false;
 
 impl<P> SectionPacketConsumer<P>
 where
-    P: SectionProcessor<Ret=demultiplex::FilterChangeset>,
+    P: SectionProcessor<Context=demultiplex::DemuxContext>,
 {
     pub fn new(parser: P) -> SectionPacketConsumer<P> {
         SectionPacketConsumer {
@@ -425,11 +417,11 @@ where
     }
 }
 
-impl<P> packet::PacketConsumer<demultiplex::FilterChangeset> for SectionPacketConsumer<P>
+impl<P> demultiplex::PacketFilter for SectionPacketConsumer<P>
 where
-    P: SectionProcessor<Ret=demultiplex::FilterChangeset>,
+    P: SectionProcessor<Context=demultiplex::DemuxContext>,
 {
-    fn consume(&mut self, pk: packet::Packet) -> Option<demultiplex::FilterChangeset> {
+    fn consume(&mut self, ctx: &mut demultiplex::DemuxContext, pk: packet::Packet) {
         match pk.payload() {
             Some(pk_buf) => {
                 if pk.payload_unit_start_indicator() {
@@ -440,11 +432,10 @@ where
                         if pointer >= section_data.len() {
                             println!("PSI pointer beyond end of packet payload");
                             self.parser.reset();
-                            return None;
+                            return;
                         }
                         let remainder = &section_data[..pointer];
-                        // TODO: need way to produce this intermediate result
-                        let _res = self.parser.continue_section(remainder);
+                        self.parser.continue_section(ctx, remainder);
                         // the following call to begin_new_section() will assert that
                         // append_to_current() just finalised the preceding section
                     }
@@ -452,18 +443,17 @@ where
                     if next_sect.len() < SectionCommonHeader::SIZE {
                         println!("TODO: not enough bytes to read section header - implement buffering");
                         self.parser.reset();
-                        return None;
+                        return;
                     }
                     let header = SectionCommonHeader::new(&next_sect[..SectionCommonHeader::SIZE]);
-                    self.parser.start_section(&header, next_sect)
+                    self.parser.start_section(ctx, &header, next_sect);
                 } else {
                     // this packet is a continuation of an existing PSI section
-                    self.parser.continue_section(pk_buf)
+                    self.parser.continue_section(ctx, pk_buf);
                 }
             }
             None => {
                 println!("no payload present in PSI packet");
-                None
             }
         }
     }
@@ -473,14 +463,14 @@ where
 mod test {
     use super::*;
     use packet::Packet;
-    use packet::PacketConsumer;
     use demultiplex;
+    use demultiplex::PacketFilter;
 
     struct NullSectionProcessor;
     impl SectionProcessor for NullSectionProcessor {
-        type Ret = demultiplex::FilterChangeset;
-        fn start_section<'a>(&mut self, _header: &SectionCommonHeader, _section_data: &'a [u8]) -> Option<Self::Ret> { None }
-        fn continue_section<'a>(&mut self, _section_data: &'a [u8]) -> Option<Self::Ret> { None }
+        type Context = demultiplex::DemuxContext;
+        fn start_section<'a>(&mut self, _ctx: &mut Self::Context, _header: &SectionCommonHeader, _section_data: &'a [u8]) { }
+        fn continue_section<'a>(&mut self, _ctx: &mut Self::Context, _section_data: &'a [u8]) { }
         fn reset(&mut self) { }
     }
 
@@ -491,7 +481,8 @@ mod test {
         buf[3] |= 0b00010000; // PayloadOnly
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
-        psi_buf.consume(pk);
+        let mut ctx = demultiplex::DemuxContext::new();
+        psi_buf.consume(&mut ctx, pk);
     }
 
     #[test]
@@ -503,6 +494,7 @@ mod test {
         buf[7] = 3; // section_length
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
-        psi_buf.consume(pk);
+        let mut ctx = demultiplex::DemuxContext::new();
+        psi_buf.consume(&mut ctx, pk);
     }
 }

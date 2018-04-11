@@ -77,11 +77,11 @@ where
         }
     }
 }
-impl<C> packet::PacketConsumer<demultiplex::FilterChangeset> for PesPacketConsumer<C>
+impl<C> demultiplex::PacketFilter for PesPacketConsumer<C>
 where
     C: ElementaryStreamConsumer
 {
-    fn consume(&mut self, packet: packet::Packet) -> Option<demultiplex::FilterChangeset> {
+    fn consume(&mut self, _ctx: &mut demultiplex::DemuxContext, packet: packet::Packet) {
         if !self.is_continuous(&packet) {
             self.stream_consumer.continuity_error();
             self.state = PesState::IgnoreRest;
@@ -114,7 +114,6 @@ where
                 PesState::IgnoreRest => ()
             }
         }
-        None
     }
 }
 
@@ -429,7 +428,8 @@ mod test {
     use data_encoding::base16;
     use pes;
     use packet;
-    use packet::PacketConsumer;
+    use demultiplex;
+    use demultiplex::PacketFilter;
 
     fn make_test_data<F>(builder: F) -> Vec<u8>
     where
@@ -613,7 +613,8 @@ mod test {
         let mut pes_consumer = pes::PesPacketConsumer::new(mock);
         let buf = base16::decode(b"4741F510000001E0000084C00A355DDD11B1155DDBF5910000000109100000000167640029AD843FFFC21FFFE10FFFF087FFF843FFFC21FFFE10FFFFFFFFFFFFFFFF087FFFFFFFFFFFFFFF2CC501E0113F780A1010101F00000303E80000C350940000000168FF3CB0000001060001C006018401103A0408D2BA80000050204E95D400000302040AB500314454473141FEFF53040000C815540DF04F77FFFFFFFFFFFFFFFFFFFF80000000016588800005DB001008673FC365F48EAE").unwrap();
         let pk = packet::Packet::new(&buf[..]);
-        pes_consumer.consume(pk);
+        let mut ctx = demultiplex::DemuxContext::new();
+        pes_consumer.consume(&mut ctx, pk);
         {
             let state = state.borrow();
             assert!(state.begin_packet_called);
@@ -622,7 +623,7 @@ mod test {
         // processing the same packet again (therefore with the same continuity_counter value),
         // should cause a continuity error to be flagged,
         let pk = packet::Packet::new(&buf[..]);
-        pes_consumer.consume(pk);
+        pes_consumer.consume(&mut ctx, pk);
         {
             let state = state.borrow();
             assert!(state.continuity_error_called);

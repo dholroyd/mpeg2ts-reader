@@ -12,17 +12,18 @@ use StreamType;
 
 // TODO: Pid = u16;
 
-pub type PacketFilter = packet::PacketConsumer<FilterChangeset>;
+pub trait PacketFilter {
+    fn consume(&mut self, ctx: &mut DemuxContext, pk: packet::Packet);
+}
 
 pub struct NullPacketFilter { }
 impl NullPacketFilter {
-    pub fn construct(_pmt: &PmtSection, _stream_info: &StreamInfo) -> Box<RefCell<packet::PacketConsumer<FilterChangeset>>> {
+    pub fn construct(_pmt: &PmtSection, _stream_info: &StreamInfo) -> Box<RefCell<PacketFilter>> {
         Box::new(RefCell::new(NullPacketFilter { }))
     }
 }
-impl packet::PacketConsumer<FilterChangeset> for NullPacketFilter {
-    fn consume(&mut self, _pk: packet::Packet) -> Option<FilterChangeset> {
-        None
+impl PacketFilter for NullPacketFilter {
+    fn consume(&mut self, _ctx: &mut DemuxContext, _pk: packet::Packet) {
     }
 }
 
@@ -108,10 +109,13 @@ impl FilterChangeset {
         self.updates.push(FilterChange::Remove(pid))
     }
 
-    fn apply(self, filters: &mut Filters) {
-        for update in self.updates {
+    fn apply(&mut self, filters: &mut Filters) {
+        for update in self.updates.drain(..) {
             update.apply(filters);
         }
+    }
+    fn is_empty(&self) -> bool {
+        self.updates.is_empty()
     }
 }
 
@@ -167,18 +171,17 @@ impl PmtProcessor {
         }
     }
 
-    fn new_table(&mut self, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &PmtSection) -> Option<FilterChangeset> {
+    fn new_table(&mut self, ctx: &mut DemuxContext, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &PmtSection) {
         if 0x02 != header.table_id {
             println!("Expected PMT to have table id 0x2, but got {:#x}", header.table_id);
-            return None;
+            return;
         }
         // pass the table_id value this far!
-        let mut changeset = FilterChangeset::new();
         let mut pids_seen = HashSet::new();
         for stream_info in sect.streams() {
             println!("new PMT entry PID {} (in program_number {})", stream_info.elementary_pid(), self.program_number);
             let pes_packet_consumer = self.stream_constructor.construct(&sect, &stream_info);
-            changeset.insert(stream_info.elementary_pid(), pes_packet_consumer);
+            ctx.changeset.insert(stream_info.elementary_pid(), pes_packet_consumer);
             pids_seen.insert(stream_info.elementary_pid());
             self.filters_registered.insert(stream_info.elementary_pid() as usize);
         }
@@ -186,22 +189,21 @@ impl PmtProcessor {
         // table,
         for pid in 0..0x1fff {
             if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
-                changeset.remove(pid as u16);
+                ctx.changeset.remove(pid as u16);
                 self.filters_registered.set(pid, false);
             }
         }
         self.current_version = Some(table_syntax_header.version());
-        Some(changeset)
     }
 }
 
 impl psi::WholeSectionSyntaxPayloadParser for PmtProcessor {
-    type Ret = FilterChangeset;
+    type Context = DemuxContext;
 
-    fn section<'a>(&mut self, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret> {
+    fn section<'a>(&mut self, ctx: &mut Self::Context, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) {
         let start = psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4;  // remove CRC bytes
-        self.new_table(header, table_syntax_header, &PmtSection::new(&data[start..end]))
+        self.new_table(ctx, header, table_syntax_header, &PmtSection::new(&data[start..end]));
     }
 }
 
@@ -342,12 +344,11 @@ impl PatProcessor {
         }
     }
 
-    fn new_table(&mut self, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &PatSection) -> Option<FilterChangeset> {
+    fn new_table(&mut self, ctx: &mut DemuxContext, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &PatSection) {
         if 0x00 != header.table_id {
             println!("Expected PAT to have table id 0x0, but got {:#x}", header.table_id);
-            return None;
+            return;
         }
-        let mut changeset = FilterChangeset::new();
         let mut pids_seen = HashSet::new();
         // add or update filters for descriptors we've not seen before,
         for desc in sect.programs() {
@@ -364,7 +365,7 @@ impl PatProcessor {
                     )
                 )
             );
-            changeset.insert(desc.pid(), Box::new(RefCell::new(pmt_section_packet_consumer)));
+            ctx.changeset.insert(desc.pid(), Box::new(RefCell::new(pmt_section_packet_consumer)));
             pids_seen.insert(desc.pid());
             self.filters_registered.insert(desc.pid() as usize);
         }
@@ -372,24 +373,23 @@ impl PatProcessor {
         // table,
         for pid in 0..0x1fff {
             if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
-                changeset.remove(pid as u16);
+                ctx.changeset.remove(pid as u16);
                 self.filters_registered.set(pid, false);
             }
         }
 
         self.current_version = Some(table_syntax_header.version());
-        Some(changeset)
     }
 }
 
 
 impl psi::WholeSectionSyntaxPayloadParser for PatProcessor {
-    type Ret = FilterChangeset;
+    type Context = DemuxContext;
 
-    fn section<'a>(&mut self, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) -> Option<Self::Ret> {
+    fn section<'a>(&mut self, ctx: &mut Self::Context, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) {
         let start = psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4;  // remove CRC bytes
-        self.new_table(header, table_syntax_header, &PatSection::new(&data[start..end]))
+        self.new_table(ctx, header, table_syntax_header, &PatSection::new(&data[start..end]));
     }
 }
 
@@ -468,10 +468,20 @@ impl UnhandledPid {
         }
     }
 }
-impl packet::PacketConsumer<FilterChangeset> for UnhandledPid {
-    fn consume(&mut self, pk: packet::Packet) -> Option<FilterChangeset> {
+impl PacketFilter for UnhandledPid {
+    fn consume(&mut self, _ctx: &mut DemuxContext, pk: packet::Packet) {
         self.seen(pk.pid());
-        None
+    }
+}
+
+pub struct DemuxContext {
+    changeset: FilterChangeset,
+}
+impl DemuxContext {
+    pub fn new() -> DemuxContext {
+        DemuxContext {
+            changeset: FilterChangeset::new(),
+        }
     }
 }
 
@@ -501,6 +511,7 @@ impl Demultiplex {
     pub fn push(&mut self, buf: &[u8]) {
         // TODO: simplify
         let mut i=0;
+        let mut ctx = DemuxContext::new();
         loop {
             let end = i+packet::PACKET_SIZE;
             if end > buf.len() {
@@ -508,7 +519,6 @@ impl Demultiplex {
             }
             let mut pk_buf = &buf[i..end];
             if packet::Packet::is_sync_byte(pk_buf[0]) {
-                let mut maybe_changeset = None;
                 {
                     let mut pk = packet::Packet::new(pk_buf);
                     let this_pid = pk.pid();
@@ -516,8 +526,8 @@ impl Demultiplex {
                         &Some(ref processor) => processor.borrow_mut(),
                         &None => self.default_processor.borrow_mut(),
                     };
-                    while maybe_changeset.is_none() {
-                        maybe_changeset = this_proc.consume(pk);
+                    while ctx.changeset.is_empty() {
+                        this_proc.consume(&mut ctx, pk);
                         i += packet::PACKET_SIZE;
                         let end = i+packet::PACKET_SIZE;
                         if end > buf.len() {
@@ -535,10 +545,10 @@ impl Demultiplex {
                         }
                     }
                 }
-                match maybe_changeset {
-                    None => (),
-                    Some(changeset) => changeset.apply(&mut self.processor_by_pid),
+                if !ctx.changeset.is_empty() {
+                    ctx.changeset.apply(&mut self.processor_by_pid);
                 }
+                debug_assert!(ctx.changeset.is_empty());
             } else {
                 // TODO: attempt to resynchronise
                 return
@@ -593,12 +603,15 @@ mod test {
         );
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
         let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
-        let mut changes = processor.section(&header, &table_syntax_header, &section[..]).unwrap().into_iter();
+        let mut ctx = demultiplex::DemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        let mut changes = ctx.changeset.updates.into_iter();
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(101, _)));
     }
 
     #[test]
     fn pat_remove_existing_program() {
+        let mut ctx = demultiplex::DemuxContext::new();
         let mut processor = demultiplex::PatProcessor::new(empty_stream_constructor());
         {
             let section = vec!(
@@ -616,9 +629,10 @@ mod test {
             );
             let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
             let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
-            let _changes = processor.section(&header, &table_syntax_header, &section[..]).unwrap().into_iter();
+            processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
         }
-        let mut changes = {
+        ctx.changeset.updates.clear();
+        {
             let section = vec!(
                 // common header
                 0, 0, 0,
@@ -632,8 +646,9 @@ mod test {
             );
             let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
             let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
-            processor.section(&header, &table_syntax_header, &section[..]).unwrap().into_iter()
-        };
+            processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        }
+        let mut changes = ctx.changeset.updates.into_iter();
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Remove(101,)));
     }
 
@@ -690,7 +705,9 @@ mod test {
         });
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
         let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
-        let mut changes = processor.section(&header, &table_syntax_header, &section[..]).unwrap().into_iter();
+        let mut ctx = demultiplex::DemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        let mut changes = ctx.changeset.updates.into_iter();
         assert_matches!(changes.next(), Some(demultiplex::FilterChange::Insert(201,_)));
     }
 }
