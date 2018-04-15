@@ -126,7 +126,7 @@ pub const SYNC_BYTE: u8 = 0x47;
 pub const PACKET_SIZE: usize = 188;
 
 const FIXED_HEADER_SIZE: usize = 4;
-// when AF present, a 1-byte 'length' field preceeds the content,
+// when AF present, a 1-byte 'length' field precedes the content,
 const ADAPTATION_FIELD_OFFSET: usize = FIXED_HEADER_SIZE + 1;
 
 impl<'buf> Packet<'buf> {
