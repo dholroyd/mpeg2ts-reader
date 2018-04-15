@@ -3,7 +3,7 @@
 //! the payloads of transport stream packets.
 //!
 //! The types here allow the elementary stream to be reconstructed by passing all the extracted
-//! peices back to the calling application as they are encountered -- these peices are not
+//! pieces back to the calling application as they are encountered -- these pieces are not
 //! reassembled, to avoid the cost of copying of the underlying data.
 //!
 //! To receive Elementary Stream data, create an implementation of
