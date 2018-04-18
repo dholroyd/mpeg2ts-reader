@@ -11,31 +11,56 @@ Rust reader for MPEG2 Transport Stream data
 Dump timestamps attached to any ADTS audio or H264 video streams.
 
 ```rust
+#[macro_use]
 extern crate mpeg2ts_reader;
 
 use std::env;
 use std::fs::File;
 use std::io::Read;
-use std::collections::HashMap;
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::StreamType;
 
+packet_filter_switch!{
+    DumpFilterSwitch<DumpDemuxContext> {
+        Pat: demultiplex::PatPacketFilter<DumpDemuxContext>,
+        Pmt: demultiplex::PmtPacketFilter<DumpDemuxContext>,
+        Null: demultiplex::NullPacketFilter<DumpDemuxContext>,
+        Pes: pes::PesPacketFilter<DumpDemuxContext,PtsDumpElementaryStreamConsumer>,
+    }
+}
+demux_context!(DumpDemuxContext, DumpStreamConstructor);
+
+pub struct DumpStreamConstructor;
+impl demultiplex::StreamConstructor for DumpStreamConstructor {
+    type F = DumpFilterSwitch;
+
+    fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+        match req {
+            demultiplex::FilterRequest::ByPid(0) => DumpFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(_) => DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::ByStream(StreamType::H264, pmt_section, stream_info) => PtsDumpElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByStream(StreamType::Adts, pmt_section, stream_info) => PtsDumpElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::Pmt{pid, program_number} => DumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+        }
+    }
+}
 
 // Implement the ElementaryStreamConsumer to just dump and PTS/DTS timestamps to stdout
-struct PtsDumpElementaryStreamConsumer {
+pub struct PtsDumpElementaryStreamConsumer {
     pid: u16,
 }
 impl PtsDumpElementaryStreamConsumer {
     fn construct(_pmt_sect: &demultiplex::PmtSection, stream_info: &demultiplex::StreamInfo)
-        -> Box<std::cell::RefCell<demultiplex::PacketFilter>>
+        -> DumpFilterSwitch
     {
-        let consumer = pes::PesPacketConsumer::new(
+        let filter = pes::PesPacketFilter::new(
             PtsDumpElementaryStreamConsumer {
                 pid: stream_info.elementary_pid(),
             }
         );
-        Box::new(std::cell::RefCell::new(consumer))
+        DumpFilterSwitch::Pes(filter)
     }
 }
 impl pes::ElementaryStreamConsumer for PtsDumpElementaryStreamConsumer {
@@ -67,25 +92,19 @@ fn main() {
     let name = env::args().nth(1).unwrap();
     let mut f = File::open(&name).expect(&format!("file not found: {}", &name));
 
-    // configure the stream types we will handle,
-    let mut table: HashMap<StreamType, fn(&demultiplex::PmtSection,&demultiplex::StreamInfo)->Box<std::cell::RefCell<demultiplex::PacketFilter>>>
-        = HashMap::new();
-    table.insert(StreamType::H264, PtsDumpElementaryStreamConsumer::construct);
-    table.insert(StreamType::Adts, PtsDumpElementaryStreamConsumer::construct);
-    let stream_constructor = demultiplex::StreamConstructor::new(
-        demultiplex::NullPacketFilter::construct,
-        table
-    );
+    // create the context object that stores the state of the transport stream demultiplexing
+    // process
+    let mut ctx = DumpDemuxContext::new(DumpStreamConstructor);
 
-    // create the demultiplexer with the above config
-    let mut demultiplex = demultiplex::Demultiplex::new(stream_constructor);
+    // create the demultiplexer, which will use the ctx to create a filter for pid 0 (PAT)
+    let mut demux = demultiplex::Demultiplex::new(&mut ctx);
 
     // consume the input file,
     let mut buf = [0u8; 188*1024];
     loop {
         match f.read(&mut buf[..]).expect("read failed") {
-            0 => break,
-            n => demultiplex.push(&buf[0..n]),
+            0 => break ,
+            n => demux.push(&mut ctx, &buf[0..n]),
         }
     }
 }
