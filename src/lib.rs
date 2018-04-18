@@ -48,6 +48,7 @@ extern crate bitstream_io;
 extern crate fixedbitset;
 
 pub mod packet;
+#[macro_use]
 pub mod demultiplex;
 pub mod psi;
 pub mod pes;

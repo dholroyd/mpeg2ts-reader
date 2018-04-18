@@ -1,40 +1,54 @@
 #[macro_use]
 extern crate criterion;
+#[macro_use]
 extern crate mpeg2ts_reader;
 
 use criterion::{Criterion,Benchmark,Throughput};
 use std::fs::File;
 use std::io::Read;
-use std::cell;
-use std::collections::HashMap;
 use mpeg2ts_reader::demultiplex;
-use mpeg2ts_reader::packet;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::StreamType;
 
-struct NullElementaryStreamConsumer { }
+packet_filter_switch!{
+    NullFilterSwitch<NullDemuxContext> {
+        Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
+        Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,
+        Null: demultiplex::NullPacketFilter<NullDemuxContext>,
+        NullPes: pes::PesPacketFilter<NullDemuxContext,NullElementaryStreamConsumer>,
+    }
+}
+demux_context!(NullDemuxContext, NullStreamConstructor);
+
+pub struct NullStreamConstructor;
+impl demultiplex::StreamConstructor for NullStreamConstructor {
+    type F = NullFilterSwitch;
+
+    fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+        match req {
+            demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::ByStream(StreamType::Private(0x86), pmt_section, stream_info) => NullElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+        }
+    }
+}
+
+pub struct NullElementaryStreamConsumer { }
 impl NullElementaryStreamConsumer {
-    fn construct(pmt_sect: &demultiplex::PmtSection,stream_info: &demultiplex::StreamInfo) -> Box<std::cell::RefCell<demultiplex::PacketFilter>> {
+    fn construct(_pmt_sect: &demultiplex::PmtSection,stream_info: &demultiplex::StreamInfo) -> NullFilterSwitch {
         println!("stream info: {:?}", stream_info);
-        let consumer = pes::PesPacketConsumer::new(NullElementaryStreamConsumer { });
-        Box::new(std::cell::RefCell::new(consumer))
+        let filter = pes::PesPacketFilter::new(NullElementaryStreamConsumer { });
+        NullFilterSwitch::NullPes(filter)
     }
 }
 impl pes::ElementaryStreamConsumer for NullElementaryStreamConsumer {
     fn start_stream(&mut self) { println!("start_steam()"); }
-    fn begin_packet(&mut self, header: pes::PesHeader) { }
+    fn begin_packet(&mut self, _header: pes::PesHeader) { }
     fn continue_packet(&mut self, _data: &[u8]) { }
     fn end_packet(&mut self) { }
     fn continuity_error(&mut self) { }
-}
-
-fn create_demux() -> demultiplex::Demultiplex {
-    let mut table: HashMap<StreamType, fn(&demultiplex::PmtSection,&demultiplex::StreamInfo)->Box<cell::RefCell<demultiplex::PacketFilter>>>
-    = HashMap::new();
-
-    table.insert(StreamType::Private(0x86), NullElementaryStreamConsumer::construct);
-    let ctor = demultiplex::StreamConstructor::new(NullElementaryStreamConsumer::construct, table);
-    demultiplex::Demultiplex::new(ctor)
 }
 
 fn mpeg2ts_reader(c: &mut Criterion) {
@@ -43,10 +57,11 @@ fn mpeg2ts_reader(c: &mut Criterion) {
     let size = l.min(188*200_000);
     let mut buf = vec![0; size];
     f.read(&mut buf[..]).unwrap();
-    let mut demux = create_demux();
+    let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+    let mut demux = demultiplex::Demultiplex::new(&mut ctx);
     c.bench("parse", Benchmark::new("parse", move |b| {
         b.iter(|| {
-            demux.push(&buf[..]);
+            demux.push(&mut ctx, &buf[..]);
         } );
     }).throughput(Throughput::Bytes(size as u32)));
 }

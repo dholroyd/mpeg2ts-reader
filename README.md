@@ -93,9 +93,15 @@ fn main() {
 
 # Performance
 
-On my _i7-7820HQ_ laptop, a microbenchmark that parses TS structure, but ignores the audio and video contained within,
-can process at a rate of **6 GiBytes/s** (48 Gibits/s).  This is when the data is already in memory (no network/disk
-access), and processing is happening on a single core (no multiprocessing of the stream).
+On my laptop (which can read sequentially from main memory at around 16GiByte/s), a microbenchmark that parses TS
+structure, but ignores the audio and video contained within, can process at a rate of **10 GiBytes/s** (80 Gibits/s).
+
+Real usage that actually processes the contents of the stream will of course be slower!
+
+The conditions of the test are,
+ * the data is already in memory (no network/disk access)
+ * test dataset is larger than CPU cache
+ * processing is happening on a single core (no multiprocessing of the stream).
 
 # Supported Transport Stream features
 

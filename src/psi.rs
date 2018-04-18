@@ -20,7 +20,6 @@
 //! with only the generic functionality in this module.
 
 use packet;
-use demultiplex;
 use hexdump;
 use mpegts_crc;
 
@@ -395,7 +394,7 @@ impl SectionCommonHeader {
 /// complete, valid section has been received.
 pub struct SectionPacketConsumer<P>
 where
-    P: SectionProcessor + 'static,
+    P: SectionProcessor,
 {
     parser: P,
 }
@@ -406,22 +405,17 @@ const CRC_CHECK: bool = true;
 #[cfg(fuzz)]
 const CRC_CHECK: bool = false;
 
-impl<P> SectionPacketConsumer<P>
+impl<P, Ctx> SectionPacketConsumer<P>
 where
-    P: SectionProcessor<Context=demultiplex::DemuxContext>,
+    P: SectionProcessor<Context=Ctx>,
 {
     pub fn new(parser: P) -> SectionPacketConsumer<P> {
         SectionPacketConsumer {
             parser,
         }
     }
-}
 
-impl<P> demultiplex::PacketFilter for SectionPacketConsumer<P>
-where
-    P: SectionProcessor<Context=demultiplex::DemuxContext>,
-{
-    fn consume(&mut self, ctx: &mut demultiplex::DemuxContext, pk: packet::Packet) {
+    pub fn consume(&mut self, ctx: &mut Ctx, pk: packet::Packet) {
         match pk.payload() {
             Some(pk_buf) => {
                 if pk.payload_unit_start_indicator() {
@@ -464,11 +458,32 @@ mod test {
     use super::*;
     use packet::Packet;
     use demultiplex;
-    use demultiplex::PacketFilter;
+
+    packet_filter_switch!{
+        NullFilterSwitch<NullDemuxContext> {
+            Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
+            Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,
+            Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
+        }
+    }
+    demux_context!(NullDemuxContext, NullStreamConstructor);
+    pub struct NullStreamConstructor;
+    impl demultiplex::StreamConstructor for NullStreamConstructor {
+        type F = NullFilterSwitch;
+
+        fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+            match req {
+                demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
+                demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
+                demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
+                demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+            }
+        }
+    }
 
     struct NullSectionProcessor;
     impl SectionProcessor for NullSectionProcessor {
-        type Context = demultiplex::DemuxContext;
+        type Context = NullDemuxContext;
         fn start_section<'a>(&mut self, _ctx: &mut Self::Context, _header: &SectionCommonHeader, _section_data: &'a [u8]) { }
         fn continue_section<'a>(&mut self, _ctx: &mut Self::Context, _section_data: &'a [u8]) { }
         fn reset(&mut self) { }
@@ -481,7 +496,7 @@ mod test {
         buf[3] |= 0b00010000; // PayloadOnly
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
-        let mut ctx = demultiplex::DemuxContext::new();
+        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
         psi_buf.consume(&mut ctx, pk);
     }
 
@@ -494,7 +509,7 @@ mod test {
         buf[7] = 3; // section_length
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
-        let mut ctx = demultiplex::DemuxContext::new();
+        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
         psi_buf.consume(&mut ctx, pk);
     }
 }
