@@ -28,7 +28,7 @@ impl demultiplex::StreamConstructor for NullStreamConstructor {
         match req {
             demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
             demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
-            demultiplex::FilterRequest::ByStream(StreamType::Private(0x86), pmt_section, stream_info) => NullElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByStream(StreamType::H264, pmt_section, stream_info) => NullElementaryStreamConsumer::construct(pmt_section, stream_info),
             demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
             demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
         }
