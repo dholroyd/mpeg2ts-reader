@@ -2,17 +2,19 @@ use std::fmt;
 use hex_slice::AsHex;
 
 pub struct Descriptor<'buf> {
+    pub tag: u8,
     buf: &'buf[u8]
 }
 impl<'buf> Descriptor<'buf> {
     pub fn new(buf: &'buf[u8]) -> Descriptor<'buf> {
         assert!(buf.len() >= 2);
         Descriptor {
+            tag: buf[0],
             buf,
         }
     }
     pub fn tag(&self) -> u8 {
-        self.buf[0]
+        self.tag
     }
     pub fn len(&self) -> u8 {
         self.buf[1]
