@@ -127,6 +127,7 @@ macro_rules! packet_filter_switch {
         }
         impl $crate::demultiplex::PacketFilter for $name {
             type Ctx = $ctx;
+            #[inline(always)]
             fn consume(&mut self, ctx: &mut $ctx, pk: $crate::packet::Packet) {
                 match self {
                     $( &mut $name::$case_name(ref mut f) => f.consume(ctx, pk), )*

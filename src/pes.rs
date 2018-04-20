@@ -78,6 +78,7 @@ where
         }
     }
 
+    #[inline(always)]
     pub fn consume(&mut self, packet: packet::Packet) {
         if !self.is_continuous(&packet) {
             self.stream_consumer.continuity_error();
@@ -141,6 +142,7 @@ where
 {
     type Ctx = Ctx;
 
+    #[inline(always)]
     fn consume(&mut self, _ctx: &mut Self::Ctx, pk: packet::Packet) {
         self.consumer.consume(pk);
     }

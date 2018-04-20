@@ -17,6 +17,7 @@ pub enum AdaptationControl {
 }
 
 impl AdaptationControl {
+    #[inline(always)]
     fn from(val: u8) -> AdaptationControl {
         match val {
             0 => AdaptationControl::Reserved,
@@ -27,6 +28,7 @@ impl AdaptationControl {
         }
     }
 
+    #[inline(always)]
     pub fn has_payload(self) -> bool {
         match self {
             AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => false,
@@ -82,6 +84,7 @@ pub struct ContinuityCounter {
 }
 
 impl From<u8> for ContinuityCounter {
+    #[inline]
     fn from(count: u8) -> ContinuityCounter {
         ContinuityCounter::new(count)
     }
@@ -89,12 +92,14 @@ impl From<u8> for ContinuityCounter {
 
 impl ContinuityCounter {
     /// Panics if the given value is greater than 15.
+    #[inline]
     pub fn new(count: u8) -> ContinuityCounter {
         assert!(count < 0b10000);
         ContinuityCounter { val: count }
     }
 
     /// Returns this counter's value, which will be between 0 and 15 inclusive.
+    #[inline]
     pub fn count(&self) -> u8 {
         self.val
     }
@@ -108,6 +113,7 @@ impl ContinuityCounter {
     /// let b = ContinuityCounter::new(15);
     /// assert!(a.follows(b));  // after 15, counter wraps around to 0
     /// ```
+    #[inline]
     pub fn follows(&self, other: ContinuityCounter) -> bool {
         (other.val + 1) & 0b1111 == self.val
     }
@@ -140,6 +146,7 @@ impl<'buf> Packet<'buf> {
     /// Panics if the given buffer is less than 188 bytes, or if the initial sync-byte does not
     /// have the correct value (`0x47`).  Calling code is expected to have already checked those
     /// conditions.
+    #[inline(always)]
     pub fn new(buf: &'buf [u8]) -> Packet {
         assert_eq!(buf.len(),  PACKET_SIZE);
         assert!(Packet::is_sync_byte(buf[0]));
@@ -154,6 +161,7 @@ impl<'buf> Packet<'buf> {
     /// `payload_unit_start()` indicates if this packet payload contains the start of the
     /// structure.  If `false`, this packets payload is a continuation of a structure which began
     /// in an earlier packet within the transport stream.
+    #[inline]
     pub fn payload_unit_start_indicator(&self) -> bool {
         self.buf[1] & 0b01000000 != 0
     }
@@ -164,6 +172,7 @@ impl<'buf> Packet<'buf> {
 
     /// The sub-stream to which a particular packet belongs is indicated by this Packet Identifier
     /// value.
+    #[inline]
     pub fn pid(&self) -> u16 {
         u16::from(self.buf[1] & 0b00011111) << 8 | u16::from(self.buf[2])
     }
@@ -174,6 +183,7 @@ impl<'buf> Packet<'buf> {
 
     /// The returned enum value indicates if `adaptation_field()`, `payload()` or both will return
     /// something.
+    #[inline]
     pub fn adaptation_control(&self) -> AdaptationControl {
         AdaptationControl::from(self.buf[3] >> 4 & 0b11)
     }
@@ -182,6 +192,7 @@ impl<'buf> Packet<'buf> {
     /// counter value which increases by 1 from the last counter value seen.  Unexpected continuity
     /// counter values allow the receiver of the transport stream to detect discontinuities in the
     /// stream (e.g. due to data loss during transmission).
+    #[inline]
     pub fn continuity_counter(&self) -> ContinuityCounter {
         ContinuityCounter::new(self.buf[3] & 0b00001111)
     }
@@ -231,6 +242,7 @@ impl<'buf> Packet<'buf> {
     /// Not all packets have a payload, and `None` is returned if `adaptation_control()` indicates
     /// that no payload is present.  None may also be returned if the packet is malformed.
     /// If `Some` payload is returned, it is guaranteed not to be an empty slice.
+    #[inline(always)]
     pub fn payload(&self) -> Option<&'buf [u8]> {
         match self.adaptation_control() {
             AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => None,
@@ -238,6 +250,7 @@ impl<'buf> Packet<'buf> {
         }
     }
 
+    #[inline]
     fn mk_payload(&self) -> Option<&'buf [u8]> {
         let offset = self.content_offset();
         if offset == self.buf.len() {
