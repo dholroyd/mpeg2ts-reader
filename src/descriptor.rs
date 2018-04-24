@@ -1,31 +1,78 @@
 use std::fmt;
 use hex_slice::AsHex;
 
-pub struct Descriptor<'buf> {
-    pub tag: u8,
-    buf: &'buf[u8]
+#[derive(Debug)]
+pub enum Descriptor<'buf> {
+    Reserved { tag: u8, payload: &'buf[u8]},
+    VideoStream { payload: &'buf[u8]},
+    AudioStream { payload: &'buf[u8]},
+    Hierarchy { payload: &'buf[u8]},
+    Registration { payload: &'buf[u8] },
+    DataStreamAlignment { payload: &'buf[u8]},
+    TargetBackgroundGrid { payload: &'buf[u8]},
+    VideoWindow { payload: &'buf[u8]},
+    CA { payload: &'buf[u8]},
+    ISO639Language { payload: &'buf[u8]},
+    SystemClock { payload: &'buf[u8]},
+    MultiplexBufferUtilization { payload: &'buf[u8]},
+    Copyright { payload: &'buf[u8]},
+    MaximumBitrate { payload: &'buf[u8]},
+    PrivateDataIndicator { payload: &'buf[u8]},
+    SmoothingBuffer { payload: &'buf[u8]},
+    STD { payload: &'buf[u8]},
+    IBP { payload: &'buf[u8]},
+    /// ISO IEC 13818-6
+    IsoIec13818dash6 { tag: u8, payload: &'buf[u8]},
+    MPEG4Video { payload: &'buf[u8]},
+    MPEG4Audio { payload: &'buf[u8]},
+    IOD { payload: &'buf[u8]},
+    SL { payload: &'buf[u8]},
+    FMC { payload: &'buf[u8]},
+    ExternalESID { payload: &'buf[u8]},
+    MuxCode { payload: &'buf[u8]},
+    FmxBufferSize { payload: &'buf[u8]},
+    MultiplexBuffer { payload: &'buf[u8]},
+    UserPrivate { tag: u8, payload: &'buf[u8]},
 }
+
 impl<'buf> Descriptor<'buf> {
     pub fn new(buf: &'buf[u8]) -> Descriptor<'buf> {
         assert!(buf.len() >= 2);
-        Descriptor {
-            tag: buf[0],
-            buf,
+        let tag = buf[0];
+        let len = buf[1] as usize;
+        let payload = &buf[2..2+len];
+        match tag {
+            0|1|36...63 => Descriptor::Reserved { tag, payload },
+            2 => Descriptor::VideoStream { payload },
+            3 => Descriptor::AudioStream { payload },
+            4 => Descriptor::Hierarchy { payload },
+            5 => Descriptor::Registration { payload },
+            6 => Descriptor::DataStreamAlignment { payload },
+            7 => Descriptor::TargetBackgroundGrid { payload },
+            8 => Descriptor::VideoWindow { payload },
+            9 => Descriptor::CA { payload },
+            10 => Descriptor::ISO639Language { payload },
+            11 => Descriptor::SystemClock { payload },
+            12 => Descriptor::MultiplexBufferUtilization { payload },
+            13 => Descriptor::Copyright { payload },
+            14 => Descriptor::MaximumBitrate { payload },
+            15 => Descriptor::PrivateDataIndicator { payload },
+            16 => Descriptor::SmoothingBuffer { payload },
+            17 => Descriptor::STD { payload },
+            18 => Descriptor::IBP { payload },
+            19...26 => Descriptor::IsoIec13818dash6 { tag, payload },
+            27 => Descriptor::MPEG4Video { payload },
+            28 => Descriptor::MPEG4Audio { payload },
+            29 => Descriptor::IOD { payload },
+            30 => Descriptor::SL { payload },
+            31 => Descriptor::FMC { payload },
+            32 => Descriptor::ExternalESID { payload },
+            33 => Descriptor::MuxCode { payload },
+            34 => Descriptor::FmxBufferSize { payload },
+            35 => Descriptor::MultiplexBuffer { payload },
+            64...255 => Descriptor::UserPrivate { tag, payload },
+            _ => unimplemented!("tag {}", tag)  // TODO: why not exhaustive without this?
         }
-    }
-    pub fn tag(&self) -> u8 {
-        self.tag
-    }
-    pub fn len(&self) -> u8 {
-        self.buf[1]
-    }
-    pub fn payload(&self) -> &[u8] {
-        &self.buf[2..2+self.len() as usize]
-    }
-}
-impl<'buf> fmt::Debug for Descriptor<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "Descriptor {{ tag: {}, len: {} }}", self.tag(), self.len())
     }
 }
 
@@ -102,8 +149,6 @@ mod test {
     fn descriptor() {
         let data = hex::decode(b"050443554549").unwrap();
         let desc = Descriptor::new(&data);
-        assert_eq!(5, desc.tag());
-        assert_eq!(4, desc.len());
-        assert_eq!(b"CUEI", desc.payload());
+        assert_matches!(desc, Descriptor::Registration{ payload: b"CUEI" });
     }
 }
