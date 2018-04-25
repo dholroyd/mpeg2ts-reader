@@ -128,51 +128,51 @@ Not all Transport Stream features are supported yet.  Here's a summary of what's
 and what's yet to come:
 
 - Framing
-  - ☑ _ISO/IEC 13818-1_ 188-byte packets
-  - ☐ m2ts 192-byte packets (would be nice if an external crate could support, at least)
-  - ☐ recovery after loss of synchronisation
+  - [x] _ISO/IEC 13818-1_ 188-byte packets
+  - [ ] m2ts 192-byte packets (would be nice if an external crate could support, at least)
+  - [ ] recovery after loss of synchronisation
 - Transport Stream packet
-  - ☑ Fixed headers
-  - ☐ Adaptation field (Adaptation field size is accounted for in finding packet payload, adaptation field details are not yet exposed)
+  - [x] Fixed headers
+  - [ ] Adaptation field (Adaptation field size is accounted for in finding packet payload, adaptation field details are not yet exposed)
 - Program Specific Information tables
-  - ☑ Section syntax
-  - ☐ 'Multi-section' tables
-  - ☑ PAT - Program Association Table
-  - ☑ PMT - Program Mapping Table
-  - ☐ TSDT - Transport Stream Description Table
+  - [x] Section syntax
+  - [ ] 'Multi-section' tables
+  - [x] PAT - Program Association Table
+  - [x] PMT - Program Mapping Table
+  - [ ] TSDT - Transport Stream Description Table
 - Packetised Elementary Stream syntax
-  - ☑ PES_packet_data
-  - ☑ PTS/DTS
-  - ☐ ESCR
-  - ☐ ES_rate
-  - ☐ DSM_trick_mode
-  - ☐ additional_copy_info
-  - ☐ PES_CRC
-  - ☐ PES_extension
+  - [x] PES_packet_data
+  - [x] PTS/DTS
+  - [ ] ESCR
+  - [ ] ES_rate
+  - [ ] DSM_trick_mode
+  - [ ] additional_copy_info
+  - [ ] PES_CRC
+  - [ ] PES_extension
 - Descriptors
-  - ☐ video_stream_descriptor
-  - ☐ audio_stream_descriptor
-  - ☐ hierarchy_descriptor
-  - ☐ registration_descriptor
-  - ☐ data_stream_alignment_descriptor
-  - ☐ target_background_grid_descriptor
-  - ☐ video_window_descriptor
-  - ☐ ca_descriptor
-  - ☐ iso_639_language_descriptor
-  - ☐ system_clock_descriptor
-  - ☐ multiplex_buffer_utilization_descriptor
-  - ☐ copyright_descriptor
-  - ☐ maximum_bitrate_descriptor
-  - ☐ private_data_indicator_descriptor
-  - ☐ smoothing_buffer_descriptor
-  - ☐ std_descriptor
-  - ☐ ibp_descriptor
-  - ☐ mpeg4_video_descriptor
-  - ☐ mpeg4_audio_descriptor
-  - ☐ iod_descriptor
-  - ☐ sl_descriptor
-  - ☐ fmc_descriptor
-  - ☐ external_es_id_descriptor
-  - ☐ muxcode_descriptor
-  - ☐ fmxbuffersize_descriptor
-  - ☐ multiplexbuffer_descriptor
+  - [ ] video_stream_descriptor
+  - [ ] audio_stream_descriptor
+  - [ ] hierarchy_descriptor
+  - [ ] registration_descriptor
+  - [ ] data_stream_alignment_descriptor
+  - [ ] target_background_grid_descriptor
+  - [ ] video_window_descriptor
+  - [ ] ca_descriptor
+  - [ ] iso_639_language_descriptor
+  - [ ] system_clock_descriptor
+  - [ ] multiplex_buffer_utilization_descriptor
+  - [ ] copyright_descriptor
+  - [ ] maximum_bitrate_descriptor
+  - [ ] private_data_indicator_descriptor
+  - [ ] smoothing_buffer_descriptor
+  - [ ] std_descriptor
+  - [ ] ibp_descriptor
+  - [ ] mpeg4_video_descriptor
+  - [ ] mpeg4_audio_descriptor
+  - [ ] iod_descriptor
+  - [ ] sl_descriptor
+  - [ ] fmc_descriptor
+  - [ ] external_es_id_descriptor
+  - [ ] muxcode_descriptor
+  - [ ] fmxbuffersize_descriptor
+  - [ ] multiplexbuffer_descriptor
