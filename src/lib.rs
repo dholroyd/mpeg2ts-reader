@@ -29,11 +29,6 @@
 //!   - need a way to emit 'events' for interesting data that can't just be a return-value
 //! - General
 //!   - lots of places return `Option` but should return `Result` and a descriptive error
-//!
-//! # Rust nightly
-//!
-//! Currently uses _nightly_ in order to make use of `impl Trait`.  Will probably switch to
-//! _stable_ once `impl Trait` stabilises.
 
 extern crate hexdump;
 extern crate hex_slice;
