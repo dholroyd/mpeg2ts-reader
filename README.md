@@ -7,6 +7,12 @@ Rust reader for MPEG2 Transport Stream data
 [![crates.io version](https://img.shields.io/crates/v/mpeg2ts-reader.svg)](https://crates.io/crates/mpeg2ts-reader)
 [![Documentation](https://docs.rs/mpeg2ts-reader/badge.svg)](https://docs.rs/mpeg2ts-reader)
 
+Zero-copy access to payload data within an MPEG Transport Stream.
+
+This crate,
+ - implements a low-level state machine that recognises the structural elements of Transport Stream syntax
+ - provides traits that you should implement to define your application-specific processing of the contained data.
+
 # Example
 
 Dump timestamps attached to any ADTS audio or H264 video streams.
