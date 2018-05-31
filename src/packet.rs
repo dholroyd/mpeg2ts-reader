@@ -40,18 +40,14 @@ impl AdaptationControl {
 #[derive(Eq, PartialEq, Debug)]
 pub enum TransportScramblingControl {
     NotScrambled,
-    Undefined1,
-    Undefined2,
-    Undefined3,
+    Undefined(u8),
 }
 
 impl TransportScramblingControl {
     fn from(val: u8) -> TransportScramblingControl {
         match val {
             0 => TransportScramblingControl::NotScrambled,
-            1 => TransportScramblingControl::Undefined1,
-            2 => TransportScramblingControl::Undefined2,
-            3 => TransportScramblingControl::Undefined3,
+            1...3 => TransportScramblingControl::Undefined(val),
             _ => panic!("invalid value {}", val),
         }
     }
@@ -309,7 +305,7 @@ mod test {
         assert!(pk.transport_priority());
         assert_eq!(
             pk.transport_scrambling_control(),
-            TransportScramblingControl::Undefined3
+            TransportScramblingControl::Undefined(3)
         );
         assert_eq!(
             pk.adaptation_control(),
