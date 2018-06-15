@@ -201,7 +201,7 @@ and what's yet to come:
   - [ ] recovery after loss of synchronisation
 - Transport Stream packet
   - [x] Fixed headers
-  - [ ] Adaptation field (Adaptation field size is accounted for in finding packet payload, adaptation field details are not yet exposed)
+  - [x] Adaptation field
 - Program Specific Information tables
   - [x] Section syntax
   - [ ] 'Multi-section' tables

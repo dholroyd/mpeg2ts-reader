@@ -394,7 +394,7 @@ impl Timestamp {
             Err(TimestampError::MarkerBitNotSet { bit_number })
         }
     }
-    fn from_bytes(buf: &[u8]) -> Result<Timestamp,TimestampError> {
+    pub fn from_bytes(buf: &[u8]) -> Result<Timestamp,TimestampError> {
         Timestamp::check_marker_bit(buf, 7)?;
         Timestamp::check_marker_bit(buf, 23)?;
         Timestamp::check_marker_bit(buf, 39)?;
@@ -405,6 +405,13 @@ impl Timestamp {
                   u64::from(buf[3]) << 7 |
                   u64::from(buf[4]) >> 1
         })
+    }
+    /// Panics if the given val is greater than 2^33-1
+    pub fn from_u64(val: u64) -> Timestamp {
+        assert!(val < 1<<34);
+        Timestamp {
+            val,
+        }
     }
     pub fn value(&self) -> u64 {
         self.val
