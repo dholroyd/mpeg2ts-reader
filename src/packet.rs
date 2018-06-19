@@ -110,6 +110,8 @@ pub struct AdaptationField<'buf> {
 }
 
 impl<'buf> AdaptationField<'buf> {
+    // TODO: just eager-load all this stuff in new()?  would be simpler!
+
     pub fn new(buf: &'buf [u8]) -> AdaptationField {
         AdaptationField { buf }
     }
@@ -139,11 +141,11 @@ impl<'buf> AdaptationField<'buf> {
         self.buf[0] & 0b1 != 0
     }
     fn slice(&self, from: usize, to: usize) -> Result<&'buf[u8],AdaptationFieldError> {
-        //if to > self.buf.len() {
-        //    Err(AdaptationFieldError::NotEnoughData)
-        //} else {
+        if to > self.buf.len() {
+            Err(AdaptationFieldError::NotEnoughData)
+        } else {
             Ok(&self.buf[from..to])
-        //}
+        }
     }
     const PCR_SIZE: usize = 6;
     pub fn pcr(&self) -> Result<PCR, AdaptationFieldError> {
@@ -221,6 +223,7 @@ impl<'buf> AdaptationField<'buf> {
     }
 }
 
+/// Optional extensions within an [`AdaptationField`](struct.AdaptationField.html).
 pub struct AdaptationFieldExtension<'buf> {
     buf: &'buf [u8],
 }
