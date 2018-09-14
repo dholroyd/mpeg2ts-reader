@@ -68,6 +68,12 @@ impl PartialEq for PCR {
     }
 }
 
+impl From<PCR> for u64 {
+    fn from(pcr: PCR) -> u64 {
+        pcr.base * 300 + pcr.extension as u64
+    }
+}
+
 impl fmt::Debug for PCR {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         f.debug_struct("PCR")
@@ -559,6 +565,7 @@ mod test {
         let ad = pk.adaptation_field().unwrap();
         assert!(ad.discontinuity_indicator());
         assert_eq!(ad.pcr(), Ok(PCR::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
+        assert_eq!(1234 * 300 + 56, u64::from(PCR::from_parts(1234, 56)));
         assert_eq!(ad.opcr(), Ok(PCR::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
         assert_eq!(ad.splice_countdown(), Ok(0b11111111));
         let expected_data = [0xff];
