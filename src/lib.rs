@@ -32,6 +32,9 @@
 
 extern crate hexdump;
 extern crate hex_slice;
+#[cfg(test)]
+#[macro_use]
+extern crate hex_literal;
 extern crate byteorder;
 extern crate data_encoding;
 extern crate bitreader;

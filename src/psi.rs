@@ -160,8 +160,6 @@ pub trait WholeSectionSyntaxPayloadParser {
     fn section<'a>(&mut self, &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]);
 }
 
-pub fn section_syntax_payload(buf: &[u8]) -> &[u8] { &buf[SectionCommonHeader::SIZE+TableSyntaxHeader::SIZE..] }
-
 enum BufferSectionState {
     Buffering(usize),
     Complete,
@@ -197,18 +195,17 @@ where
     type Context = P::Context;
 
     fn start_syntax_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
-        if header.section_length <=  data.len() - SectionCommonHeader::SIZE {
+        let section_length_with_header = header.section_length + SectionCommonHeader::SIZE;
+        if section_length_with_header <= data.len() {
+            // section data is entirely within this packet,
             self.state = BufferSectionState::Complete;
-            self.parser.section(ctx, header, table_syntax_header, &data[..header.section_length + SectionCommonHeader::SIZE])
+            self.parser.section(ctx, header, table_syntax_header, &data[..section_length_with_header])
         } else {
-            let to_read = if data.len() > header.section_length {
-                header.section_length
-            } else {
-                header.section_length - data.len()
-            };
-            self.state = BufferSectionState::Buffering(to_read);
+            // we will need to wait for continuation packets before we have the whole section,
             self.buf.clear();
             self.buf.extend_from_slice(data);
+            let to_read = section_length_with_header - data.len();
+            self.state = BufferSectionState::Buffering(to_read);
         }
     }
 
@@ -218,14 +215,20 @@ where
                 println!("attempt to add extra data when section already complete");
             },
             BufferSectionState::Buffering(remaining) => {
-                assert!(remaining >= data.len());
-                let new_remaining = remaining - data.len();
+                let new_remaining = if data.len() > remaining {
+                    0
+                } else {
+                    remaining - data.len()
+                };
                 if new_remaining == 0 {
-                    let payload = section_syntax_payload(&self.buf[..]);
+                    self.buf.extend_from_slice(&data[..remaining]);
                     self.state = BufferSectionState::Complete;
-                    let header = SectionCommonHeader::new(&self.buf[..]);
+                    let header = SectionCommonHeader::new(&self.buf[..SectionCommonHeader::SIZE]);
                     let table_syntax_header = TableSyntaxHeader::new(&self.buf[SectionCommonHeader::SIZE..]);
-                    self.parser.section(ctx, &header, &table_syntax_header, payload);
+                    self.parser.section(ctx, &header, &table_syntax_header, &self.buf[..]);
+                } else {
+                    self.buf.extend_from_slice(data);
+                    self.state = BufferSectionState::Buffering(new_remaining);
                 }
             }
         }
@@ -344,12 +347,12 @@ where
             return;
         }
         if data.len() < SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE {
-            println!("data too short for header (TODO: implement buffering)");
+            println!("SectionSyntaxSectionProcessor data {} too short for header {} (TODO: implement buffering)", data.len(), SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE);
             self.ignore_rest = true;
             return;
         }
         if header.section_length > Self::SECTION_LIMIT {
-            println!("section_length={} is too large (limit {})", header.section_length, Self::SECTION_LIMIT);
+            println!("SectionSyntaxSectionProcessor section_length={} is too large (limit {})", header.section_length, Self::SECTION_LIMIT);
             self.ignore_rest = true;
             return;
         }
@@ -458,6 +461,8 @@ mod test {
     use super::*;
     use packet::Packet;
     use demultiplex;
+    use std::rc::Rc;
+    use std::cell::RefCell;
 
     packet_filter_switch!{
         NullFilterSwitch<NullDemuxContext> {
@@ -511,5 +516,60 @@ mod test {
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
         let mut ctx = NullDemuxContext::new(NullStreamConstructor);
         psi_buf.consume(&mut ctx, pk);
+    }
+
+    #[test]
+    fn section_spanning_packets() {
+        // state to track if MockSectParse.section() got called,
+        let state = Rc::new(RefCell::new(false));
+        struct MockSectParse {
+            state: Rc<RefCell<bool>>,
+        };
+        impl WholeSectionSyntaxPayloadParser for MockSectParse {
+            type Context = ();
+            fn section<'a>(&mut self, _: &mut Self::Context, _header: &SectionCommonHeader, _table_syntax_header: &TableSyntaxHeader, _data: &[u8]) {
+                *self.state.borrow_mut() = true;
+            }
+        }
+        let mut p = BufferSectionSyntaxParser::new(CrcCheckWholeSectionSyntaxPayloadParser::new(MockSectParse { state: state.clone() }));
+        let ctx = &mut ();
+        {
+            let sect = hex!("
+            42f13040 84e90000 233aff44 40ff8026
+            480d1900 0a424243 2054574f 20484473
+            0c66702e 6262632e 636f2e75 6b5f0400
+            00233a7e 01f744c4 ff802148 09190006
+            49545620 4844730b 7777772e 6974762e
+            636f6d5f 04000023 3a7e01f7 4500ff80
+            2c480f19 000c4368 616e6e65 6c203420
+            48447310 7777772e 6368616e 6e656c34
+            2e636f6d 5f040000 233a7e01 f74484ff
+            8026480d 19000a42 4243204f 4e452048
+            44730c66 702e6262 632e636f 2e756b5f
+            04000023 3a7e01");
+
+            let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
+            let table_header = TableSyntaxHeader::new(&sect[SectionCommonHeader::SIZE..]);
+            p.start_syntax_section(ctx, &common_header, &table_header, &sect[..]);
+        }
+        {
+            let sect = hex!("
+                f746c0ff 8023480a 19000743 42424320
+                4844730c 66702e62 62632e63 6f2e756b
+                5f040000 233a7e01 f74f80ff 801e480a
+                16000746 696c6d34 2b317310 7777772e
+                6368616e 6e656c34 2e636f6d 4540ff80
+                27480f19 000c4368 616e6e65 6c203520
+                4844730b 7777772e 66697665 2e74765f
+                04000023 3a7e01f7 f28b26c4 ffffffff
+                ffffffff ffffffff ffffffff ffffffff
+                ffffffff ffffffff ffffffff ffffffff
+                ffffffff ffffffff ffffffff ffffffff
+                ffffffff ffffffff");
+
+            p.continue_syntax_section(ctx, &sect[..]);
+        }
+
+        assert!(*state.borrow());
     }
 }
