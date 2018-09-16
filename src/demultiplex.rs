@@ -308,7 +308,10 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
     fn section<'a>(&mut self, ctx: &mut Self::Context, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) {
         let start = psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4;  // remove CRC bytes
-        self.new_table(ctx, header, table_syntax_header, &PmtSection::new(&data[start..end]));
+        match PmtSection::from_bytes(&data[start..end]) {
+            Ok(sect) => self.new_table(ctx, header, table_syntax_header, &sect),
+            Err(e) => println!("[PMT pid:{} program:{}] problem reading data: {:?}", self.pid, self.program_number, e),
+        }
     }
 }
 
@@ -372,10 +375,19 @@ pub struct PmtSection<'buf> {
     data: &'buf[u8],
 }
 
+#[derive(Debug)]
+pub enum DemuxError {
+    NotEnoughData{ field: &'static str, expected: usize, actual: usize }
+}
+
 impl<'buf> PmtSection<'buf> {
-    fn new(data: &'buf[u8]) -> PmtSection<'buf> {
-        PmtSection {
-            data,
+    pub fn from_bytes(data: &'buf[u8]) -> Result<PmtSection<'buf>, DemuxError> {
+        if data.len() < Self::HEADER_SIZE {
+            Err(DemuxError::NotEnoughData { field: "program_map_section", expected: Self::HEADER_SIZE, actual: data.len() })
+        } else {
+            Ok(PmtSection {
+                data,
+            })
         }
     }
 }
