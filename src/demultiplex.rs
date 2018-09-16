@@ -355,7 +355,7 @@ impl<'buf> StreamInfo<'buf> {
         u16::from(self.data[3] & 0b00001111) << 8 | u16::from(self.data[4])
     }
 
-    pub fn descriptors(&self) -> descriptor::DescriptorIter {
+    pub fn descriptors<Desc: descriptor::Descriptor<'buf>>(&self) -> descriptor::DescriptorIter<'buf, Desc> {
         let descriptor_end = Self::HEADER_SIZE + self.es_info_length() as usize;
         descriptor::DescriptorIter::new(&self.data[Self::HEADER_SIZE..descriptor_end])
     }
@@ -405,7 +405,7 @@ impl<'buf> PmtSection<'buf> {
     pub fn program_info_length(&self) -> u16 {
         u16::from(self.data[2] & 0b00001111) << 8 | u16::from(self.data[3])
     }
-    pub fn descriptors(&self) -> descriptor::DescriptorIter {
+    pub fn descriptors<Desc: descriptor::Descriptor<'buf>>(&self) -> descriptor::DescriptorIter<'buf, Desc> {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
         let descriptor_data = &self.data[Self::HEADER_SIZE..descriptor_end];
         descriptor::DescriptorIter::new(descriptor_data)
@@ -537,7 +537,7 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
 }
 
 #[derive(Clone,Debug)]
-struct ProgramDescriptor<'buf> {
+pub struct ProgramDescriptor<'buf> {
     data: &'buf[u8],
 }
 
@@ -564,16 +564,16 @@ pub struct PatSection<'buf> {
     data: &'buf[u8],
 }
 impl<'buf> PatSection<'buf> {
-    fn new(data: &'buf[u8]) -> PatSection<'buf> {
+    pub fn new(data: &'buf[u8]) -> PatSection<'buf> {
         PatSection {
             data,
         }
     }
-    fn programs(&self) -> ProgramIter {
+    pub fn programs(&self) -> ProgramIter {
         ProgramIter { buf: &self.data[..] }
     }
 }
-struct ProgramIter<'buf> {
+pub struct ProgramIter<'buf> {
     buf: &'buf[u8],
 }
 impl<'buf> Iterator for ProgramIter<'buf> {
