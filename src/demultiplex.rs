@@ -390,9 +390,7 @@ impl<'buf> PmtSection<'buf> {
             })
         }
     }
-}
 
-impl<'buf> PmtSection<'buf> {
     const HEADER_SIZE: usize = 4;
 
     pub fn reserved1(&self) -> u8 {
