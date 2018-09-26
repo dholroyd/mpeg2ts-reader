@@ -95,12 +95,12 @@ impl pes::ElementaryStreamConsumer for PtsDumpElementaryStreamConsumer {
         match header.contents() {
             pes::PesContents::Parsed(Some(parsed)) => {
                 match parsed.pts_dts() {
-                    pes::PtsDts::PtsOnly(Ok(pts)) => {
+                    Ok(pes::PtsDts::PtsOnly(Ok(pts))) => {
                         print!("PID {}: pts {:#08x}                ",
                                self.pid,
                                pts.value())
                     },
-                    pes::PtsDts::Both{pts:Ok(pts), dts:Ok(dts)} => {
+                    Ok(pes::PtsDts::Both{pts:Ok(pts), dts:Ok(dts)}) => {
                         print!("PID {}: pts {:#08x} dts {:#08x} ",
                                self.pid,
                                pts.value(),

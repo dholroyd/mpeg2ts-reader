@@ -58,8 +58,8 @@ impl TransportScramblingControl {
 
 /// Program Clock Reference
 pub struct PCR {
-    base: u64,
-    extension: u16,
+    pub base: u64,
+    pub extension: u16,
 }
 
 impl PartialEq for PCR {

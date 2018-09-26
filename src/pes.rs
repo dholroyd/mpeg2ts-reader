@@ -14,6 +14,7 @@
 use packet;
 use demultiplex;
 use std::marker;
+use packet::PCR;
 
 /// Trait for types that will receive call-backs as pieces of a specific elementary stream are
 /// encounted within a transport stream.
@@ -213,6 +214,18 @@ fn is_parsed(stream_id: u8) -> bool {
     }
 }
 
+#[derive(Debug,PartialEq)]
+pub enum PesError {
+    FieldNotPresent,
+    /// The `pts_dts_flags` field of the PES packet signals that DTS is present and PTS is not,
+    /// which not a valid combination
+    PtsDtsFlagsInvalid,
+    NotEnoughData { requested: usize, available: usize },
+    /// Marker bits are expected to always have the value `1` -- the value `0` presumably implies
+    /// a parsing error.
+    MarkerBitNotSet,
+}
+
 /// Either `PesContents::Payload`, when the `PesHeader` has no extra fields, or
 /// `PesContents::Parsed`, when the header provides additional optional fields exposed in a
 /// `ParsedPesContents` object.
@@ -238,6 +251,52 @@ fn is_parsed(stream_id: u8) -> bool {
 pub enum PesContents<'buf> {
     Parsed(Option<PesParsedContents<'buf>>),
     Payload(&'buf[u8]),
+}
+
+#[derive(Debug)]
+pub enum DsmTrickMode {
+    FastForward{
+        field_id: u8,
+        intra_slice_refresh: bool,
+        frequency_truncation: FrequencyTruncationCoefficientSelection,
+    },
+    SlowMotion {
+        rep_cntrl: u8,
+    },
+    FreezeFrame {
+        field_id: u8,
+        reserved: u8,
+    },
+    FastReverse {
+        field_id: u8,
+        intra_slice_refresh: bool,
+        frequency_truncation: FrequencyTruncationCoefficientSelection,
+    },
+    SlowReverse {
+        rep_cntrl: u8,
+    },
+    Reserved {
+        reserved: u8,
+    },
+}
+
+#[derive(Debug)]
+pub enum FrequencyTruncationCoefficientSelection {
+    DCNonZero,
+    FirstThreeNonZero,
+    FirstSixNonZero,
+    AllMaybeNonZero,
+}
+impl FrequencyTruncationCoefficientSelection {
+    fn from_id(id: u8) -> Self {
+        match id {
+            0b00 => FrequencyTruncationCoefficientSelection::DCNonZero,
+            0b01 => FrequencyTruncationCoefficientSelection::FirstThreeNonZero,
+            0b10 => FrequencyTruncationCoefficientSelection::FirstSixNonZero,
+            0b11 => FrequencyTruncationCoefficientSelection::AllMaybeNonZero,
+            _ => panic!("Invalid id {}", id),
+        }
+    }
 }
 
 /// Extra data which may optionally be present in the `PesHeader`, potentially including
@@ -289,7 +348,6 @@ impl<'buf> PesParsedContents<'buf> {
     fn pts_dts_flags(&self) -> u8 {
         self.buf[1] >> 6
     }
-    /*
     fn escr_flag(&self) -> bool {
         self.buf[1] >> 5 & 1 != 0
     }
@@ -302,6 +360,7 @@ impl<'buf> PesParsedContents<'buf> {
     fn additional_copy_info_flag(&self) -> bool {
         self.buf[1] >> 2 & 1 != 0
     }
+    /*
     fn pes_crc_flag(&self) -> bool {
         self.buf[1] >> 1 & 1 != 0
     }
@@ -312,37 +371,146 @@ impl<'buf> PesParsedContents<'buf> {
     fn pes_header_data_len(&self) -> usize {
         self.buf[2] as usize
     }
-    pub fn pts_dts(&self) -> PtsDts {
-        let header_size = 3;
-        let timestamp_size = 5;
+
+    fn header_slice(&self, from: usize, to: usize) -> Result<&'buf[u8],PesError> {
+        if to > self.pes_header_data_len()+Self::FIXED_HEADER_SIZE {
+            Err(PesError::NotEnoughData { requested: to, available: self.pes_header_data_len()+Self::FIXED_HEADER_SIZE })
+        } else if to > self.buf.len() {
+            Err(PesError::NotEnoughData { requested: to, available: self.buf.len() })
+        } else {
+            Ok(&self.buf[from..to])
+        }
+    }
+
+    const FIXED_HEADER_SIZE: usize = 3;
+    const TIMESTAMP_SIZE: usize = 5;
+
+    fn pts_dts_end(&self) -> usize {
         match self.pts_dts_flags() {
-            0b00 => PtsDts::None,
-            0b01 => PtsDts::Invalid,
+            0b00 => Self::FIXED_HEADER_SIZE,
+            0b01 => Self::FIXED_HEADER_SIZE,
+            0b10 => Self::FIXED_HEADER_SIZE + Self::TIMESTAMP_SIZE,
+            0b11 => Self::FIXED_HEADER_SIZE + Self::TIMESTAMP_SIZE*2,
+            v => panic!("unexpected value {}", v),
+        }
+    }
+    pub fn pts_dts(&self) -> Result<PtsDts,PesError> {
+        match self.pts_dts_flags() {
+            0b00 => Err(PesError::FieldNotPresent),
+            0b01 => Err(PesError::PtsDtsFlagsInvalid),
             0b10 => {
-                if self.buf.len() < header_size+timestamp_size {
-                    println!("PES packet buffer not long enough to hold of PTS, {}", self.buf.len());
-                    return PtsDts::None;
-                }
-                PtsDts::PtsOnly(
-                    Timestamp::from_bytes(&self.buf[header_size..header_size+timestamp_size])
-                )
+                self.header_slice(Self::FIXED_HEADER_SIZE, self.pts_dts_end())
+                    .map(|s| PtsDts::PtsOnly( Timestamp::from_bytes(s) ))
             },
             0b11 => {
-                if self.buf.len() < header_size+timestamp_size*2 {
-                    println!("PES packet buffer not long enough to hold of PTS+DTS, {}", self.buf.len());
-                    return PtsDts::None;
-                }
-                PtsDts::Both {
-                    pts: Timestamp::from_bytes(&self.buf[header_size..header_size+timestamp_size]),
-                    dts: Timestamp::from_bytes(&self.buf[header_size+timestamp_size..header_size+timestamp_size*2]),
-                }
+                self.header_slice(Self::FIXED_HEADER_SIZE, self.pts_dts_end())
+                    .map(|s| PtsDts::Both {
+                        pts: Timestamp::from_bytes(&s[..Self::TIMESTAMP_SIZE]),
+                        dts: Timestamp::from_bytes(&s[Self::TIMESTAMP_SIZE..]),
+                    })
             },
             v => panic!("unexpected value {}", v),
         }
     }
+    const ESCR_SIZE: usize = 6;
+
+    pub fn escr(&self) -> Result<PCR,PesError>{
+        if self.escr_flag() {
+            self.header_slice(self.pts_dts_end(), self.pts_dts_end()+Self::ESCR_SIZE)
+                .map(|s| {
+                    let base =
+                          u64::from(s[0] & 0b0011_1000) << 30
+                        | u64::from(s[0] & 0b0000_0011) << 28
+                        | u64::from(s[1]              ) << 20
+                        | u64::from(s[2] & 0b1111_1000) << 12
+                        | u64::from(s[2] & 0b0000_0011) << 13
+                        | u64::from(s[3]              ) << 5
+                        | u64::from(s[4] & 0b1111_1000) >> 3;
+                    let extension =
+                          u16::from(s[4] & 0b0000_0011) << 7
+                        | u16::from(s[5] & 0b1111_1110) >> 1;
+                    PCR::from_parts(base, extension)
+                })
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+    fn escr_end(&self) -> usize {
+        self.pts_dts_end() + if self.escr_flag() { Self::ESCR_SIZE } else { 0 }
+    }
+    const ES_RATE_SIZE: usize = 3;
+    pub fn es_rate(&self) -> Result<u32, PesError> {
+        if self.esrate_flag() {
+            self.header_slice(self.escr_end(), self.escr_end()+Self::ES_RATE_SIZE)
+                .map(|s| {
+                    u32::from(s[0] & 0b0111_1111) << 15
+                    | u32::from(s[1]) << 7
+                    | u32::from(s[2] & 0b1111_1110) >> 1
+                })
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+    fn es_rate_end(&self) -> usize {
+        self.escr_end() + if self.esrate_flag() { Self::ES_RATE_SIZE } else { 0 }
+    }
+    const DSM_TRICK_MODE_SIZE: usize = 1;
+    pub fn dsm_trick_mode(&self) -> Result<DsmTrickMode, PesError> {
+        if self.dsm_trick_mode_flag() {
+            self.header_slice(self.es_rate_end(), self.es_rate_end()+Self::DSM_TRICK_MODE_SIZE)
+                .map(|s| {
+                    let trick_mode_control = s[0] >> 5;
+                    let trick_mode_data = s[0] & 0b0001_1111;
+                    match trick_mode_control {
+                        0b000 => DsmTrickMode::FastForward{
+                            field_id: trick_mode_data >> 3,
+                            intra_slice_refresh: (trick_mode_data & 0b100) != 0,
+                            frequency_truncation: FrequencyTruncationCoefficientSelection::from_id(trick_mode_data & 0b11),
+                        },
+                        0b001 => DsmTrickMode::SlowMotion {
+                            rep_cntrl: trick_mode_control,
+                        },
+                        0b010 => DsmTrickMode::FreezeFrame {
+                            field_id: trick_mode_data >> 3,
+                            reserved: trick_mode_data & 0b111,
+                        },
+                        0b011 => DsmTrickMode::FastReverse {
+                            field_id: trick_mode_data >> 3,
+                            intra_slice_refresh: (trick_mode_data & 0b100) != 0,
+                            frequency_truncation: FrequencyTruncationCoefficientSelection::from_id(trick_mode_data & 0b11),
+                        },
+                        0b100 => DsmTrickMode::SlowReverse {
+                            rep_cntrl: trick_mode_control,
+                        },
+                        _ => DsmTrickMode::Reserved {
+                            reserved: trick_mode_control,
+                        },
+                    }
+                })
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+
+    }
+    fn dsm_trick_mode_end(&self) -> usize {
+        self.es_rate_end() + if self.dsm_trick_mode_flag() { Self::DSM_TRICK_MODE_SIZE } else { 0 }
+    }
+    pub fn additional_copy_info(&self) -> Result<u8,PesError> {
+        if self.additional_copy_info_flag() {
+            self.header_slice(self.dsm_trick_mode_end(), self.dsm_trick_mode_end()+Self::DSM_TRICK_MODE_SIZE)
+                .and_then(|s| {
+                    if s[0] & 0b1000_0000 == 0 {
+                        Err(PesError::MarkerBitNotSet)
+                    } else {
+                        Ok(s[0] & 0b0111_1111)
+                    }
+                })
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
     pub fn payload(&self) -> &'buf[u8] {
-        let fixed_header_len = 3;
-        &self.buf[fixed_header_len+self.pes_header_data_len()..]
+        &self.buf[Self::FIXED_HEADER_SIZE+self.pes_header_data_len()..]
     }
 }
 
@@ -488,6 +656,26 @@ mod test {
         w.write(1, 1)       // marker_bit
     }
 
+    fn write_escr(w: &mut BitWriter<BE>, base: u64, extension: u16) -> Result<(), io::Error> {
+        assert!(base < 1u64<<33, "base value too large {:#x} >= {:#x}", base, 1u64<<33);
+        assert!(extension < 1u16<<9, "extension value too large {:#x} >= {:#x}", base, 1u16<<9);
+        w.write(2, 0b11)?;  // reserved
+        w.write(3,  (base & 0b1_1100_0000_0000_0000_0000_0000_0000_0000) >> 30)?;
+        w.write(1, 1)?;     // marker_bit
+        w.write(15, (base & 0b0_0011_1111_1111_1111_1000_0000_0000_0000) >> 15)?;
+        w.write(1, 1)?;     // marker_bit
+        w.write(15, base & 0b0_0000_0000_0000_0000_0111_1111_1111_1111)?;
+        w.write(1, 1)?;     // marker_bit
+        w.write(9, extension)?;
+        w.write(1, 1)       // marker_bit
+    }
+    fn write_es_rate(w: &mut BitWriter<BE>, rate: u32) -> Result<(), io::Error> {
+        assert!(rate < 1u32<<22, "rate value too large {:#x} >= {:#x}", rate, 1u32<<22);
+        w.write(1, 1)?;     // marker_bit
+        w.write(22, rate)?;
+        w.write(1, 1)       // marker_bit
+    }
+
     #[test]
     fn parse_header() {
         let data = make_test_data(|mut w| {
@@ -502,14 +690,30 @@ mod test {
             w.write(1, 0)?;     // copyright
             w.write(1, 0)?;     // original_or_copy
             w.write(2, 0b10)?;  // PTS_DTS_flags
-            w.write(1, 0)?;     // ESCR_flag
-            w.write(1, 0)?;     // ES_rate_flag
-            w.write(1, 0)?;     // DSM_trick_mode_flag
-            w.write(1, 0)?;     // additonal_copy_info_flag
+            w.write(1, 1)?;     // ESCR_flag
+            w.write(1, 1)?;     // ES_rate_flag
+            w.write(1, 1)?;     // DSM_trick_mode_flag
+            w.write(1, 1)?;     // additonal_copy_info_flag
             w.write(1, 0)?;     // PES_CRC_flag
             w.write(1, 0)?;     // PES_extension_flag
-            w.write(8, 5)?;     // PES_data_length (size of following PTS)
-            write_ts(&mut w, 123456789, 0b0010)  // PTS
+            let pes_header_length
+                = 5  // PTS
+                + 6  // ESCR
+                + 3  // es_rate
+                + 1  // DSM trick mode
+                + 1; // additional_copy_info
+            w.write(8, pes_header_length)?;     // PES_data_length (size of fields that follow)
+            write_ts(&mut w, 123456789, 0b0010)?;  // PTS
+            write_escr(&mut w, 123456789, 234)?;
+            write_es_rate(&mut w, 1234567)?;
+            // DSM_trick_mode,
+            w.write(3, 0b00)?;   // trick_mode_control (== fast_forward)
+            w.write(2, 2)?;      // field_id
+            w.write_bit(true)?;  // intra_slice_refresh
+            w.write(2, 0)?;      // frequency_truncation
+            // additonal_copy_info,
+            w.write(1, 1)?;   // marker_bit
+            w.write(7, 123)   // additional_copy_info
         });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
         assert_eq!(7, header.stream_id());
@@ -523,7 +727,7 @@ mod test {
                 assert_eq!(pes::Copyright::Protected, p.copyright());
                 assert_eq!(pes::OriginalOrCopy::Copy, p.original_or_copy());
                 match p.pts_dts() {
-                    pes::PtsDts::PtsOnly(Ok(ts)) => {
+                    Ok(pes::PtsDts::PtsOnly(Ok(ts))) => {
                         let a = ts.value();
                         let b = 123456789;
                         assert_eq!(a, b, "timestamp values don't match:\n  actual:{:#b}\nexpected:{:#b}", a, b);
@@ -531,6 +735,20 @@ mod test {
                     _ => panic!("expected PtsDts::PtsOnly, got{}", stringify!(_)),
                 }
                 assert_eq!(p.payload().len(), 0);
+                match p.escr() {
+                    Ok(escr) => {
+                        assert_eq!(123456789, escr.base);
+                        assert_eq!(234, escr.extension);
+                    },
+                    e => panic!("expected escr value, got {:?}", e),
+                }
+                assert_matches!(p.dsm_trick_mode(), Ok(pes::DsmTrickMode::FastForward{
+                    field_id: 2,
+                    intra_slice_refresh: true,
+                    frequency_truncation: pes::FrequencyTruncationCoefficientSelection::DCNonZero,
+                }));
+                assert_matches!(p.es_rate(), Ok(1234567));
+                assert_matches!(p.additional_copy_info(), Ok(123));
             },
             pes::PesContents::Payload(_) => panic!("expected PesContents::Parsed, got PesContents::Payload"),
         }

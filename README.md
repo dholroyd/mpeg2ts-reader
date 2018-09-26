@@ -211,10 +211,10 @@ and what's yet to come:
 - Packetised Elementary Stream syntax
   - [x] PES_packet_data
   - [x] PTS/DTS
-  - [ ] ESCR
-  - [ ] ES_rate
-  - [ ] DSM_trick_mode
-  - [ ] additional_copy_info
+  - [x] ESCR
+  - [x] ES_rate
+  - [x] DSM_trick_mode
+  - [x] additional_copy_info
   - [ ] PES_CRC
   - [ ] PES_extension
 - Descriptors
