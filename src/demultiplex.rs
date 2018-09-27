@@ -247,6 +247,8 @@ pub enum FilterRequest<'a, 'buf: 'a> {
     ByPid(u16),
     ByStream(StreamType, &'a PmtSection<'buf>, &'a StreamInfo<'buf>),
     Pmt{pid: u16, program_number: u16},
+    // requests a filter implementation to handle packets containing Network Information Table data
+    Nit { pid: u16 },
 }
 
 // TODO: would be nice to have an impl of this trait for `Fn(FilterRequest)->F`, but that ends up
@@ -506,8 +508,11 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
         let mut pids_seen = HashSet::new();
         // add or update filters for descriptors we've not seen before,
         for desc in sect.programs() {
-            println!("new table for pid {}, program {}", desc.pid(), desc.program_number());
-            let filter = ctx.filter_constructor().construct(FilterRequest::Pmt {pid: desc.pid(), program_number: desc.program_number() });
+            println!("new table for {:?}", desc);
+            let filter = match desc {
+                ProgramDescriptor::Program { program_number, pid } => ctx.filter_constructor().construct(FilterRequest::Pmt { pid, program_number }),
+                ProgramDescriptor::Network { pid } => ctx.filter_constructor().construct(FilterRequest::Nit { pid }),
+            };
             ctx.filter_changeset().insert(desc.pid(), filter);
             pids_seen.insert(desc.pid());
             self.filters_registered.insert(desc.pid() as usize);
@@ -537,25 +542,28 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
 }
 
 #[derive(Clone,Debug)]
-pub struct ProgramDescriptor<'buf> {
-    data: &'buf[u8],
+pub enum ProgramDescriptor {
+    Network { pid: u16 },
+    Program { program_number: u16, pid: u16 },
 }
 
-impl<'buf> ProgramDescriptor<'buf> {
+impl ProgramDescriptor {
     /// panics if fewer than 4 bytes are provided
-    pub fn from_bytes(data: &'buf[u8]) -> ProgramDescriptor<'buf> {
-        ProgramDescriptor {
-            data,
+    pub fn from_bytes(data: &[u8]) -> ProgramDescriptor {
+        let program_number = (u16::from(data[0]) << 8) | u16::from(data[1]);
+        let pid = (u16::from(data[2]) & 0b00011111) << 8 | u16::from(data[3]);
+        if program_number == 0 {
+            ProgramDescriptor::Network { pid }
+        } else {
+            ProgramDescriptor::Program { program_number, pid }
         }
     }
 
-    pub fn program_number(&self) -> u16 {
-        (u16::from(self.data[0]) << 8) | u16::from(self.data[1])
-
-    }
-
     pub fn pid(&self) -> u16 {
-        (u16::from(self.data[2]) & 0b00011111) << 8 | u16::from(self.data[3])
+        match *self {
+            ProgramDescriptor::Network { pid } => pid,
+            ProgramDescriptor::Program { pid, .. } => pid,
+        }
     }
 }
 
@@ -577,7 +585,7 @@ pub struct ProgramIter<'buf> {
     buf: &'buf[u8],
 }
 impl<'buf> Iterator for ProgramIter<'buf> {
-    type Item = ProgramDescriptor<'buf>;
+    type Item = ProgramDescriptor;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.buf.is_empty() {
@@ -757,6 +765,7 @@ mod test {
                 demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
                 demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
                 demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+                demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
             }
         }
     }

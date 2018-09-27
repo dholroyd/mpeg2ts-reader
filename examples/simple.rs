@@ -67,6 +67,9 @@ impl demultiplex::StreamConstructor for DumpStreamConstructor {
             // logic if required,
             demultiplex::FilterRequest::Pmt{pid, program_number} =>
                 DumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+            // Ignore 'Network Information Table', if present,
+            demultiplex::FilterRequest::Nit{..} =>
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
         }
     }
 }

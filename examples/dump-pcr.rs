@@ -34,6 +34,7 @@ impl demultiplex::StreamConstructor for PcrDumpStreamConstructor {
             demultiplex::FilterRequest::ByStream(_, pmt_section, stream_info) => PcrDumpFilterSwitch::Pcr(PcrPacketFilter::construct(pmt_section, stream_info)),
 
             demultiplex::FilterRequest::ByPid(_) => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::Nit{..} => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
         }
     }
 }
