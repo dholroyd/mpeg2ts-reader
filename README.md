@@ -221,7 +221,7 @@ and what's yet to come:
   - [ ] video_stream_descriptor
   - [ ] audio_stream_descriptor
   - [ ] hierarchy_descriptor
-  - [ ] registration_descriptor
+  - [x] registration_descriptor
   - [ ] data_stream_alignment_descriptor
   - [ ] target_background_grid_descriptor
   - [ ] video_window_descriptor
