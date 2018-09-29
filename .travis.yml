@@ -1,7 +1,10 @@
 language: rust
+
 rust:
   - stable
   - nightly
+
+cache: cargo
 
 # Dependencies of kcov, used by coverage
 addons:
@@ -15,7 +18,7 @@ addons:
     sources:
       - kalakris-cmake
 
-sudo: false
+sudo: required  # https://github.com/travis-ci/travis-ci/issues/9061
 
 before_script:
   - cargo install cargo-travis
