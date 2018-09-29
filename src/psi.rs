@@ -142,7 +142,9 @@ where
 
     fn section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
         assert!(header.section_syntax_indicator);
-        if CRC_CHECK && mpegts_crc::sum32(data) != 0 {
+        // don't apply CRC checks when fuzzing, to give more chances of test data triggering
+        // parser bugs,
+        if !cfg!(fuzz) && mpegts_crc::sum32(data) != 0 {
             println!(
                 "section crc check failed for table_id {}",
                 header.table_id,
@@ -402,11 +404,6 @@ where
     parser: P,
 }
 
-
-#[cfg(not(fuzz))]
-const CRC_CHECK: bool = true;
-#[cfg(fuzz)]
-const CRC_CHECK: bool = false;
 
 impl<P, Ctx> SectionPacketConsumer<P>
 where
