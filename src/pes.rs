@@ -299,6 +299,11 @@ impl FrequencyTruncationCoefficientSelection {
     }
 }
 
+/// TODO: not yet implemented
+pub struct PesExtension<'buf> {
+    buf: &'buf[u8],
+}
+
 /// Extra data which may optionally be present in the `PesHeader`, potentially including
 /// Presentation Timestamp (PTS) and Decode Timestamp (DTS) values.
 pub struct PesParsedContents<'buf> {
@@ -360,14 +365,12 @@ impl<'buf> PesParsedContents<'buf> {
     fn additional_copy_info_flag(&self) -> bool {
         self.buf[1] >> 2 & 1 != 0
     }
-    /*
     fn pes_crc_flag(&self) -> bool {
         self.buf[1] >> 1 & 1 != 0
     }
     fn pes_extension_flag(&self) -> bool {
         self.buf[1] & 1 != 0
     }
-    */
     fn pes_header_data_len(&self) -> usize {
         self.buf[2] as usize
     }
@@ -495,9 +498,10 @@ impl<'buf> PesParsedContents<'buf> {
     fn dsm_trick_mode_end(&self) -> usize {
         self.es_rate_end() + if self.dsm_trick_mode_flag() { Self::DSM_TRICK_MODE_SIZE } else { 0 }
     }
+    const ADDITIONAL_COPY_INFO_SIZE: usize = 1;
     pub fn additional_copy_info(&self) -> Result<u8,PesError> {
         if self.additional_copy_info_flag() {
-            self.header_slice(self.dsm_trick_mode_end(), self.dsm_trick_mode_end()+Self::DSM_TRICK_MODE_SIZE)
+            self.header_slice(self.dsm_trick_mode_end(), self.dsm_trick_mode_end()+Self::ADDITIONAL_COPY_INFO_SIZE)
                 .and_then(|s| {
                     if s[0] & 0b1000_0000 == 0 {
                         Err(PesError::MarkerBitNotSet)
@@ -505,6 +509,36 @@ impl<'buf> PesParsedContents<'buf> {
                         Ok(s[0] & 0b0111_1111)
                     }
                 })
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+    fn additional_copy_info_end(&self) -> usize {
+        self.dsm_trick_mode_end() + if self.additional_copy_info_flag() { Self::ADDITIONAL_COPY_INFO_SIZE } else { 0 }
+    }
+    const PREVIOUS_PES_PACKET_CRC_SIZE: usize = 2;
+    pub fn previous_pes_packet_crc(&self) -> Result<u16, PesError>{
+        if self.pes_crc_flag() {
+            self.header_slice(self.additional_copy_info_end(), self.additional_copy_info_end()+Self::PREVIOUS_PES_PACKET_CRC_SIZE)
+                .map(|s| {
+                    u16::from(s[0]) << 8
+                    | u16::from(s[1])
+                })
+
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+    fn pes_crc_end(&self) -> usize {
+        self.additional_copy_info_end() + if self.pes_crc_flag() { Self::PREVIOUS_PES_PACKET_CRC_SIZE } else { 0 }
+    }
+    pub fn pes_extension(&self) -> Result<PesExtension<'buf>, PesError> {
+        if self.pes_extension_flag() {
+            self.header_slice(self.pes_crc_end(), self.pes_header_data_len()+Self::FIXED_HEADER_SIZE)
+                .map(|s| {
+                    PesExtension { buf: s }
+                })
+
         } else {
             Err(PesError::FieldNotPresent)
         }
@@ -694,14 +728,15 @@ mod test {
             w.write(1, 1)?;     // ES_rate_flag
             w.write(1, 1)?;     // DSM_trick_mode_flag
             w.write(1, 1)?;     // additonal_copy_info_flag
-            w.write(1, 0)?;     // PES_CRC_flag
+            w.write(1, 1)?;     // PES_CRC_flag
             w.write(1, 0)?;     // PES_extension_flag
             let pes_header_length
                 = 5  // PTS
                 + 6  // ESCR
                 + 3  // es_rate
                 + 1  // DSM trick mode
-                + 1; // additional_copy_info
+                + 1  // additional_copy_info
+                + 2; // previous_PES_packet_CRC
             w.write(8, pes_header_length)?;     // PES_data_length (size of fields that follow)
             write_ts(&mut w, 123456789, 0b0010)?;  // PTS
             write_escr(&mut w, 123456789, 234)?;
@@ -713,7 +748,8 @@ mod test {
             w.write(2, 0)?;      // frequency_truncation
             // additonal_copy_info,
             w.write(1, 1)?;   // marker_bit
-            w.write(7, 123)   // additional_copy_info
+            w.write(7, 123)?; // additional_copy_info
+            w.write(16, 54321)  // previous_PES_packet_CRC
         });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
         assert_eq!(7, header.stream_id());
@@ -749,6 +785,7 @@ mod test {
                 }));
                 assert_matches!(p.es_rate(), Ok(1234567));
                 assert_matches!(p.additional_copy_info(), Ok(123));
+                assert_matches!(p.previous_pes_packet_crc(), Ok(54321));
             },
             pes::PesContents::Payload(_) => panic!("expected PesContents::Parsed, got PesContents::Payload"),
         }

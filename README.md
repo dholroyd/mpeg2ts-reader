@@ -216,7 +216,7 @@ and what's yet to come:
   - [x] ES_rate
   - [x] DSM_trick_mode
   - [x] additional_copy_info
-  - [ ] PES_CRC
+  - [x] PES_CRC
   - [ ] PES_extension
 - Descriptors
   - [ ] video_stream_descriptor
