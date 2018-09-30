@@ -15,6 +15,7 @@ use packet;
 use demultiplex;
 use std::marker;
 use packet::PCR;
+use std::fmt;
 
 /// Trait for types that will receive call-backs as pieces of a specific elementary stream are
 /// encounted within a transport stream.
@@ -300,6 +301,7 @@ impl FrequencyTruncationCoefficientSelection {
 }
 
 /// TODO: not yet implemented
+#[derive(Debug)]  // TODO manual Debug
 pub struct PesExtension<'buf> {
     buf: &'buf[u8],
 }
@@ -548,6 +550,24 @@ impl<'buf> PesParsedContents<'buf> {
     }
 }
 
+impl<'buf> fmt::Debug for PesParsedContents<'buf> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let mut s = f.debug_struct("PesParsedContents");
+        s.field("pes_priority", &self.pes_priority())
+            .field("data_alignment_indicator", &self.data_alignment_indicator())
+            .field("copyright", &self.copyright())
+            .field("original_or_copy", &self.original_or_copy())
+            .field("pts_dts", &self.pts_dts());
+        if let Ok(escr) = self.escr() { s.field("escr", &escr); }
+        if let Ok(es_rate) = self.es_rate() { s.field("es_rate", &es_rate); }
+        if let Ok(dsm_trick_mode) = self.dsm_trick_mode() { s.field("dsm_trick_mode", &dsm_trick_mode); }
+        if let Ok(additional_copy_info) = self.additional_copy_info() { s.field("additional_copy_info", &additional_copy_info); }
+        if let Ok(previous_pes_packet_crc) = self.previous_pes_packet_crc() { s.field("previous_pes_packet_crc", &previous_pes_packet_crc); }
+        if let Ok(pes_extension) = self.pes_extension() { s.field("pes_extension", &pes_extension); }
+        s.finish()
+    }
+}
+
 
 /// Detail about the formatting problem which prevented a [`Timestamp`](struct.Timestamp.html)
 /// value being parsed.
@@ -786,6 +806,7 @@ mod test {
                 assert_matches!(p.es_rate(), Ok(1234567));
                 assert_matches!(p.additional_copy_info(), Ok(123));
                 assert_matches!(p.previous_pes_packet_crc(), Ok(54321));
+                println!("{:#?}", p);
             },
             pes::PesContents::Payload(_) => panic!("expected PesContents::Parsed, got PesContents::Payload"),
         }
