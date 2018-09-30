@@ -21,7 +21,7 @@ addons:
 sudo: required  # https://github.com/travis-ci/travis-ci/issues/9061
 
 before_script:
-  - cargo install cargo-travis
+  - cargo install --force cargo-travis
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
