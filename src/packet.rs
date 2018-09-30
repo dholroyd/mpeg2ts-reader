@@ -514,6 +514,7 @@ impl<'buf> Packet<'buf> {
         self.buf
     }
 
+    #[inline]
     fn content_offset(&self) -> usize {
         match self.adaptation_control() {
             AdaptationControl::Reserved |
