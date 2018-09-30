@@ -300,6 +300,25 @@ impl FrequencyTruncationCoefficientSelection {
     }
 }
 
+// Indication of an Elementary Stream's data rate
+#[derive(Debug)]
+pub struct EsRate(u32);
+impl EsRate {
+    const RATE_BYTES_PER_SECOND: u32 = 50;
+    pub fn new(es_rate: u32) -> EsRate {
+        assert!(es_rate < 1<<22);
+        EsRate(es_rate)
+    }
+    pub fn bytes_per_second(&self) -> u32 {
+        self.0 * Self::RATE_BYTES_PER_SECOND
+    }
+}
+impl Into<u32> for EsRate {
+    fn into(self) -> u32 {
+        self.0
+    }
+}
+
 /// TODO: not yet implemented
 #[derive(Debug)]  // TODO manual Debug
 pub struct PesExtension<'buf> {
@@ -444,13 +463,13 @@ impl<'buf> PesParsedContents<'buf> {
         self.pts_dts_end() + if self.escr_flag() { Self::ESCR_SIZE } else { 0 }
     }
     const ES_RATE_SIZE: usize = 3;
-    pub fn es_rate(&self) -> Result<u32, PesError> {
+    pub fn es_rate(&self) -> Result<EsRate, PesError> {
         if self.esrate_flag() {
             self.header_slice(self.escr_end(), self.escr_end()+Self::ES_RATE_SIZE)
                 .map(|s| {
-                    u32::from(s[0] & 0b0111_1111) << 15
+                    EsRate::new(u32::from(s[0] & 0b0111_1111) << 15
                     | u32::from(s[1]) << 7
-                    | u32::from(s[2] & 0b1111_1110) >> 1
+                    | u32::from(s[2] & 0b1111_1110) >> 1)
                 })
         } else {
             Err(PesError::FieldNotPresent)
@@ -803,7 +822,7 @@ mod test {
                     intra_slice_refresh: true,
                     frequency_truncation: pes::FrequencyTruncationCoefficientSelection::DCNonZero,
                 }));
-                assert_matches!(p.es_rate(), Ok(1234567));
+                assert_matches!(p.es_rate(), Ok(pes::EsRate(1234567)));
                 assert_matches!(p.additional_copy_info(), Ok(123));
                 assert_matches!(p.previous_pes_packet_crc(), Ok(54321));
                 println!("{:#?}", p);
