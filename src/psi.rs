@@ -415,7 +415,7 @@ where
         }
     }
 
-    pub fn consume(&mut self, ctx: &mut Ctx, pk: packet::Packet) {
+    pub fn consume(&mut self, ctx: &mut Ctx, pk: &packet::Packet) {
         match pk.payload() {
             Some(pk_buf) => {
                 if pk.payload_unit_start_indicator() {
@@ -500,7 +500,7 @@ mod test {
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
         let mut ctx = NullDemuxContext::new(NullStreamConstructor);
-        psi_buf.consume(&mut ctx, pk);
+        psi_buf.consume(&mut ctx, &pk);
     }
 
     #[test]
@@ -513,7 +513,7 @@ mod test {
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
         let mut ctx = NullDemuxContext::new(NullStreamConstructor);
-        psi_buf.consume(&mut ctx, pk);
+        psi_buf.consume(&mut ctx, &pk);
     }
 
     #[test]

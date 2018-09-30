@@ -13,7 +13,7 @@ use std::marker;
 pub trait PacketFilter {
     type Ctx: DemuxContext;
 
-    fn consume(&mut self, ctx: &mut Self::Ctx, pk: packet::Packet);
+    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet);
 }
 
 pub struct NullPacketFilter<Ctx: DemuxContext> {
@@ -31,7 +31,7 @@ impl<Ctx: DemuxContext> NullPacketFilter<Ctx> {
 }
 impl<Ctx: DemuxContext> PacketFilter for NullPacketFilter<Ctx> {
     type Ctx = Ctx;
-    fn consume(&mut self, _ctx: &mut Self::Ctx, _pk: packet::Packet) {
+    fn consume(&mut self, _ctx: &mut Self::Ctx, _pk: &packet::Packet) {
         // ignore
     }
 }
@@ -128,7 +128,7 @@ macro_rules! packet_filter_switch {
         impl $crate::demultiplex::PacketFilter for $name {
             type Ctx = $ctx;
             #[inline(always)]
-            fn consume(&mut self, ctx: &mut $ctx, pk: $crate::packet::Packet) {
+            fn consume(&mut self, ctx: &mut $ctx, pk: &$crate::packet::Packet) {
                 match self {
                     $( &mut $name::$case_name(ref mut f) => f.consume(ctx, pk), )*
 
@@ -480,7 +480,7 @@ impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
 impl<Ctx: DemuxContext> PacketFilter for PmtPacketFilter<Ctx> {
     type Ctx = Ctx;
 
-    fn consume(&mut self, ctx: &mut Self::Ctx, pk: packet::Packet) {
+    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet) {
         self.pmt_section_packet_consumer.consume(ctx, pk);
     }
 }
@@ -619,7 +619,7 @@ impl<Ctx: DemuxContext> UnhandledPid<Ctx> {
 }
 impl<Ctx: DemuxContext> PacketFilter for UnhandledPid<Ctx> {
     type Ctx = Ctx;
-    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: packet::Packet) {
+    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet) {
         if !self.pid_seen {
             println!("unhandled pid {}", pk.pid());
             self.pid_seen = true;
@@ -667,7 +667,7 @@ impl<Ctx: DemuxContext> PatPacketFilter<Ctx> {
 impl<Ctx: DemuxContext> PacketFilter for PatPacketFilter<Ctx> {
     type Ctx = Ctx;
 
-    fn consume(&mut self, ctx: &mut Self::Ctx, pk: packet::Packet) {
+    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet) {
         self.pat_section_packet_consumer.consume(ctx, pk);
     }
 }
@@ -705,7 +705,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                     };
                     let this_proc = self.processor_by_pid.get(this_pid).unwrap();
                     while ctx.filter_changeset().is_empty() {
-                        this_proc.consume(ctx, pk);
+                        this_proc.consume(ctx, &pk);
                         i += packet::PACKET_SIZE;
                         let end = i+packet::PACKET_SIZE;
                         if end > buf.len() {

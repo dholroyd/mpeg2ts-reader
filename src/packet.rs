@@ -345,7 +345,7 @@ impl ContinuityCounter {
 
     /// Returns this counter's value, which will be between 0 and 15 inclusive.
     #[inline]
-    pub fn count(&self) -> u8 {
+    pub fn count(self) -> u8 {
         self.val
     }
 
@@ -359,7 +359,7 @@ impl ContinuityCounter {
     /// assert!(a.follows(b));  // after 15, counter wraps around to 0
     /// ```
     #[inline]
-    pub fn follows(&self, other: ContinuityCounter) -> bool {
+    pub fn follows(self, other: ContinuityCounter) -> bool {
         (other.val + 1) & 0b1111 == self.val
     }
 }

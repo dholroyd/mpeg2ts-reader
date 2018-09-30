@@ -55,7 +55,7 @@ impl<Ctx: DemuxContext> PcrPacketFilter<Ctx> {
 }
 impl<Ctx: DemuxContext> PacketFilter for PcrPacketFilter<Ctx> {
     type Ctx = Ctx;
-    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: Packet) {
+    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &Packet) {
         if let Some(adaptation_field) = pk.adaptation_field() {
             if let Ok(pcr) = adaptation_field.pcr() {
                 println!("pid={} pcr={}", pk.pid(), u64::from(pcr));
