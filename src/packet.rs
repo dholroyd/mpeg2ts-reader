@@ -70,7 +70,7 @@ impl PartialEq for PCR {
 
 impl From<PCR> for u64 {
     fn from(pcr: PCR) -> u64 {
-        pcr.base * 300 + pcr.extension as u64
+        pcr.base * 300 + u64::from(pcr.extension)
     }
 }
 
@@ -399,7 +399,7 @@ impl<'buf> Packet<'buf> {
     }
 
     pub fn transport_error_indicator(&self) -> bool {
-        self.buf[1] & 0b10000000 != 0
+        self.buf[1] & 0b1000_0000 != 0
     }
 
     /// a structure larger than a single packet payload needs to be split across multiple packets,
@@ -408,18 +408,18 @@ impl<'buf> Packet<'buf> {
     /// in an earlier packet within the transport stream.
     #[inline]
     pub fn payload_unit_start_indicator(&self) -> bool {
-        self.buf[1] & 0b01000000 != 0
+        self.buf[1] & 0b0100_0000 != 0
     }
 
     pub fn transport_priority(&self) -> bool {
-        self.buf[1] & 0b00100000 != 0
+        self.buf[1] & 0b0010_0000 != 0
     }
 
     /// The sub-stream to which a particular packet belongs is indicated by this Packet Identifier
     /// value.
     #[inline]
     pub fn pid(&self) -> u16 {
-        u16::from(self.buf[1] & 0b00011111) << 8 | u16::from(self.buf[2])
+        u16::from(self.buf[1] & 0b0001_1111) << 8 | u16::from(self.buf[2])
     }
 
     pub fn transport_scrambling_control(&self) -> TransportScramblingControl {
@@ -439,7 +439,7 @@ impl<'buf> Packet<'buf> {
     /// stream (e.g. due to data loss during transmission).
     #[inline]
     pub fn continuity_counter(&self) -> ContinuityCounter {
-        ContinuityCounter::new(self.buf[3] & 0b00001111)
+        ContinuityCounter::new(self.buf[3] & 0b0000_1111)
     }
 
     fn adaptation_field_length(&self) -> usize {

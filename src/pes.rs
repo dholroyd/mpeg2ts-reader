@@ -102,7 +102,7 @@ where
             match self.state {
                 PesState::Started => {
                     if let Some(payload) = packet.payload() {
-                        if payload.len() > 0 {
+                        if payload.is_empty() {
                             self.stream_consumer.continue_packet(payload);
                         }
                     }
@@ -640,9 +640,9 @@ impl Timestamp {
         Timestamp::check_marker_bit(buf, 23)?;
         Timestamp::check_marker_bit(buf, 39)?;
         Ok(Timestamp {
-            val: (u64::from(buf[0] & 0b00001110) << 29) |
+            val: (u64::from(buf[0] & 0b0000_1110) << 29) |
                   u64::from(buf[1]) << 22 |
-                 (u64::from(buf[2] & 0b11111110) << 14) |
+                 (u64::from(buf[2] & 0b1111_1110) << 14) |
                   u64::from(buf[3]) << 7 |
                   u64::from(buf[4]) >> 1
         })

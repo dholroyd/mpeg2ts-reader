@@ -93,7 +93,7 @@ impl<'buf> TableSyntaxHeader<'buf> {
     /// A 5-bit value that can be used to quickly check if this table has changed since the last
     /// time it was periodically inserted within the transport stream being read.
     pub fn version(&self) -> u8 {
-        (self.buf[2] >> 1) & 0b00011111
+        (self.buf[2] >> 1) & 0b0001_1111
     }
     /// Is this table applicable now, or will it become applicable at some future time.
     /// NB I've not seen sample data that uses anything other than `CurrentNext::Current`, so
@@ -387,9 +387,9 @@ impl SectionCommonHeader {
         assert_eq!(buf.len(), Self::SIZE);
         SectionCommonHeader {
             table_id: buf[0],
-            section_syntax_indicator: buf[1] & 0b10000000 != 0,
-            private_indicator: buf[1] & 0b01000000 != 0,
-            section_length: ((u16::from(buf[1] & 0b00001111) << 8) | u16::from(buf[2])) as usize,
+            section_syntax_indicator: buf[1] & 0b1000_0000 != 0,
+            private_indicator: buf[1] & 0b0100_0000 != 0,
+            section_length: ((u16::from(buf[1] & 0b0000_1111) << 8) | u16::from(buf[2])) as usize,
         }
     }
 }

@@ -161,7 +161,7 @@ where
     type Item = Result<Desc, DescriptorError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.buf.len() == 0 {
+        if self.buf.is_empty() {
             return None;
         }
         let tag = self.buf[0];

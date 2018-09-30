@@ -348,13 +348,13 @@ impl<'buf> StreamInfo<'buf> {
         self.data[1] >> 5
     }
     pub fn elementary_pid(&self) -> u16 {
-       u16::from(self.data[1] & 0b00011111) << 8 | u16::from(self.data[2])
+       u16::from(self.data[1] & 0b0001_1111) << 8 | u16::from(self.data[2])
     }
     pub fn reserved2(&self) -> u8 {
         self.data[3] >> 4
     }
     pub fn es_info_length(&self) -> u16 {
-        u16::from(self.data[3] & 0b00001111) << 8 | u16::from(self.data[4])
+        u16::from(self.data[3] & 0b0000_1111) << 8 | u16::from(self.data[4])
     }
 
     pub fn descriptors<Desc: descriptor::Descriptor<'buf>>(&self) -> descriptor::DescriptorIter<'buf, Desc> {
@@ -399,13 +399,13 @@ impl<'buf> PmtSection<'buf> {
         self.data[0] >> 5
     }
     pub fn pcr_pid(&self) -> u16 {
-        u16::from(self.data[0] & 0b00011111) << 8 | u16::from(self.data[1])
+        u16::from(self.data[0] & 0b0001_1111) << 8 | u16::from(self.data[1])
     }
     pub fn reserved2(&self) -> u8 {
         self.data[2] >> 4
     }
     pub fn program_info_length(&self) -> u16 {
-        u16::from(self.data[2] & 0b00001111) << 8 | u16::from(self.data[3])
+        u16::from(self.data[2] & 0b0000_1111) << 8 | u16::from(self.data[3])
     }
     pub fn descriptors<Desc: descriptor::Descriptor<'buf>>(&self) -> descriptor::DescriptorIter<'buf, Desc> {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
@@ -551,7 +551,7 @@ impl ProgramDescriptor {
     /// panics if fewer than 4 bytes are provided
     pub fn from_bytes(data: &[u8]) -> ProgramDescriptor {
         let program_number = (u16::from(data[0]) << 8) | u16::from(data[1]);
-        let pid = (u16::from(data[2]) & 0b00011111) << 8 | u16::from(data[3]);
+        let pid = (u16::from(data[2]) & 0b0001_1111) << 8 | u16::from(data[3]);
         if program_number == 0 {
             ProgramDescriptor::Network { pid }
         } else {
