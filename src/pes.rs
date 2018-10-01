@@ -14,7 +14,7 @@
 use packet;
 use demultiplex;
 use std::marker;
-use packet::PCR;
+use packet::ClockRef;
 use std::fmt;
 
 /// Trait for types that will receive call-backs as pieces of a specific elementary stream are
@@ -438,7 +438,7 @@ impl<'buf> PesParsedContents<'buf> {
     }
     const ESCR_SIZE: usize = 6;
 
-    pub fn escr(&self) -> Result<PCR,PesError>{
+    pub fn escr(&self) -> Result<ClockRef,PesError>{
         if self.escr_flag() {
             self.header_slice(self.pts_dts_end(), self.pts_dts_end()+Self::ESCR_SIZE)
                 .map(|s| {
@@ -453,7 +453,7 @@ impl<'buf> PesParsedContents<'buf> {
                     let extension =
                           u16::from(s[4] & 0b0000_0011) << 7
                         | u16::from(s[5] & 0b1111_1110) >> 1;
-                    PCR::from_parts(base, extension)
+                    ClockRef::from_parts(base, extension)
                 })
         } else {
             Err(PesError::FieldNotPresent)
@@ -812,8 +812,8 @@ mod test {
                 assert_eq!(p.payload().len(), 0);
                 match p.escr() {
                     Ok(escr) => {
-                        assert_eq!(123456789, escr.base);
-                        assert_eq!(234, escr.extension);
+                        assert_eq!(123456789, escr.base());
+                        assert_eq!(234, escr.extension());
                     },
                     e => panic!("expected escr value, got {:?}", e),
                 }

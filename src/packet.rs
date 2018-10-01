@@ -56,25 +56,33 @@ impl TransportScramblingControl {
     }
 }
 
-/// Program Clock Reference
-pub struct PCR {
-    pub base: u64,
-    pub extension: u16,
+/// A _Clock Reference_ is used to represent the values of PCR and ESCR fields within the transport
+/// stream data.
+///
+/// A _Clock Reference_ includes a 33-bit, 90kHz `base` component, together with another 9-bit,
+/// high-resolution `extension` component.
+///
+/// Together these can be viewed as a 42-bit, 27MHz quantity (e.g. `let full_value = pcr as u64`).
+/// Since the clock reference is limited to 33-bits, at a rate of 90kHz a continuously increasing
+/// clock value will wrap-around approximately every 26.5 hours.
+pub struct ClockRef {
+    base: u64,
+    extension: u16,
 }
 
-impl PartialEq for PCR {
-    fn eq(&self, other: &PCR) -> bool {
+impl PartialEq for ClockRef {
+    fn eq(&self, other: &ClockRef) -> bool {
         self.base == other.base && self.extension == other.extension
     }
 }
 
-impl From<PCR> for u64 {
-    fn from(pcr: PCR) -> u64 {
+impl From<ClockRef> for u64 {
+    fn from(pcr: ClockRef) -> u64 {
         pcr.base * 300 + u64::from(pcr.extension)
     }
 }
 
-impl fmt::Debug for PCR {
+impl fmt::Debug for ClockRef {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         f.debug_struct("PCR")
             .field("base", &self.base)
@@ -82,24 +90,27 @@ impl fmt::Debug for PCR {
             .finish()
     }
 }
-impl PCR {
+impl ClockRef {
     /// Panics if `data` is shorter than 5 bytes
-    pub fn from_slice(data: &[u8]) -> PCR {
-        PCR {
+    pub fn from_slice(data: &[u8]) -> ClockRef {
+        ClockRef {
             base: u64::from(data[0]) << 25 | u64::from(data[1]) << 17 | u64::from(data[2]) << 9 | u64::from(data[3]) << 1 | u64::from(data[4]) >> 7,
             //reserved: (data[4] >> 1) & 0b00111111,
             extension: (u16::from(data[4]) & 0b1) << 8 | u16::from(data[5]),
         }
     }
     /// Panics if the `base` is greater than 2^33-1 or the `extension` is greater than 2^9-1
-    pub fn from_parts(base: u64, extension: u16) -> PCR {
+    pub fn from_parts(base: u64, extension: u16) -> ClockRef {
         assert!(base < (1<<33));
         assert!(extension < (1<<9));
-        PCR {
+        ClockRef {
             base,
             extension,
         }
     }
+
+    pub fn base(&self) -> u64 { self.base }
+    pub fn extension(&self) -> u16 { self.extension }
 }
 
 #[derive(Debug,PartialEq)]
@@ -154,9 +165,9 @@ impl<'buf> AdaptationField<'buf> {
         }
     }
     const PCR_SIZE: usize = 6;
-    pub fn pcr(&self) -> Result<PCR, AdaptationFieldError> {
+    pub fn pcr(&self) -> Result<ClockRef, AdaptationFieldError> {
         if self.pcr_flag() {
-            Ok(PCR::from_slice(self.slice(1, 1+Self::PCR_SIZE)?))
+            Ok(ClockRef::from_slice(self.slice(1, 1+Self::PCR_SIZE)?))
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
@@ -169,10 +180,10 @@ impl<'buf> AdaptationField<'buf> {
         }
     }
     /// Returns the 'Original Program Clock Reference' value, is present.
-    pub fn opcr(&self) -> Result<PCR, AdaptationFieldError> {
+    pub fn opcr(&self) -> Result<ClockRef, AdaptationFieldError> {
         if self.opcr_flag() {
             let off = self.opcr_offset();
-            Ok(PCR::from_slice(self.slice(off, off+Self::PCR_SIZE)?))
+            Ok(ClockRef::from_slice(self.slice(off, off+Self::PCR_SIZE)?))
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
@@ -568,9 +579,9 @@ mod test {
         assert!(pk.adaptation_field().is_some());
         let ad = pk.adaptation_field().unwrap();
         assert!(ad.discontinuity_indicator());
-        assert_eq!(ad.pcr(), Ok(PCR::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
-        assert_eq!(1234 * 300 + 56, u64::from(PCR::from_parts(1234, 56)));
-        assert_eq!(ad.opcr(), Ok(PCR::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
+        assert_eq!(ad.pcr(), Ok(ClockRef::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
+        assert_eq!(1234 * 300 + 56, u64::from(ClockRef::from_parts(1234, 56)));
+        assert_eq!(ad.opcr(), Ok(ClockRef::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
         assert_eq!(ad.splice_countdown(), Ok(0b11111111));
         let expected_data = [0xff];
         assert_eq!(ad.transport_private_data(), Ok(&expected_data[..]));

@@ -5,3 +5,5 @@
  - Many methods previously taking a `Packet` by value now instead take it by reference.  This breaks with the old API,
    but may deliver a small performance improvement for some workloads.
  - Many objects that previously offered a no-args `new()` method have had this replaced with a `default()` impl.
+ - The `PCR` type has been renamed `ClockRef`, since it's used to represent the values of both
+  _Prograem Clock Reference_ and _Elementry Stream Clock Reference_ fields.
