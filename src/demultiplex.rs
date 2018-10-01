@@ -21,9 +21,11 @@ pub struct NullPacketFilter<Ctx: DemuxContext> {
 }
 impl<Ctx: DemuxContext> NullPacketFilter<Ctx> {
     pub fn construct(_pmt: &PmtSection, _stream_info: &StreamInfo) -> NullPacketFilter<Ctx> {
-        Self::new()
+        Self::default()
     }
-    pub fn new() -> NullPacketFilter<Ctx> {
+}
+impl<Ctx: DemuxContext> Default for NullPacketFilter<Ctx> {
+    fn default() -> NullPacketFilter<Ctx> {
         NullPacketFilter {
             phantom: marker::PhantomData,
         }
@@ -89,7 +91,7 @@ macro_rules! demux_context {
         impl $name {
             pub fn new(constructor: $ctor) -> Self {
                 $name {
-                    changeset: $crate::demultiplex::FilterChangeset::new(),
+                    changeset: $crate::demultiplex::FilterChangeset::default(),
                     constructor,
                 }
             }
@@ -140,13 +142,14 @@ macro_rules! packet_filter_switch {
 pub struct Filters<F: PacketFilter> {
     filters_by_pid: Vec<Option<F>>
 }
-impl<F: PacketFilter> Filters<F> {
-    pub fn new() -> Filters<F> {
+impl<F: PacketFilter> Default for Filters<F> {
+    fn default() -> Filters<F> {
         Filters {
             filters_by_pid: vec!(),
         }
     }
-
+}
+impl<F: PacketFilter> Filters<F> {
     pub fn contains(&self, pid: u16) -> bool {
         (pid as usize) < self.filters_by_pid.len()
             && self.filters_by_pid[pid as usize].is_some()
@@ -211,10 +214,12 @@ impl<F: PacketFilter> std::fmt::Debug for FilterChange<F> {
 pub struct FilterChangeset<F: PacketFilter> {
     updates: Vec<FilterChange<F>>
 }
-impl<F: PacketFilter> FilterChangeset<F> {
-    pub fn new() -> FilterChangeset<F> {
+impl<F: PacketFilter> Default for FilterChangeset<F> {
+    fn default() -> FilterChangeset<F> {
         FilterChangeset { updates: Vec::new() }
     }
+}
+impl<F: PacketFilter> FilterChangeset<F> {
     fn insert(&mut self, pid: u16, filter: F) {
         self.updates.push(FilterChange::Insert(pid, filter))
     }
@@ -491,15 +496,16 @@ pub struct PatProcessor<Ctx: DemuxContext> {
     phantom: marker::PhantomData<Ctx>,
 }
 
-impl<Ctx: DemuxContext> PatProcessor<Ctx> {
-    pub fn new() -> PatProcessor<Ctx> {
+impl<Ctx: DemuxContext> Default for PatProcessor<Ctx> {
+    fn default() -> PatProcessor<Ctx> {
         PatProcessor {
             current_version: None,
             filters_registered: fixedbitset::FixedBitSet::with_capacity(0x2000),
             phantom: marker::PhantomData,
         }
     }
-
+}
+impl<Ctx: DemuxContext> PatProcessor<Ctx> {
     fn new_table(&mut self, ctx: &mut Ctx, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &PatSection) {
         if 0x00 != header.table_id {
             println!("Expected PAT to have table id 0x0, but got {:#x}", header.table_id);
@@ -609,8 +615,8 @@ pub struct UnhandledPid<Ctx: DemuxContext> {
     pid_seen: bool,
     phantom: marker::PhantomData<Ctx>,
 }
-impl<Ctx: DemuxContext> UnhandledPid<Ctx> {
-    pub fn new() -> UnhandledPid<Ctx> {
+impl<Ctx: DemuxContext> Default for UnhandledPid<Ctx> {
+    fn default() -> UnhandledPid<Ctx> {
         UnhandledPid {
             pid_seen: false,
             phantom: marker::PhantomData
@@ -648,9 +654,9 @@ pub struct PatPacketFilter<Ctx: DemuxContext> {
         >
     >,
 }
-impl<Ctx: DemuxContext> PatPacketFilter<Ctx> {
-    pub fn new() -> PatPacketFilter<Ctx> {
-        let pat_proc = PatProcessor::new();
+impl<Ctx: DemuxContext> Default for PatPacketFilter<Ctx> {
+    fn default() -> PatPacketFilter<Ctx> {
+        let pat_proc = PatProcessor::default();
         PatPacketFilter {
             pat_section_packet_consumer: psi::SectionPacketConsumer::new(
                 psi::SectionSyntaxSectionProcessor::new(
@@ -678,7 +684,7 @@ pub struct Demultiplex<Ctx: DemuxContext> {
 impl<Ctx: DemuxContext> Demultiplex<Ctx> {
     pub fn new(ctx: &mut Ctx) -> Demultiplex<Ctx> {
         let mut result = Demultiplex {
-            processor_by_pid: Filters::new(),
+            processor_by_pid: Filters::default(),
         };
 
         result.processor_by_pid.insert(0, ctx.filter_constructor().construct(FilterRequest::ByPid(0)));
@@ -761,11 +767,11 @@ mod test {
 
         fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
             match req {
-                demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
-                demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
-                demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
+                demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+                demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
+                demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
                 demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
-                demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::new()),
+                demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
             }
         }
     }
@@ -788,7 +794,7 @@ mod test {
 
     #[test]
     fn pat_no_existing_program() {
-        let mut processor = demultiplex::PatProcessor::new();
+        let mut processor = demultiplex::PatProcessor::default();
         let section = vec!(
             // common header
             0, 0, 0,
@@ -811,7 +817,7 @@ mod test {
     #[test]
     fn pat_remove_existing_program() {
         let mut ctx = NullDemuxContext::new(NullStreamConstructor);
-        let mut processor = demultiplex::PatProcessor::new();
+        let mut processor = demultiplex::PatProcessor::default();
         {
             let section = vec!(
                 // common header

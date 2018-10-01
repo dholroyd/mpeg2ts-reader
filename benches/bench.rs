@@ -25,11 +25,11 @@ impl demultiplex::StreamConstructor for NullStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
-            demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             demultiplex::FilterRequest::ByStream(_stream_type, pmt_section, stream_info) => NullElementaryStreamConsumer::construct(pmt_section, stream_info),
             demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
-            demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
     }
 }

@@ -46,12 +46,12 @@ impl demultiplex::StreamConstructor for DumpStreamConstructor {
             // The 'Program Association Table' is is always on PID 0.  We just use the standard
             // handling here, but an application could insert its own logic if required,
             demultiplex::FilterRequest::ByPid(0) =>
-                DumpFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
+                DumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             // Some Transport Streams will contain data on 'well known' PIDs, which are not
             // announced in PAT / PMT metadata.  This application does not process any of these
             // well known PIDs, so we register NullPacketFiltet such that they will be ignored
             demultiplex::FilterRequest::ByPid(_) =>
-                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             // This match-arm installs our application-specific handling for each H264 stream
             // discovered within the transport stream,
             demultiplex::FilterRequest::ByStream(StreamType::H264, pmt_section, stream_info) =>
@@ -60,7 +60,7 @@ impl demultiplex::StreamConstructor for DumpStreamConstructor {
             // that might be present; we answer with NullPacketFilter so that anything other than
             // H264 (handled above) is ignored,
             demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) =>
-                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             // The 'Program Map Table' defines the sub-streams for a particular program within the
             // Transport Stream (it is common for Transport Streams to contain only one program).
             // We just use the standard handling here, but an application could insert its own
@@ -69,7 +69,7 @@ impl demultiplex::StreamConstructor for DumpStreamConstructor {
                 DumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
             // Ignore 'Network Information Table', if present,
             demultiplex::FilterRequest::Nit{..} =>
-                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
     }
 }

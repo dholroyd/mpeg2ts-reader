@@ -28,13 +28,13 @@ impl demultiplex::StreamConstructor for PcrDumpStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(0) => PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(0) => PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             demultiplex::FilterRequest::Pmt{pid, program_number} => PcrDumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
 
             demultiplex::FilterRequest::ByStream(_, pmt_section, stream_info) => PcrDumpFilterSwitch::Pcr(PcrPacketFilter::construct(pmt_section, stream_info)),
 
-            demultiplex::FilterRequest::ByPid(_) => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
-            demultiplex::FilterRequest::Nit{..} => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(_) => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
+            demultiplex::FilterRequest::Nit{..} => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
     }
 }
