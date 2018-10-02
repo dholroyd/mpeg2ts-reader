@@ -16,6 +16,7 @@ data-encoding = "1.2.0"
 bitreader = "0.3.1"
 fixedbitset = "0.1.8"
 hex-slice = "0.1.4"
+encoding = "0.2"
 
 [dev-dependencies]
 matches = "0.1.6"

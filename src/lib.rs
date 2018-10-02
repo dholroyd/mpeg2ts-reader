@@ -44,6 +44,7 @@ extern crate matches;
 #[cfg(test)]
 extern crate bitstream_io;
 extern crate fixedbitset;
+extern crate encoding;
 
 pub mod packet;
 #[macro_use]

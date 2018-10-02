@@ -33,10 +33,12 @@
 //! ```
 
 pub mod registration;
+pub mod iso_639_language;
 
 use std::fmt;
 use std::marker;
 use self::registration::RegistrationDescriptor;
+use self::iso_639_language::Iso639LanguageDescriptor;
 
 pub trait Descriptor<'buf>: Sized {
     fn from_bytes(buf: &'buf[u8]) -> Result<Self, DescriptorError>;
@@ -114,7 +116,7 @@ descriptor_enum!{
         TargetBackgroundGrid 7 => UnknownDescriptor,
         VideoWindow 8 => UnknownDescriptor,
         CA 9 => UnknownDescriptor,
-        ISO639Language 10 => UnknownDescriptor,
+        ISO639Language 10 => Iso639LanguageDescriptor,
         SystemClock 11 => UnknownDescriptor,
         MultiplexBufferUtilization 12 => UnknownDescriptor,
         Copyright 13 => UnknownDescriptor,

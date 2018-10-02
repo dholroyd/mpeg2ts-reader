@@ -9,3 +9,4 @@
   _Prograem Clock Reference_ and _Elementry Stream Clock Reference_ fields.
  - `descriptor::RegistrationDescriptor` became `descriptor::registration::RegistrationDescriptor`.
    New descriptor implementations will be added each in their own source file.
+ - Added `iso_639_language_descriptor` support
