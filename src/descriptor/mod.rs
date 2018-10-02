@@ -32,7 +32,7 @@
 //! }
 //! ```
 
-mod registration;
+pub mod registration;
 
 use std::fmt;
 use std::marker;
