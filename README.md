@@ -237,7 +237,7 @@ and what's yet to come:
   - [ ] target_background_grid_descriptor
   - [ ] video_window_descriptor
   - [ ] ca_descriptor
-  - [ ] iso_639_language_descriptor
+  - [x] iso_639_language_descriptor
   - [ ] system_clock_descriptor
   - [ ] multiplex_buffer_utilization_descriptor
   - [ ] copyright_descriptor
