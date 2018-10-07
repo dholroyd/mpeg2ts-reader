@@ -191,6 +191,16 @@ The conditions of the test are,
  * test dataset is larger than CPU cache
  * processing is happening on a single core (no multiprocessing of the stream).
 
+## Perf shoot-out
+
+Comparing this crate to a couple of others which you might use to read a Transport Stream --
+[mpeg2ts](https://crates.io/crates/mpeg2ts) and [ffmpg-sys](https://crates.io/crates/ffmpeg-sys):
+
+![Performance](shootout/report.svg)
+
+The benchmarks producing the above chart data are in the [`shootout`](shootout) folder.  (If the benchmarks are giving
+an unfair representation of relative performance, that's a mistake -- please raise a bug!)
+
 # Supported Transport Stream features
 
 Not all Transport Stream features are supported yet.  Here's a summary of what's available,
