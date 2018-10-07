@@ -291,7 +291,6 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         // pass the table_id value this far!
         let mut pids_seen = HashSet::new();
         for stream_info in sect.streams() {
-            println!("[PMT pid:{} program:{}] new entry PID {}", self.pid, self.program_number, stream_info.elementary_pid());
             let pes_packet_consumer = ctx.filter_constructor().construct(FilterRequest::ByStream(stream_info.stream_type(), &sect, &stream_info));
             ctx.filter_changeset().insert(stream_info.elementary_pid(), pes_packet_consumer);
             pids_seen.insert(stream_info.elementary_pid());
@@ -514,7 +513,6 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
         let mut pids_seen = HashSet::new();
         // add or update filters for descriptors we've not seen before,
         for desc in sect.programs() {
-            println!("new table for {:?}", desc);
             let filter = match desc {
                 ProgramDescriptor::Program { program_number, pid } => ctx.filter_constructor().construct(FilterRequest::Pmt { pid, program_number }),
                 ProgramDescriptor::Network { pid } => ctx.filter_constructor().construct(FilterRequest::Nit { pid }),
