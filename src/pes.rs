@@ -92,6 +92,7 @@ where
                 self.stream_consumer.end_packet();
             } else {
                 self.state = PesState::Started;
+                self.stream_consumer.start_stream();
             }
             if let Some(payload) = packet.payload() {
                 if let Some(header) = PesHeader::from_bytes(payload) {
@@ -947,6 +948,7 @@ mod test {
         pes_consumer.consume(&pk);
         {
             let state = state.borrow();
+            assert!(state.start_stream_called);
             assert!(state.begin_packet_called);
             assert!(!state.continuity_error_called);
         }
