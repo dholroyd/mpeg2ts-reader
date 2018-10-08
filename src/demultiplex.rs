@@ -371,8 +371,14 @@ impl<'buf> fmt::Debug for StreamInfo<'buf> {
         f.debug_struct("StreamInfo")
             .field("stream_type", &self.stream_type())
             .field("elementry_pid", &self.elementary_pid())
-            .field("es_info_length", &self.es_info_length())
+            .field("descriptors", &StreamInfoDescriptorsDebug(self))
             .finish()
+    }
+}
+struct StreamInfoDescriptorsDebug<'buf>(&'buf StreamInfo<'buf>);
+impl<'buf> fmt::Debug for StreamInfoDescriptorsDebug<'buf> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_list().entries(self.0.descriptors::<descriptor::CoreDescriptors>()).finish()
     }
 }
 
