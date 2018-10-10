@@ -56,12 +56,12 @@ impl<'buf> PmtSection<'buf> {
     pub fn program_info_length(&self) -> u16 {
         u16::from(self.data[2] & 0b0000_1111) << 8 | u16::from(self.data[3])
     }
-    pub fn descriptors<Desc: descriptor::Descriptor<'buf>>(&self) -> descriptor::DescriptorIter<'buf, Desc> {
+    pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(&self) -> impl Iterator<Item=Result<Desc, descriptor::DescriptorError>> + 'buf {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
         let descriptor_data = &self.data[Self::HEADER_SIZE..descriptor_end];
         descriptor::DescriptorIter::new(descriptor_data)
     }
-    pub fn streams(&self) -> StreamInfoIter {
+    pub fn streams(&self) -> impl Iterator<Item=StreamInfo<'buf>> {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
         if descriptor_end > self.data.len() {
             panic!("program_info_length={} extends beyond end of PMT section (section_length={})", self.program_info_length(), self.data.len());
@@ -70,7 +70,7 @@ impl<'buf> PmtSection<'buf> {
     }
 }
 /// Iterator over the `StreamInfo` entries in a `PmtSection`.
-pub struct StreamInfoIter<'buf> {
+struct StreamInfoIter<'buf> {
     buf: &'buf[u8],
 }
 impl<'buf> StreamInfoIter<'buf> {
@@ -142,7 +142,7 @@ impl<'buf> StreamInfo<'buf> {
         u16::from(self.data[3] & 0b0000_1111) << 8 | u16::from(self.data[4])
     }
 
-    pub fn descriptors<Desc: descriptor::Descriptor<'buf>>(&self) -> descriptor::DescriptorIter<'buf, Desc> {
+    pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(&self) -> impl Iterator<Item=Result<Desc, descriptor::DescriptorError>> + 'buf {
         let descriptor_end = Self::HEADER_SIZE + self.es_info_length() as usize;
         descriptor::DescriptorIter::new(&self.data[Self::HEADER_SIZE..descriptor_end])
     }

@@ -39,13 +39,13 @@ impl<'buf> PatSection<'buf> {
             data,
         }
     }
-    pub fn programs(&self) -> ProgramIter {
+    pub fn programs(&self) -> impl Iterator<Item=ProgramDescriptor> + 'buf {
         ProgramIter { buf: &self.data[..] }
     }
 }
 
 /// Iterate over the list of programs in a `PatSection`.
-pub struct ProgramIter<'buf> {
+struct ProgramIter<'buf> {
     buf: &'buf[u8],
 }
 impl<'buf> Iterator for ProgramIter<'buf> {
