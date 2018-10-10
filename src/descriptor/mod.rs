@@ -20,7 +20,7 @@
 //! specify the `Descriptor` implementation to be produced,
 //!
 //! ```
-//! # use mpeg2ts_reader::demultiplex::PmtSection;
+//! # use mpeg2ts_reader::psi::pmt::PmtSection;
 //! # use mpeg2ts_reader::descriptor::CoreDescriptors;
 //! # let data = [0; 4];
 //! let pmt = PmtSection::from_bytes(&data).unwrap();

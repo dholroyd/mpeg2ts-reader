@@ -19,6 +19,9 @@
 //! Note that the specific types of table such as Program Association Table are defined elsewhere
 //! with only the generic functionality in this module.
 
+pub mod pat;
+pub mod pmt;
+
 use packet;
 use hexdump;
 use mpegts_crc;

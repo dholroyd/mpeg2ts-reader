@@ -10,6 +10,7 @@ use mpeg2ts_reader::pes;
 use mpeg2ts_reader::StreamType;
 use hex_slice::AsHex;
 use std::cmp;
+use mpeg2ts_reader::psi;
 
 // This macro invocation creates an enum called DumpFilterSwitch, encapsulating all possible ways
 // that this application may handle transport stream packets.  Each enum variant is just a wrapper
@@ -80,7 +81,7 @@ pub struct PtsDumpElementaryStreamConsumer {
     len: Option<usize>,
 }
 impl PtsDumpElementaryStreamConsumer {
-    fn construct(_pmt_sect: &demultiplex::PmtSection, stream_info: &demultiplex::StreamInfo)
+    fn construct(_pmt_sect: &psi::pmt::PmtSection, stream_info: &psi::pmt::StreamInfo)
         -> DumpFilterSwitch
     {
         let filter = pes::PesPacketFilter::new(

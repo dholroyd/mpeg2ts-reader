@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Read;
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::pes;
+use mpeg2ts_reader::psi;
 
 packet_filter_switch!{
     NullFilterSwitch<NullDemuxContext> {
@@ -36,14 +37,14 @@ impl demultiplex::StreamConstructor for NullStreamConstructor {
 
 pub struct NullElementaryStreamConsumer { }
 impl NullElementaryStreamConsumer {
-    fn construct(_pmt_sect: &demultiplex::PmtSection,stream_info: &demultiplex::StreamInfo) -> NullFilterSwitch {
+    fn construct(_pmt_sect: &psi::pmt::PmtSection,stream_info: &psi::pmt::StreamInfo) -> NullFilterSwitch {
         println!("stream info: {:?}", stream_info);
         let filter = pes::PesPacketFilter::new(NullElementaryStreamConsumer { });
         NullFilterSwitch::NullPes(filter)
     }
 }
 impl pes::ElementaryStreamConsumer for NullElementaryStreamConsumer {
-    fn start_stream(&mut self) { println!("start_steam()"); }
+    fn start_stream(&mut self) { }
     fn begin_packet(&mut self, header: pes::PesHeader) {
         if let pes::PesContents::Parsed(Some(content)) = header.contents() {
             match content.pts_dts() {

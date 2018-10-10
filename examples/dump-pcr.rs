@@ -5,6 +5,7 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::psi;
 
 use std::marker;
 use mpeg2ts_reader::demultiplex::PacketFilter;
@@ -44,7 +45,7 @@ pub struct PcrPacketFilter<Ctx: DemuxContext> {
     phantom: marker::PhantomData<Ctx>,
 }
 impl<Ctx: DemuxContext> PcrPacketFilter<Ctx> {
-    pub fn construct(_pmt: &demultiplex::PmtSection, _stream_info: &demultiplex::StreamInfo) -> PcrPacketFilter<Ctx> {
+    pub fn construct(_pmt: &psi::pmt::PmtSection, _stream_info: &psi::pmt::StreamInfo) -> PcrPacketFilter<Ctx> {
         Self::new()
     }
     pub fn new() -> PcrPacketFilter<Ctx> {
