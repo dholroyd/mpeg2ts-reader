@@ -9,4 +9,10 @@
   _Prograem Clock Reference_ and _Elementry Stream Clock Reference_ fields.
  - `descriptor::RegistrationDescriptor` became `descriptor::registration::RegistrationDescriptor`.
    New descriptor implementations will be added each in their own source file.
+ - Moved PAT/PMT types from `demultiplex` module into `psi::pat` and `psi::pmt` modules.
+ - Refactored some methods returning custom `Iterator` types to instead return `impl Iterator`, so that the
+   actual iterator types can be hidden from the public API
+
+### Added
+
  - Added `iso_639_language_descriptor` support
