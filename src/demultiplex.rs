@@ -512,6 +512,8 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
 
     pub fn push(&mut self, ctx: &mut Ctx, buf: &[u8]) {
         // TODO: simplify
+        // (maybe once chunks_exact() is stable; right now an iterator-based version of the
+        // following always comes out performing slower, when I try.)
         let mut i=0;
         loop {
             let end = i+packet::PACKET_SIZE;
