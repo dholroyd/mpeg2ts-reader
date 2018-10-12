@@ -28,6 +28,6 @@ hex-literal = "0.1.1"
 name = "bench"
 harness = false
 
-[profile.release]
+[profile.bench]
 # for profiling,
-#debug = true
+debug = true
