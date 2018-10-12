@@ -44,7 +44,7 @@ impl<'buf> Iterator for LanguageIterator<'buf> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 enum AudioType {
     Undefined,
     CleanEffects,
@@ -100,5 +100,28 @@ impl<'buf> fmt::Debug for Iso639LanguageDescriptor<'buf> {
         f.debug_struct("Iso639LanguageDescriptor")
             .field("languages", &LangsDebug(self))
             .finish()
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use super::super::{Descriptor, CoreDescriptors};
+    use encoding;
+
+    #[test]
+    fn descriptor() {
+        let data = hex!("0a04656e6700");
+        let desc = CoreDescriptors::from_bytes(&data).unwrap();
+        if let CoreDescriptors::ISO639Language(iso_639_language) = desc {
+            let mut langs = iso_639_language.languages();
+            let first = langs.next().unwrap();
+            assert_eq!("eng", first.code(encoding::DecoderTrap::Strict).unwrap());
+            assert_eq!(AudioType::Undefined, first.audio_type());
+            assert_matches!(langs.next(), None);
+        } else {
+            panic!("wrong descriptor type {:?}", desc);
+        }
     }
 }
