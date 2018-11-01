@@ -33,11 +33,11 @@ impl demultiplex::StreamConstructor for FuzzStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(0) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
-            demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Unhandled(demultiplex::UnhandledPid::new()),
-            demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(0) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Unhandled(demultiplex::UnhandledPid::default()),
+            demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             demultiplex::FilterRequest::Pmt{pid, program_number} => FuzzFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
-            demultiplex::FilterRequest::Nit{pid} => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::Nit{pid} => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
     }
 }
