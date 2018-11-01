@@ -381,22 +381,22 @@ pub struct Packet<'buf> {
     buf: &'buf [u8],
 }
 
-/// The value `0x47`, which must appear in the first byte of every transport stream packet.
-pub const SYNC_BYTE: u8 = 0x47;
-
-/// The fixed 188 byte size of a transport stream packet.
-pub const PACKET_SIZE: usize = 188;
-
 const FIXED_HEADER_SIZE: usize = 4;
 // when AF present, a 1-byte 'length' field precedes the content,
 const ADAPTATION_FIELD_OFFSET: usize = FIXED_HEADER_SIZE + 1;
 
 impl<'buf> Packet<'buf> {
+    /// The value `0x47`, which must appear in the first byte of every transport stream packet.
+    pub const SYNC_BYTE: u8 = 0x47;
+
+    /// The fixed 188 byte size of a transport stream packet.
+    pub const SIZE: usize = 188;
+
     /// returns `true` if the given value is a valid synchronisation byte, the value `0x42`, which
     /// must appear at the start of every transport stream packet.
     #[inline(always)]
     pub fn is_sync_byte(b: u8) -> bool {
-        b == SYNC_BYTE
+        b == Self::SYNC_BYTE
     }
 
     /// Panics if the given buffer is less than 188 bytes, or if the initial sync-byte does not
@@ -404,7 +404,7 @@ impl<'buf> Packet<'buf> {
     /// conditions.
     #[inline(always)]
     pub fn new(buf: &'buf [u8]) -> Packet {
-        assert_eq!(buf.len(),  PACKET_SIZE);
+        assert_eq!(buf.len(), Self::SIZE);
         assert!(Packet::is_sync_byte(buf[0]));
         Packet { buf }
     }
@@ -463,7 +463,7 @@ impl<'buf> Packet<'buf> {
             AdaptationControl::Reserved | AdaptationControl::PayloadOnly => None,
             AdaptationControl::AdaptationFieldOnly => {
                 let len = self.adaptation_field_length();
-                if len != (PACKET_SIZE - ADAPTATION_FIELD_OFFSET) {
+                if len != (Self::SIZE - ADAPTATION_FIELD_OFFSET) {
                     println!(
                         "invalid adaptation_field_length for AdaptationFieldOnly: {}",
                         len
@@ -557,8 +557,8 @@ mod test {
 
     #[test]
     fn test_xmas_tree() {
-        let mut buf = [0xffu8; self::PACKET_SIZE];
-        buf[0] = self::SYNC_BYTE;
+        let mut buf = [0xffu8; Packet::SIZE];
+        buf[0] = Packet::SYNC_BYTE;
         buf[4] = 28; // adaptation_field_length
         buf[19] = 1; // transport_private_data_length
         buf[21] = 11; // adaptation_field_extension_length

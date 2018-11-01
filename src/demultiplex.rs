@@ -516,7 +516,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
         // following always comes out performing slower, when I try.)
         let mut i=0;
         loop {
-            let end = i+packet::PACKET_SIZE;
+            let end = i+packet::Packet::SIZE;
             if end > buf.len() {
                 break;
             }
@@ -532,8 +532,8 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                     let this_proc = self.processor_by_pid.get(this_pid).unwrap();
                     while ctx.filter_changeset().is_empty() {
                         this_proc.consume(ctx, &pk);
-                        i += packet::PACKET_SIZE;
-                        let end = i+packet::PACKET_SIZE;
+                        i += packet::Packet::SIZE;
+                        let end = i+packet::Packet::SIZE;
                         if end > buf.len() {
                             break;
                         }
@@ -544,7 +544,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                         }
                         pk = packet::Packet::new(pk_buf);
                         if pk.pid() != this_pid {
-                            i -= packet::PACKET_SIZE;
+                            i -= packet::Packet::SIZE;
                             break;
                         }
                     }
@@ -557,7 +557,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                 // TODO: attempt to resynchronise
                 return
             }
-            i += packet::PACKET_SIZE;
+            i += packet::Packet::SIZE;
         }
     }
 }
