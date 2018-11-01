@@ -15,7 +15,7 @@ use packet;
 use demultiplex;
 use std::marker;
 use packet::ClockRef;
-use std::fmt;
+use std::{fmt, num};
 
 /// Trait for types that will receive call-backs as pieces of a specific elementary stream are
 /// encounted within a transport stream.
@@ -151,6 +151,18 @@ where
     }
 }
 
+/// Type for the length of a PES packet
+#[derive(Debug)]
+pub enum PesLength {
+    /// The PES packet continues until the next TS packet that has `payload_unit_start_indicator`
+    /// set.  According to the spec, only valid for video streams (but really, it is needed in
+    /// case the size of the pes packet will exceed the 16 bits of this field -- around 65k bytes).
+    Unbounded,
+    /// The PES packet's length (likely to exceed the size of the TS packet that contains the
+    /// PES packet header).
+    Bounded(num::NonZeroU16),
+}
+
 /// Header at the start of every PES packet.
 ///
 /// The header identifies,
@@ -187,8 +199,12 @@ impl<'buf> PesHeader<'buf> {
         self.buf[3]
     }
 
-    pub fn pes_packet_length(&self) -> u16 {
-        u16::from(self.buf[4]) << 8 | u16::from(self.buf[5])
+    pub fn pes_packet_length(&self) -> PesLength {
+        let len = u16::from(self.buf[4]) << 8 | u16::from(self.buf[5]);
+        match num::NonZeroU16::new(len) {
+            None => PesLength::Unbounded,
+            Some(l) => PesLength::Bounded(l),
+        }
     }
 
     // maaaaaybe just have parsed_contents(&self) + payload(&self)

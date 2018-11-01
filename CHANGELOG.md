@@ -16,6 +16,9 @@
  - Moved PAT/PMT types from `demultiplex` module into `psi::pat` and `psi::pmt` modules.
  - Refactored some methods returning custom `Iterator` types to instead return `impl Iterator`, so that the
    actual iterator types can be hidden from the public API
+ - `pes_packet_length` is now represented as `enum PesLength`, rather than
+   directly as a `u16`, so that the special status of the length-value 0 can be
+   made explicit (it's now mapped to `PesLength::Unbounded`)
 
 ### Added
 
