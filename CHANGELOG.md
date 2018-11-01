@@ -1,6 +1,6 @@
 #Changelog
 
-## [Unreleased]
+## [0.6.0]
 ### Fixed
  - PES data is no longer truncated at the end of the TS packet with
    `payload_unit_start_indicator`
