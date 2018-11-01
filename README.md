@@ -196,7 +196,7 @@ The conditions of the test are,
 Comparing this crate to a couple of others which you might use to read a Transport Stream --
 [mpeg2ts](https://crates.io/crates/mpeg2ts) and [ffmpg-sys](https://crates.io/crates/ffmpeg-sys):
 
-![Performance](shootout/report.svg)
+![Performance](https://github.com/dholroyd/mpeg2ts-reader/raw/master/shootout/report.svg?sanitize=true)
 
 The benchmarks producing the above chart data are in the [`shootout`](shootout) folder.  (If the benchmarks are giving
 an unfair representation of relative performance, that's a mistake -- please raise a bug!)
