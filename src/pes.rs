@@ -103,7 +103,7 @@ where
             match self.state {
                 PesState::Started => {
                     if let Some(payload) = packet.payload() {
-                        if payload.is_empty() {
+                        if !payload.is_empty() {
                             self.stream_consumer.continue_packet(payload);
                         }
                     }

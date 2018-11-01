@@ -1,6 +1,10 @@
 #Changelog
 
 ## [Unreleased]
+### Fixed
+ - PES data is no longer truncated at the end of the TS packet with
+   `payload_unit_start_indicator`
+
 ### Changed
  - Many methods previously taking a `Packet` by value now instead take it by reference.  This breaks with the old API,
    but may deliver a small performance improvement for some workloads.
