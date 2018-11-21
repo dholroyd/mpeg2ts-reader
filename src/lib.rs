@@ -30,6 +30,8 @@
 //! - General
 //!   - lots of places return `Option` but should return `Result` and a descriptive error
 
+#![forbid(unsafe_code)]
+
 extern crate hexdump;
 extern crate hex_slice;
 #[cfg(test)]
