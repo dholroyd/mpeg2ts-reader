@@ -247,10 +247,15 @@ impl<F: PacketFilter> std::iter::IntoIterator for FilterChangeset<F> {
 }
 
 pub enum FilterRequest<'a, 'buf: 'a> {
+    /// requests a filter implementation for handling a PID contained in the transport stream that
+    /// was not announced via other means (PAT/PMT).
     ByPid(u16),
+    /// requests a filter for the stream with the given details which has just been discovered
+    /// within a Program Map Table section.
     ByStream(StreamType, &'a PmtSection<'buf>, &'a StreamInfo<'buf>),
-    Pmt{pid: u16, program_number: u16},
-    // requests a filter implementation to handle packets containing Network Information Table data
+    /// Requests a filter implementation for handling Program Map Table sections
+    Pmt { pid: u16, program_number: u16 },
+    /// requests a filter implementation to handle packets containing Network Information Table data
     Nit { pid: u16 },
 }
 
