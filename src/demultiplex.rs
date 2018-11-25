@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use packet;
 use psi;
 use std;
@@ -288,27 +287,25 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
             return;
         }
         // pass the table_id value this far!
-        let mut pids_seen = HashSet::new();
+        let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(0x2000);
         for stream_info in sect.streams() {
             let pes_packet_consumer = ctx.filter_constructor().construct(FilterRequest::ByStream(stream_info.stream_type(), &sect, &stream_info));
             ctx.filter_changeset().insert(stream_info.elementary_pid(), pes_packet_consumer);
-            pids_seen.insert(stream_info.elementary_pid());
+            pids_seen.insert(stream_info.elementary_pid() as usize);
             self.filters_registered.insert(stream_info.elementary_pid() as usize);
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
-        self.remove_outdated(ctx, &pids_seen);
+        self.remove_outdated(ctx, pids_seen);
 
         self.current_version = Some(table_syntax_header.version());
     }
 
-    fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: &HashSet<u16>) {
-        for pid in 0..0x1fff {
-            if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
-                ctx.filter_changeset().remove(pid as u16);
-                self.filters_registered.set(pid, false);
-            }
+    fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: fixedbitset::FixedBitSet) {
+        for pid in self.filters_registered.difference(&pids_seen) {
+            ctx.filter_changeset().remove(pid as u16);
         }
+        self.filters_registered = pids_seen;
     }
 }
 
@@ -372,7 +369,7 @@ impl<Ctx: DemuxContext> PacketFilter for PmtPacketFilter<Ctx> {
 
 pub struct PatProcessor<Ctx: DemuxContext> {
     current_version: Option<u8>,
-    filters_registered: fixedbitset::FixedBitSet,
+    filters_registered: fixedbitset::FixedBitSet,  // TODO: https://crates.io/crates/typenum_bitset ?
     phantom: marker::PhantomData<Ctx>,
 }
 
@@ -391,7 +388,7 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
             println!("Expected PAT to have table id 0x0, but got {:#x}", header.table_id);
             return;
         }
-        let mut pids_seen = HashSet::new();
+        let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(0x2000);
         // add or update filters for descriptors we've not seen before,
         for desc in sect.programs() {
             let filter = match desc {
@@ -399,26 +396,23 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
                 pat::ProgramDescriptor::Network { pid } => ctx.filter_constructor().construct(FilterRequest::Nit { pid }),
             };
             ctx.filter_changeset().insert(desc.pid(), filter);
-            pids_seen.insert(desc.pid());
+            pids_seen.insert(desc.pid() as usize);
             self.filters_registered.insert(desc.pid() as usize);
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
-        self.remove_outdated(ctx, &pids_seen);
+        self.remove_outdated(ctx, pids_seen);
 
         self.current_version = Some(table_syntax_header.version());
     }
 
-    fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: &HashSet<u16>) {
-        for pid in 0..0x1fff {
-            if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
-                ctx.filter_changeset().remove(pid as u16);
-                self.filters_registered.set(pid, false);
-            }
+    fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: fixedbitset::FixedBitSet) {
+        for pid in self.filters_registered.difference(&pids_seen) {
+            ctx.filter_changeset().remove(pid as u16);
         }
+        self.filters_registered = pids_seen;
     }
 }
-
 
 impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ctx> {
     type Context = Ctx;
