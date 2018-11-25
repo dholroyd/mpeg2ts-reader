@@ -375,6 +375,43 @@ impl ContinuityCounter {
     }
 }
 
+/// A Packet Identifier value, between `0x0000` and `0x1fff`.
+///
+/// PID values identify a particular sub-stream within the overall Transport Stream.
+///
+/// As returned by the [`Packet::pid`](struct.Packet.html#method.pid) method for example.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Pid(u16);
+impl Pid {
+    /// The largest possible PID value, `0x1fff`.
+    pub const MAX_VALUE: u16 = 0x1fff;
+
+    /// The total number of distinct PID values, `0x2000` (equal to `MAX_VALUE` + 1)
+    pub const PID_COUNT: usize = (Self::MAX_VALUE + 1) as usize;
+
+    /// The identifier of TS Packets containing Program Association Table sections, with value `0`.
+    pub const PAT: Pid = Pid(0);
+
+    /// Panics if the given value is greater than `Pid::MAX_VALUE`.
+    #[inline]
+    pub fn new(pid: u16) -> Pid {
+        assert!(pid <= Self::MAX_VALUE, "{} greater than pid max {}", pid, Self::MAX_VALUE);
+        Pid(pid)
+    }
+}
+impl From<Pid> for u16 {
+    #[inline]
+    fn from(pid: Pid) -> Self {
+        pid.0
+    }
+}
+impl From<Pid> for usize {
+    #[inline]
+    fn from(pid: Pid) -> Self {
+        pid.0 as usize
+    }
+}
+
 /// A transport stream `Packet` is a wrapper around a byte slice which allows the bytes to be
 /// interpreted as a packet structure per _ISO/IEC 13818-1, Section 2.4.3.3_.
 pub struct Packet<'buf> {
@@ -429,8 +466,8 @@ impl<'buf> Packet<'buf> {
     /// The sub-stream to which a particular packet belongs is indicated by this Packet Identifier
     /// value.
     #[inline]
-    pub fn pid(&self) -> u16 {
-        u16::from(self.buf[1] & 0b0001_1111) << 8 | u16::from(self.buf[2])
+    pub fn pid(&self) -> Pid {
+        Pid(u16::from(self.buf[1] & 0b0001_1111) << 8 | u16::from(self.buf[2]))
     }
 
     pub fn transport_scrambling_control(&self) -> TransportScramblingControl {
@@ -563,7 +600,7 @@ mod test {
         buf[19] = 1; // transport_private_data_length
         buf[21] = 11; // adaptation_field_extension_length
         let pk = Packet::new(&buf[..]);
-        assert_eq!(pk.pid(), 0b1111111111111);
+        assert_eq!(u16::from(pk.pid()), 0b1111111111111u16);
         assert!(pk.transport_error_indicator());
         assert!(pk.payload_unit_start_indicator());
         assert!(pk.transport_priority());

@@ -109,7 +109,7 @@ where
                     }
                 },
                 PesState::Begin => {
-                    println!("pid={}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
+                    println!("{:?}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
                     self.state = PesState::IgnoreRest;
                 },
                 PesState::IgnoreRest => ()

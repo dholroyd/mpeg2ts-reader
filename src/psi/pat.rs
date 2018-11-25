@@ -1,16 +1,18 @@
 //! Types related to the _Program Association Table_
 
+use packet;
+
 #[derive(Clone,Debug)]
 pub enum ProgramDescriptor {
-    Network { pid: u16 },
-    Program { program_number: u16, pid: u16 },
+    Network { pid: packet::Pid },
+    Program { program_number: u16, pid: packet::Pid },
 }
 
 impl ProgramDescriptor {
     /// panics if fewer than 4 bytes are provided
     pub fn from_bytes(data: &[u8]) -> ProgramDescriptor {
         let program_number = (u16::from(data[0]) << 8) | u16::from(data[1]);
-        let pid = (u16::from(data[2]) & 0b0001_1111) << 8 | u16::from(data[3]);
+        let pid = packet::Pid::new((u16::from(data[2]) & 0b0001_1111) << 8 | u16::from(data[3]));
         if program_number == 0 {
             ProgramDescriptor::Network { pid }
         } else {
@@ -18,7 +20,7 @@ impl ProgramDescriptor {
         }
     }
 
-    pub fn pid(&self) -> u16 {
+    pub fn pid(&self) -> packet::Pid {
         match *self {
             ProgramDescriptor::Network { pid } => pid,
             ProgramDescriptor::Program { pid, .. } => pid,

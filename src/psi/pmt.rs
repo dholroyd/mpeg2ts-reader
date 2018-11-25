@@ -4,6 +4,7 @@ use std::fmt;
 use descriptor;
 use demultiplex::DemuxError;
 use StreamType;
+use packet;
 
 /// Sections of the _Program Map Table_ give details of the streams within a particular program
 pub struct PmtSection<'buf> {
@@ -132,8 +133,8 @@ impl<'buf> StreamInfo<'buf> {
     pub fn reserved1(&self) -> u8 {
         self.data[1] >> 5
     }
-    pub fn elementary_pid(&self) -> u16 {
-        u16::from(self.data[1] & 0b0001_1111) << 8 | u16::from(self.data[2])
+    pub fn elementary_pid(&self) -> packet::Pid {
+        packet::Pid::new(u16::from(self.data[1] & 0b0001_1111) << 8 | u16::from(self.data[2]))
     }
     pub fn reserved2(&self) -> u8 {
         self.data[3] >> 4

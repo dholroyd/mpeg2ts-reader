@@ -1,5 +1,10 @@
 #Changelog
 
+## Unreleased
+### Changed
+ - Changed the representation of PID values in the API from plain `u16` to a new `Pid` wrapper,
+   so that the API can't represent invalid PID values.
+
 ## [0.6.0]
 ### Fixed
  - PES data is no longer truncated at the end of the TS packet with

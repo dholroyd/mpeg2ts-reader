@@ -11,6 +11,7 @@ use std::marker;
 use mpeg2ts_reader::demultiplex::PacketFilter;
 use mpeg2ts_reader::demultiplex::DemuxContext;
 use mpeg2ts_reader::packet::Packet;
+use mpeg2ts_reader::packet;
 
 
 packet_filter_switch!{
@@ -29,7 +30,7 @@ impl demultiplex::StreamConstructor for PcrDumpStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(0) => PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             demultiplex::FilterRequest::Pmt{pid, program_number} => PcrDumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
 
             demultiplex::FilterRequest::ByStream(_, pmt_section, stream_info) => PcrDumpFilterSwitch::Pcr(PcrPacketFilter::construct(pmt_section, stream_info)),
@@ -59,7 +60,7 @@ impl<Ctx: DemuxContext> PacketFilter for PcrPacketFilter<Ctx> {
     fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &Packet) {
         if let Some(adaptation_field) = pk.adaptation_field() {
             if let Ok(pcr) = adaptation_field.pcr() {
-                println!("pid={} pcr={}", pk.pid(), u64::from(pcr));
+                println!("{:?} pcr={}", pk.pid(), u64::from(pcr));
             }
         }
     }

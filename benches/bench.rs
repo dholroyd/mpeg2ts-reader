@@ -9,6 +9,7 @@ use std::io::Read;
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::psi;
+use mpeg2ts_reader::packet;
 
 packet_filter_switch!{
     NullFilterSwitch<NullDemuxContext> {
@@ -26,7 +27,7 @@ impl demultiplex::StreamConstructor for NullStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             demultiplex::FilterRequest::ByStream(_stream_type, pmt_section, stream_info) => NullElementaryStreamConsumer::construct(pmt_section, stream_info),
             demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
