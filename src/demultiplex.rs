@@ -297,13 +297,18 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
+        self.remove_outdated(ctx, &pids_seen);
+
+        self.current_version = Some(table_syntax_header.version());
+    }
+
+    fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: &HashSet<u16>) {
         for pid in 0..0x1fff {
             if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
                 ctx.filter_changeset().remove(pid as u16);
                 self.filters_registered.set(pid, false);
             }
         }
-        self.current_version = Some(table_syntax_header.version());
     }
 }
 
@@ -399,14 +404,18 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
+        self.remove_outdated(ctx, &pids_seen);
+
+        self.current_version = Some(table_syntax_header.version());
+    }
+
+    fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: &HashSet<u16>) {
         for pid in 0..0x1fff {
             if self.filters_registered.contains(pid) && !pids_seen.contains(&(pid as u16)) {
                 ctx.filter_changeset().remove(pid as u16);
                 self.filters_registered.set(pid, false);
             }
         }
-
-        self.current_version = Some(table_syntax_header.version());
     }
 }
 
