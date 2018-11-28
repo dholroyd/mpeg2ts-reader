@@ -38,8 +38,7 @@ impl<'buf> Iterator for LanguageIterator<'buf> {
         } else {
             let (head, tail) = self.remaining_data.split_at(4);
             self.remaining_data = tail;
-            let result = Some(Language::new(head));
-            result
+            Some(Language::new(head))
         }
     }
 }

@@ -164,7 +164,7 @@ impl<F: PacketFilter> Filters<F> {
     pub fn insert(&mut self, pid: packet::Pid, filter: F) {
         let diff = usize::from(pid) as isize - self.filters_by_pid.len() as isize;
         if diff >= 0 {
-            for _ in 0..diff+1 {
+            for _ in 0..=diff {
                 self.filters_by_pid.push(None);
             }
         }
