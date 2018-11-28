@@ -29,7 +29,7 @@ impl demultiplex::StreamConstructor for NullStreamConstructor {
         match req {
             demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
-            demultiplex::FilterRequest::ByStream(_stream_type, pmt_section, stream_info) => NullElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByStream { pmt, stream_info, .. } => NullElementaryStreamConsumer::construct(pmt, stream_info),
             demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
             demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }

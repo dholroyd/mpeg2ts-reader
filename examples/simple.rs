@@ -56,12 +56,12 @@ impl demultiplex::StreamConstructor for DumpStreamConstructor {
                 DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             // This match-arm installs our application-specific handling for each H264 stream
             // discovered within the transport stream,
-            demultiplex::FilterRequest::ByStream(StreamType::H264, pmt_section, stream_info) =>
-                PtsDumpElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByStream{ stream_type: StreamType::H264, pmt, stream_info, .. } =>
+                PtsDumpElementaryStreamConsumer::construct(pmt, stream_info),
             // We need to have a match-arm to specify how to handle any other StreamType values
             // that might be present; we answer with NullPacketFilter so that anything other than
             // H264 (handled above) is ignored,
-            demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) =>
+            demultiplex::FilterRequest::ByStream{..} =>
                 DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             // The 'Program Map Table' defines the sub-streams for a particular program within the
             // Transport Stream (it is common for Transport Streams to contain only one program).

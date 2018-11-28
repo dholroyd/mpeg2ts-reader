@@ -252,7 +252,7 @@ pub enum FilterRequest<'a, 'buf: 'a> {
     ByPid(packet::Pid),
     /// requests a filter for the stream with the given details which has just been discovered
     /// within a Program Map Table section.
-    ByStream(StreamType, &'a PmtSection<'buf>, &'a StreamInfo<'buf>),
+    ByStream { program_pid: packet::Pid, stream_type: StreamType, pmt: &'a PmtSection<'buf>, stream_info: &'a StreamInfo<'buf> },
     /// Requests a filter implementation for handling Program Map Table sections
     Pmt { pid: packet::Pid, program_number: u16 },
     /// requests a filter implementation to handle packets containing Network Information Table data
@@ -292,7 +292,12 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         // pass the table_id value this far!
         let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT);
         for stream_info in sect.streams() {
-            let pes_packet_consumer = ctx.filter_constructor().construct(FilterRequest::ByStream(stream_info.stream_type(), &sect, &stream_info));
+            let pes_packet_consumer = ctx.filter_constructor().construct(FilterRequest::ByStream {
+                program_pid: self.pid,
+                stream_type: stream_info.stream_type(),
+                pmt: &sect,
+                stream_info: &stream_info
+            });
             ctx.filter_changeset().insert(stream_info.elementary_pid(), pes_packet_consumer);
             pids_seen.insert(usize::from(stream_info.elementary_pid()));
             self.filters_registered.insert(usize::from(stream_info.elementary_pid()));
@@ -596,7 +601,7 @@ mod test {
             match req {
                 demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
                 demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
-                demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
+                demultiplex::FilterRequest::ByStream{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
                 demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
                 demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
             }

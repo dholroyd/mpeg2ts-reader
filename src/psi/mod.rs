@@ -480,7 +480,7 @@ mod test {
             match req {
                 demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
                 demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
-                demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
+                demultiplex::FilterRequest::ByStream{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
                 demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
                 demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
             }

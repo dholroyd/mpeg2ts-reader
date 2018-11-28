@@ -4,6 +4,8 @@
 ### Changed
  - Changed the representation of PID values in the API from plain `u16` to a new `Pid` wrapper,
    so that the API can't represent invalid PID values.
+ - `FilterRequest::ByStream` changes from tuple to struct variant, and gains `program_id` of the
+   program to which the stream belongs.
 
 ## [0.6.0]
 ### Fixed
