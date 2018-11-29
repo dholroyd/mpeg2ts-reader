@@ -72,7 +72,7 @@ where
                 packet.continuity_counter().count() == cc.count()
             };
             if !result {
-                //println!("discontinuity at packet with PID={} last={} this={} ({:?})", packet.pid(), cc.count(), packet.continuity_counter().count(), packet.adaptation_control());
+                //warn!("discontinuity at packet with {:?} last={} this={} ({:?})", packet.pid(), cc.count(), packet.continuity_counter().count(), packet.adaptation_control());
             }
             result
         } else {
@@ -109,7 +109,7 @@ where
                     }
                 },
                 PesState::Begin => {
-                    println!("{:?}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
+                    warn!("{:?}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
                     self.state = PesState::IgnoreRest;
                 },
                 PesState::IgnoreRest => ()
@@ -182,12 +182,12 @@ pub struct PesHeader<'buf> {
 impl<'buf> PesHeader<'buf> {
     pub fn from_bytes(buf: &'buf[u8]) -> Option<PesHeader> {
         if buf.len() < 6 {
-            println!("Buffer size {} too small to hold PES header", buf.len());
+            warn!("Buffer size {} too small to hold PES header", buf.len());
             return None;
         }
         let packet_start_code_prefix = u32::from(buf[0]) << 16 | u32::from(buf[1]) << 8 | u32::from(buf[2]);
         if packet_start_code_prefix != 1 {
-            println!("invalid packet_start_code_prefix {:#x}, expected 0x000001", packet_start_code_prefix);
+            warn!("invalid packet_start_code_prefix {:#x}, expected 0x000001", packet_start_code_prefix);
             return None
         }
         Some(PesHeader {
@@ -350,12 +350,12 @@ pub struct PesParsedContents<'buf> {
 impl<'buf> PesParsedContents<'buf> {
     pub fn from_bytes(buf: &'buf[u8]) -> Option<PesParsedContents<'buf>> {
         if buf.len() < 3 {
-            println!("buf not large enough to hold PES parsed header: {} bytes", buf.len());
+            warn!("buf not large enough to hold PES parsed header: {} bytes", buf.len());
             return None;
         }
         let check_bits = buf[0] >> 6;
         if check_bits != 0b10 {
-            println!("unexpected check-bits value {:#b}, expected 0b10", check_bits);
+            warn!("unexpected check-bits value {:#b}, expected 0b10", check_bits);
             return None;
         }
         Some(PesParsedContents{

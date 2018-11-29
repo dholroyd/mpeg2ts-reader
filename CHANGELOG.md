@@ -6,6 +6,7 @@
    so that the API can't represent invalid PID values.
  - `FilterRequest::ByStream` changes from tuple to struct variant, and gains `program_id` of the
    program to which the stream belongs.
+ - All uses of `println!()` have been replaced with use of `warn!()` from the `log` crate.
 
 ## [0.6.0]
 ### Fixed

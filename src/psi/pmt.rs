@@ -112,7 +112,7 @@ impl<'buf> StreamInfo<'buf> {
 
     fn from_bytes(data: &'buf[u8]) -> Option<(StreamInfo<'buf>, usize)> {
         if data.len() < Self::HEADER_SIZE {
-            println!("only {} bytes remaining for stream info, at least {} required {:?}", data.len(), Self::HEADER_SIZE, data);
+            warn!("only {} bytes remaining for stream info, at least {} required {:?}", data.len(), Self::HEADER_SIZE, data);
             return None;
         }
         let result = StreamInfo {
@@ -121,7 +121,7 @@ impl<'buf> StreamInfo<'buf> {
 
         let descriptor_end = Self::HEADER_SIZE + result.es_info_length() as usize;
         if descriptor_end > data.len() {
-            print!("PMT section of size {} is not large enough to contain es_info_length of {}", data.len(), result.es_info_length());
+            warn!("PMT section of size {} is not large enough to contain es_info_length of {}", data.len(), result.es_info_length());
             return None;
         }
         Some((result, descriptor_end))

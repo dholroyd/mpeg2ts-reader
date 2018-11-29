@@ -286,7 +286,7 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
 
     fn new_table(&mut self, ctx: &mut Ctx, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &PmtSection) {
         if 0x02 != header.table_id {
-            println!("[PMT {:?} program:{}] Expected PMT to have table id 0x2, but got {:#x}", self.pid, self.program_number, header.table_id);
+            warn!("[PMT {:?} program:{}] Expected PMT to have table id 0x2, but got {:#x}", self.pid, self.program_number, header.table_id);
             return;
         }
         // pass the table_id value this far!
@@ -325,7 +325,7 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
         let end = data.len() - 4;  // remove CRC bytes
         match PmtSection::from_bytes(&data[start..end]) {
             Ok(sect) => self.new_table(ctx, header, table_syntax_header, &sect),
-            Err(e) => println!("[PMT {:?} program:{}] problem reading data: {:?}", self.pid, self.program_number, e),
+            Err(e) => warn!("[PMT {:?} program:{}] problem reading data: {:?}", self.pid, self.program_number, e),
         }
     }
 }
@@ -393,7 +393,7 @@ impl<Ctx: DemuxContext> Default for PatProcessor<Ctx> {
 impl<Ctx: DemuxContext> PatProcessor<Ctx> {
     fn new_table(&mut self, ctx: &mut Ctx, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &pat::PatSection) {
         if 0x00 != header.table_id {
-            println!("Expected PAT to have table id 0x0, but got {:#x}", header.table_id);
+            warn!("Expected PAT to have table id 0x0, but got {:#x}", header.table_id);
             return;
         }
         let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT);
@@ -456,7 +456,7 @@ impl<Ctx: DemuxContext> PacketFilter for UnhandledPid<Ctx> {
     type Ctx = Ctx;
     fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet) {
         if !self.pid_seen {
-            println!("unhandled {:?}", pk.pid());
+            warn!("unhandled {:?}", pk.pid());
             self.pid_seen = true;
         }
     }

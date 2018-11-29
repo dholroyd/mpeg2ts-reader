@@ -148,7 +148,7 @@ where
         // don't apply CRC checks when fuzzing, to give more chances of test data triggering
         // parser bugs,
         if !cfg!(fuzz) && mpegts_crc::sum32(data) != 0 {
-            println!(
+            warn!(
                 "section crc check failed for table_id {}",
                 header.table_id,
             );
@@ -217,7 +217,7 @@ where
     fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
         match self.state {
             BufferSectionState::Complete => {
-                println!("attempt to add extra data when section already complete");
+                warn!("attempt to add extra data when section already complete");
             },
             BufferSectionState::Buffering(remaining) => {
                 let new_remaining = if data.len() > remaining {
@@ -345,19 +345,19 @@ where
 
     fn start_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, data: &'a [u8]) {
         if !header.section_syntax_indicator {
-            println!(
+            warn!(
                 "SectionSyntaxSectionProcessor requires that section_syntax_indicator be set in the section header"
             );
             self.ignore_rest = true;
             return;
         }
         if data.len() < SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE {
-            println!("SectionSyntaxSectionProcessor data {} too short for header {} (TODO: implement buffering)", data.len(), SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE);
+            warn!("SectionSyntaxSectionProcessor data {} too short for header {} (TODO: implement buffering)", data.len(), SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE);
             self.ignore_rest = true;
             return;
         }
         if header.section_length > Self::SECTION_LIMIT {
-            println!("SectionSyntaxSectionProcessor section_length={} is too large (limit {})", header.section_length, Self::SECTION_LIMIT);
+            warn!("SectionSyntaxSectionProcessor section_length={} is too large (limit {})", header.section_length, Self::SECTION_LIMIT);
             self.ignore_rest = true;
             return;
         }
@@ -427,7 +427,7 @@ where
                     let section_data = &pk_buf[1..];
                     if pointer > 0 {
                         if pointer >= section_data.len() {
-                            println!("PSI pointer beyond end of packet payload");
+                            warn!("PSI pointer beyond end of packet payload");
                             self.parser.reset();
                             return;
                         }
@@ -438,7 +438,7 @@ where
                     }
                     let next_sect = &section_data[pointer..];
                     if next_sect.len() < SectionCommonHeader::SIZE {
-                        println!("TODO: not enough bytes to read section header - implement buffering");
+                        warn!("TODO: not enough bytes to read section header - implement buffering");
                         self.parser.reset();
                         return;
                     }
@@ -450,7 +450,7 @@ where
                 }
             }
             None => {
-                println!("no payload present in PSI packet");
+                warn!("no payload present in PSI packet");
             }
         }
     }

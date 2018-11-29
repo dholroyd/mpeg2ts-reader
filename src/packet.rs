@@ -501,7 +501,7 @@ impl<'buf> Packet<'buf> {
             AdaptationControl::AdaptationFieldOnly => {
                 let len = self.adaptation_field_length();
                 if len != (Self::SIZE - ADAPTATION_FIELD_OFFSET) {
-                    println!(
+                    warn!(
                         "invalid adaptation_field_length for AdaptationFieldOnly: {}",
                         len
                     );
@@ -513,7 +513,7 @@ impl<'buf> Packet<'buf> {
             AdaptationControl::AdaptationFieldAndPayload => {
                 let len = self.adaptation_field_length();
                 if len > 182 {
-                    println!(
+                    warn!(
                         "invalid adaptation_field_length for AdaptationFieldAndPayload: {}",
                         len
                     );
@@ -547,10 +547,10 @@ impl<'buf> Packet<'buf> {
     fn mk_payload(&self) -> Option<&'buf [u8]> {
         let offset = self.content_offset();
         if offset == self.buf.len() {
-            println!("no payload data present");
+            warn!("no payload data present");
             None
         } else if offset > self.buf.len() {
-            println!("adaptation_field_length {} too large", self.adaptation_field_length());
+            warn!("adaptation_field_length {} too large", self.adaptation_field_length());
             None
         } else {
             Some(&self.buf[offset..])

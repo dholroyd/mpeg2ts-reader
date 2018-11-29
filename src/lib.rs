@@ -24,9 +24,10 @@
 //!     track application-specific details.
 //!   - Currently mutable state is stored in the instance for each type of syntax parser, and
 //!     it would be nice to explore extracting this out into parser-specific context types
-//! - Event generation / remove `println!()`
-//!   - currently all errors are sent to stdout, which it no way to do things
-//!   - need a way to emit 'events' for interesting data that can't just be a return-value
+//! - Event generation / remove `warn!()`
+//!   - currently problems are reported to the `log` crate
+//!   - I would much prefer a way to emit 'events' for interesting data that can't just be an error
+//!     return value, and to not have any logging code mixed with parsing logic
 //! - General
 //!   - lots of places return `Option` but should return `Result` and a descriptive error
 
@@ -47,6 +48,8 @@ extern crate matches;
 extern crate bitstream_io;
 extern crate fixedbitset;
 extern crate encoding;
+#[macro_use]
+extern crate log;
 
 pub mod packet;
 #[macro_use]
