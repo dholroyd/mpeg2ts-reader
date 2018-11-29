@@ -1,5 +1,9 @@
-use mpeg2ts_reader::demultiplex;
-use mpeg2ts_reader::pes;
+use mpeg2ts_reader::{
+    demultiplex,
+    pes,
+    psi,
+    packet,
+};
 use mpeg2ts_reader::StreamType;
 
 pub struct Mpeg2tsReader {
@@ -36,8 +40,8 @@ impl demultiplex::StreamConstructor for NullStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(0) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
-            demultiplex::FilterRequest::ByStream(StreamType::H264, pmt_section, stream_info) => TimeCheckElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+            demultiplex::FilterRequest::ByStream{ stream_type: StreamType::H264, pmt, stream_info, .. } => TimeCheckElementaryStreamConsumer::construct(pmt, stream_info),
             demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
             _ => NullFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
@@ -48,7 +52,7 @@ pub struct TimeCheckElementaryStreamConsumer {
     last_ts: Option<u64>,
 }
 impl TimeCheckElementaryStreamConsumer {
-    fn construct(_pmt_sect: &demultiplex::PmtSection, _stream_info: &demultiplex::StreamInfo) -> NullFilterSwitch {
+    fn construct(_pmt_sect: &psi::pmt::PmtSection, _stream_info: &psi::pmt::StreamInfo) -> NullFilterSwitch {
         let filter = pes::PesPacketFilter::new(TimeCheckElementaryStreamConsumer { last_ts: None });
         NullFilterSwitch::NullPes(filter)
     }
