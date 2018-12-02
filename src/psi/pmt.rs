@@ -1,10 +1,10 @@
 //! Types related to the _Program Map Table_
 
-use demultiplex::DemuxError;
-use descriptor;
-use packet;
+use crate::demultiplex::DemuxError;
+use crate::descriptor;
+use crate::packet;
+use crate::StreamType;
 use std::fmt;
-use StreamType;
 
 /// Sections of the _Program Map Table_ give details of the streams within a particular program
 pub struct PmtSection<'buf> {

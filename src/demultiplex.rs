@@ -1,12 +1,12 @@
+use crate::packet;
+use crate::psi;
+use crate::psi::pat;
+use crate::psi::pmt::PmtSection;
+use crate::psi::pmt::StreamInfo;
+use crate::StreamType;
 use fixedbitset;
-use packet;
-use psi;
-use psi::pat;
-use psi::pmt::PmtSection;
-use psi::pmt::StreamInfo;
 use std;
 use std::marker;
-use StreamType;
 
 pub trait PacketFilter {
     type Ctx: DemuxContext;
@@ -649,10 +649,10 @@ mod test {
     use data_encoding::base16;
     use std::io;
 
-    use demultiplex;
-    use packet;
-    use psi;
-    use psi::WholeSectionSyntaxPayloadParser;
+    use crate::demultiplex;
+    use crate::packet;
+    use crate::psi;
+    use crate::psi::WholeSectionSyntaxPayloadParser;
 
     packet_filter_switch!{
         NullFilterSwitch<NullDemuxContext> {

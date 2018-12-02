@@ -1,6 +1,6 @@
 //! Types related to the _Program Association Table_
 
-use packet;
+use crate::packet;
 
 #[derive(Clone, Debug)]
 pub enum ProgramDescriptor {

@@ -32,7 +32,7 @@
 //!   - lots of places return `Option` but should return `Result` and a descriptive error
 
 #![forbid(unsafe_code)]
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, future_incompatible)]
 
 extern crate hex_slice;
 extern crate hexdump;

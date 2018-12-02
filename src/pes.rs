@@ -11,9 +11,9 @@
 //! `StreamConstructor` object passed to the
 //! [`Demultiplex`](../demultiplex/struct.Demultiplex.html) instance.
 
-use demultiplex;
-use packet;
-use packet::ClockRef;
+use crate::demultiplex;
+use crate::packet;
+use crate::packet::ClockRef;
 use std::marker;
 use std::{fmt, num};
 
@@ -750,9 +750,9 @@ pub enum OriginalOrCopy {
 #[cfg(test)]
 mod test {
     use bitstream_io::{BitWriter, BE};
+    use crate::packet;
+    use crate::pes;
     use data_encoding::base16;
-    use packet;
-    use pes;
     use std;
     use std::io;
 

@@ -1,6 +1,6 @@
 //! A [`Packet`](./struct.Packet.html) struct and associated infrastructure to read an MPEG Transport Stream packet
 
-use pes;
+use crate::pes;
 use std::fmt;
 
 /// the different values indicating whether a `Packet`'s `adaptation_field()` and `payload()`
@@ -575,8 +575,8 @@ pub trait PacketConsumer<Ret> {
 
 #[cfg(test)]
 mod test {
-    use packet::*;
-    use pes;
+    use crate::packet::*;
+    use crate::pes;
 
     #[test]
     #[should_panic]

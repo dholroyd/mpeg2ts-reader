@@ -22,9 +22,9 @@
 pub mod pat;
 pub mod pmt;
 
+use crate::mpegts_crc;
+use crate::packet;
 use hexdump;
-use mpegts_crc;
-use packet;
 
 /// Trait for types which process the data within a PSI section following the 12-byte
 /// `section_length` field (which is one of the items available in the `SectionCommonHeader` that
@@ -166,7 +166,7 @@ pub trait WholeSectionSyntaxPayloadParser {
 
     fn section<'a>(
         &mut self,
-        &mut Self::Context,
+        _: &mut Self::Context,
         header: &SectionCommonHeader,
         table_syntax_header: &TableSyntaxHeader<'a>,
         data: &'a [u8],
@@ -499,8 +499,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use demultiplex;
-    use packet::Packet;
+    use crate::demultiplex;
+    use crate::packet::Packet;
     use std::cell::RefCell;
     use std::rc::Rc;
 
