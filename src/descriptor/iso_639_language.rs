@@ -17,7 +17,7 @@ impl<'buf> Iso639LanguageDescriptor<'buf> {
         Ok(Iso639LanguageDescriptor { buf })
     }
 
-    pub fn languages(&self) -> LanguageIterator {
+    pub fn languages(&self) -> LanguageIterator<'buf> {
         LanguageIterator::new(self.buf)
     }
 }
@@ -69,7 +69,7 @@ pub struct Language<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> Language<'buf> {
-    fn new(buf: &'buf [u8]) -> Language {
+    fn new(buf: &'buf [u8]) -> Language<'buf> {
         assert_eq!(buf.len(), 4);
         Language { buf }
     }
@@ -81,7 +81,7 @@ impl<'buf> Language<'buf> {
     }
 }
 impl<'buf> fmt::Debug for Language<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("Language")
             .field("code", &self.code(DecoderTrap::Replace).unwrap())
             .field("audio_type", &self.audio_type())
@@ -91,12 +91,12 @@ impl<'buf> fmt::Debug for Language<'buf> {
 
 struct LangsDebug<'buf>(&'buf Iso639LanguageDescriptor<'buf>);
 impl<'buf> fmt::Debug for LangsDebug<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_list().entries(self.0.languages()).finish()
     }
 }
 impl<'buf> fmt::Debug for Iso639LanguageDescriptor<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("Iso639LanguageDescriptor")
             .field("languages", &LangsDebug(self))
             .finish()

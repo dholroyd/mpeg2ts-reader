@@ -11,14 +11,17 @@ use StreamType;
 pub trait PacketFilter {
     type Ctx: DemuxContext;
 
-    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet);
+    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet<'_>);
 }
 
 pub struct NullPacketFilter<Ctx: DemuxContext> {
     phantom: marker::PhantomData<Ctx>,
 }
 impl<Ctx: DemuxContext> NullPacketFilter<Ctx> {
-    pub fn construct(_pmt: &PmtSection, _stream_info: &StreamInfo) -> NullPacketFilter<Ctx> {
+    pub fn construct(
+        _pmt: &PmtSection<'_>,
+        _stream_info: &StreamInfo<'_>,
+    ) -> NullPacketFilter<Ctx> {
         Self::default()
     }
 }
@@ -31,7 +34,7 @@ impl<Ctx: DemuxContext> Default for NullPacketFilter<Ctx> {
 }
 impl<Ctx: DemuxContext> PacketFilter for NullPacketFilter<Ctx> {
     type Ctx = Ctx;
-    fn consume(&mut self, _ctx: &mut Self::Ctx, _pk: &packet::Packet) {
+    fn consume(&mut self, _ctx: &mut Self::Ctx, _pk: &packet::Packet<'_>) {
         // ignore
     }
 }
@@ -130,7 +133,7 @@ macro_rules! packet_filter_switch {
         impl $crate::demultiplex::PacketFilter for $name {
             type Ctx = $ctx;
             #[inline(always)]
-            fn consume(&mut self, ctx: &mut $ctx, pk: &$crate::packet::Packet) {
+            fn consume(&mut self, ctx: &mut $ctx, pk: &$crate::packet::Packet<'_>) {
                 match self {
                     $( &mut $name::$case_name(ref mut f) => f.consume(ctx, pk), )*
 
@@ -210,7 +213,7 @@ impl<F: PacketFilter> FilterChange<F> {
     }
 }
 impl<F: PacketFilter> std::fmt::Debug for FilterChange<F> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match *self {
             FilterChange::Insert(pid, _) => write!(f, "FilterChange::Insert {{ {:?}, ... }}", pid),
             FilterChange::Remove(pid) => write!(f, "FilterChange::Remove {{ {:?}, ... }}", pid),
@@ -282,7 +285,7 @@ pub enum FilterRequest<'a, 'buf: 'a> {
 pub trait StreamConstructor {
     type F: PacketFilter;
 
-    fn construct(&mut self, req: FilterRequest) -> Self::F;
+    fn construct(&mut self, req: FilterRequest<'_, '_>) -> Self::F;
 }
 
 pub struct PmtProcessor<Ctx: DemuxContext> {
@@ -308,8 +311,8 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         &mut self,
         ctx: &mut Ctx,
         header: &psi::SectionCommonHeader,
-        table_syntax_header: &psi::TableSyntaxHeader,
-        sect: &PmtSection,
+        table_syntax_header: &psi::TableSyntaxHeader<'_>,
+        sect: &PmtSection<'_>,
     ) {
         if 0x02 != header.table_id {
             warn!(
@@ -355,7 +358,7 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
         &mut self,
         ctx: &mut Self::Context,
         header: &psi::SectionCommonHeader,
-        table_syntax_header: &psi::TableSyntaxHeader,
+        table_syntax_header: &psi::TableSyntaxHeader<'_>,
         data: &'a [u8],
     ) {
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
@@ -407,7 +410,7 @@ impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
 impl<Ctx: DemuxContext> PacketFilter for PmtPacketFilter<Ctx> {
     type Ctx = Ctx;
 
-    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet) {
+    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
         self.pmt_section_packet_consumer.consume(ctx, pk);
     }
 }
@@ -432,8 +435,8 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
         &mut self,
         ctx: &mut Ctx,
         header: &psi::SectionCommonHeader,
-        table_syntax_header: &psi::TableSyntaxHeader,
-        sect: &pat::PatSection,
+        table_syntax_header: &psi::TableSyntaxHeader<'_>,
+        sect: &pat::PatSection<'_>,
     ) {
         if 0x00 != header.table_id {
             warn!(
@@ -483,7 +486,7 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
         &mut self,
         ctx: &mut Self::Context,
         header: &psi::SectionCommonHeader,
-        table_syntax_header: &psi::TableSyntaxHeader,
+        table_syntax_header: &psi::TableSyntaxHeader<'_>,
         data: &'a [u8],
     ) {
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
@@ -519,7 +522,7 @@ impl<Ctx: DemuxContext> Default for UnhandledPid<Ctx> {
 }
 impl<Ctx: DemuxContext> PacketFilter for UnhandledPid<Ctx> {
     type Ctx = Ctx;
-    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet) {
+    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
         if !self.pid_seen {
             warn!("unhandled {:?}", pk.pid());
             self.pid_seen = true;
@@ -563,7 +566,7 @@ impl<Ctx: DemuxContext> Default for PatPacketFilter<Ctx> {
 impl<Ctx: DemuxContext> PacketFilter for PatPacketFilter<Ctx> {
     type Ctx = Ctx;
 
-    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet) {
+    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
         self.pat_section_packet_consumer.consume(ctx, pk);
     }
 }
@@ -664,7 +667,7 @@ mod test {
     impl demultiplex::StreamConstructor for NullStreamConstructor {
         type F = NullFilterSwitch;
 
-        fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+        fn construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> Self::F {
             match req {
                 demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
                     NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
@@ -769,7 +772,7 @@ mod test {
 
     fn make_test_data<F>(builder: F) -> Vec<u8>
     where
-        F: Fn(BitWriter<BE>) -> Result<(), io::Error>,
+        F: Fn(BitWriter<'_, BE>) -> Result<(), io::Error>,
     {
         let mut data: Vec<u8> = Vec::new();
         builder(BitWriter::<BE>::new(&mut data)).unwrap();

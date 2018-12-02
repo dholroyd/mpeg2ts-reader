@@ -80,7 +80,7 @@ pub struct TableSyntaxHeader<'buf> {
 impl<'buf> TableSyntaxHeader<'buf> {
     pub const SIZE: usize = 5;
 
-    pub fn new(buf: &'buf [u8]) -> TableSyntaxHeader {
+    pub fn new(buf: &'buf [u8]) -> TableSyntaxHeader<'buf> {
         assert!(buf.len() >= Self::SIZE);
         TableSyntaxHeader { buf }
     }
@@ -146,7 +146,7 @@ where
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        table_syntax_header: &TableSyntaxHeader,
+        table_syntax_header: &TableSyntaxHeader<'a>,
         data: &'a [u8],
     ) {
         assert!(header.section_syntax_indicator);
@@ -168,7 +168,7 @@ pub trait WholeSectionSyntaxPayloadParser {
         &mut self,
         &mut Self::Context,
         header: &SectionCommonHeader,
-        table_syntax_header: &TableSyntaxHeader,
+        table_syntax_header: &TableSyntaxHeader<'a>,
         data: &'a [u8],
     );
 }
@@ -211,7 +211,7 @@ where
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        table_syntax_header: &TableSyntaxHeader,
+        table_syntax_header: &TableSyntaxHeader<'a>,
         data: &'a [u8],
     ) {
         let section_length_with_header = header.section_length + SectionCommonHeader::SIZE;
@@ -301,7 +301,7 @@ where
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        table_syntax_header: &TableSyntaxHeader,
+        table_syntax_header: &TableSyntaxHeader<'a>,
         data: &'a [u8],
     ) {
         if let Some(last) = self.last_version {
@@ -339,7 +339,7 @@ pub trait SectionSyntaxPayloadParser {
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        table_syntax_header: &TableSyntaxHeader,
+        table_syntax_header: &TableSyntaxHeader<'a>,
         data: &'a [u8],
     );
 
@@ -456,7 +456,7 @@ where
         SectionPacketConsumer { parser }
     }
 
-    pub fn consume(&mut self, ctx: &mut Ctx, pk: &packet::Packet) {
+    pub fn consume(&mut self, ctx: &mut Ctx, pk: &packet::Packet<'_>) {
         match pk.payload() {
             Some(pk_buf) => {
                 if pk.payload_unit_start_indicator() {
@@ -516,7 +516,7 @@ mod test {
     impl demultiplex::StreamConstructor for NullStreamConstructor {
         type F = NullFilterSwitch;
 
-        fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+        fn construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> Self::F {
             match req {
                 demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
                     NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
@@ -589,7 +589,7 @@ mod test {
                 &mut self,
                 _: &mut Self::Context,
                 _header: &SectionCommonHeader,
-                _table_syntax_header: &TableSyntaxHeader,
+                _table_syntax_header: &TableSyntaxHeader<'_>,
                 _data: &[u8],
             ) {
                 *self.state.borrow_mut() = true;

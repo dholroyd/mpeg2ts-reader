@@ -11,7 +11,7 @@ pub struct PmtSection<'buf> {
     data: &'buf [u8],
 }
 impl<'buf> fmt::Debug for PmtSection<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("PmtSection")
             .field("pcr_pid", &self.pcr_pid())
             .field("descriptors", &DescriptorsDebug(self))
@@ -21,15 +21,15 @@ impl<'buf> fmt::Debug for PmtSection<'buf> {
 }
 struct StreamsDebug<'buf>(&'buf PmtSection<'buf>);
 impl<'buf> fmt::Debug for StreamsDebug<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_list().entries(self.0.streams()).finish()
     }
 }
 struct DescriptorsDebug<'buf>(&'buf PmtSection<'buf>);
 impl<'buf> fmt::Debug for DescriptorsDebug<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_list()
-            .entries(self.0.descriptors::<descriptor::CoreDescriptors>())
+            .entries(self.0.descriptors::<descriptor::CoreDescriptors<'buf>>())
             .finish()
     }
 }
@@ -168,7 +168,7 @@ impl<'buf> StreamInfo<'buf> {
     }
 }
 impl<'buf> fmt::Debug for StreamInfo<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("StreamInfo")
             .field("stream_type", &self.stream_type())
             .field("elementry_pid", &self.elementary_pid())
@@ -178,9 +178,9 @@ impl<'buf> fmt::Debug for StreamInfo<'buf> {
 }
 struct StreamInfoDescriptorsDebug<'buf>(&'buf StreamInfo<'buf>);
 impl<'buf> fmt::Debug for StreamInfoDescriptorsDebug<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_list()
-            .entries(self.0.descriptors::<descriptor::CoreDescriptors>())
+            .entries(self.0.descriptors::<descriptor::CoreDescriptors<'buf>>())
             .finish()
     }
 }

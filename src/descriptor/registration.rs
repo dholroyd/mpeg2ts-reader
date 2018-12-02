@@ -31,7 +31,7 @@ impl<'buf> RegistrationDescriptor<'buf> {
     }
 }
 impl<'buf> fmt::Debug for RegistrationDescriptor<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("RegistrationDescriptor")
             .field("format_identifier", &self.format_identifier())
             .field(

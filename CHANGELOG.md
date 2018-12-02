@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+### Fixed
+ - Removed some unused dependencies
+
 ### Changed
  - Changed the representation of PID values in the API from plain `u16` to a new `Pid` wrapper,
    so that the API can't represent invalid PID values.

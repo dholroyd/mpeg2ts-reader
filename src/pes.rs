@@ -25,7 +25,7 @@ use std::{fmt, num};
 /// extracting elementary stream data from transport stream packets.
 pub trait ElementaryStreamConsumer {
     fn start_stream(&mut self);
-    fn begin_packet(&mut self, header: PesHeader);
+    fn begin_packet(&mut self, header: PesHeader<'_>);
     fn continue_packet(&mut self, data: &[u8]);
     fn end_packet(&mut self);
     fn continuity_error(&mut self);
@@ -63,7 +63,7 @@ where
         }
     }
 
-    pub fn is_continuous(&self, packet: &packet::Packet) -> bool {
+    pub fn is_continuous(&self, packet: &packet::Packet<'_>) -> bool {
         if let Some(cc) = self.ccounter {
             // counter only increases if the packet has a payload,
             let result = if packet.adaptation_control().has_payload() {
@@ -81,7 +81,7 @@ where
     }
 
     #[inline(always)]
-    pub fn consume(&mut self, packet: &packet::Packet) {
+    pub fn consume(&mut self, packet: &packet::Packet<'_>) {
         if !self.is_continuous(&packet) {
             self.stream_consumer.continuity_error();
             self.state = PesState::IgnoreRest;
@@ -146,7 +146,7 @@ where
     type Ctx = Ctx;
 
     #[inline(always)]
-    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet) {
+    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
         self.consumer.consume(pk);
     }
 }
@@ -180,7 +180,7 @@ pub struct PesHeader<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> PesHeader<'buf> {
-    pub fn from_bytes(buf: &'buf [u8]) -> Option<PesHeader> {
+    pub fn from_bytes(buf: &'buf [u8]) -> Option<PesHeader<'buf>> {
         if buf.len() < 6 {
             warn!("Buffer size {} too small to hold PES header", buf.len());
             return None;
@@ -615,7 +615,7 @@ impl<'buf> PesParsedContents<'buf> {
 }
 
 impl<'buf> fmt::Debug for PesParsedContents<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         let mut s = f.debug_struct("PesParsedContents");
         s.field("pes_priority", &self.pes_priority())
             .field("data_alignment_indicator", &self.data_alignment_indicator())
@@ -758,7 +758,7 @@ mod test {
 
     fn make_test_data<F>(builder: F) -> Vec<u8>
     where
-        F: Fn(BitWriter<BE>) -> Result<(), io::Error>,
+        F: Fn(BitWriter<'_, BE>) -> Result<(), io::Error>,
     {
         let mut data: Vec<u8> = Vec::new();
         builder(BitWriter::<BE>::new(&mut data)).unwrap();
@@ -766,7 +766,7 @@ mod test {
     }
 
     /// `ts` is a 33-bit timestamp value
-    fn write_ts(w: &mut BitWriter<BE>, ts: u64, prefix: u8) -> Result<(), io::Error> {
+    fn write_ts(w: &mut BitWriter<'_, BE>, ts: u64, prefix: u8) -> Result<(), io::Error> {
         assert!(
             ts < 1u64 << 33,
             "ts value too large {:#x} >= {:#x}",
@@ -782,7 +782,7 @@ mod test {
         w.write(1, 1) // marker_bit
     }
 
-    fn write_escr(w: &mut BitWriter<BE>, base: u64, extension: u16) -> Result<(), io::Error> {
+    fn write_escr(w: &mut BitWriter<'_, BE>, base: u64, extension: u16) -> Result<(), io::Error> {
         assert!(
             base < 1u64 << 33,
             "base value too large {:#x} >= {:#x}",
@@ -811,7 +811,7 @@ mod test {
         w.write(9, extension)?;
         w.write(1, 1) // marker_bit
     }
-    fn write_es_rate(w: &mut BitWriter<BE>, rate: u32) -> Result<(), io::Error> {
+    fn write_es_rate(w: &mut BitWriter<'_, BE>, rate: u32) -> Result<(), io::Error> {
         assert!(
             rate < 1u32 << 22,
             "rate value too large {:#x} >= {:#x}",
@@ -1046,7 +1046,7 @@ mod test {
         fn start_stream(&mut self) {
             self.state.borrow_mut().start_stream_called = true;
         }
-        fn begin_packet(&mut self, _header: pes::PesHeader) {
+        fn begin_packet(&mut self, _header: pes::PesHeader<'_>) {
             self.state.borrow_mut().begin_packet_called = true;
         }
         fn continue_packet(&mut self, _data: &[u8]) {}

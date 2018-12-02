@@ -93,7 +93,7 @@ impl<'buf> UnknownDescriptor<'buf> {
     }
 }
 impl<'buf> fmt::Debug for UnknownDescriptor<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("UnknownDescriptor")
             .field("tag", &self.tag)
             .field("len", &self.payload.len())
@@ -104,7 +104,7 @@ impl<'buf> fmt::Debug for UnknownDescriptor<'buf> {
 descriptor_enum!{
     #[derive(Debug)]
     CoreDescriptors {
-        Reserved 0|1|36...63 => UnknownDescriptor,
+        Reserved 0|1|36..=63 => UnknownDescriptor,
         VideoStream 2 => UnknownDescriptor,
         AudioStream 3 => UnknownDescriptor,
         Hierarchy 4 => UnknownDescriptor,
@@ -123,7 +123,7 @@ descriptor_enum!{
         STD 17 => UnknownDescriptor,
         IBP 18 => UnknownDescriptor,
         /// ISO IEC 13818-6
-        IsoIec13818dash6 19...26 => UnknownDescriptor,
+        IsoIec13818dash6 19..=26 => UnknownDescriptor,
         MPEG4Video 27 => UnknownDescriptor,
         MPEG4Audio 28 => UnknownDescriptor,
         IOD 29 => UnknownDescriptor,
@@ -133,7 +133,7 @@ descriptor_enum!{
         MuxCode 33 => UnknownDescriptor,
         FmxBufferSize 34 => UnknownDescriptor,
         MultiplexBuffer 35 => UnknownDescriptor,
-        UserPrivate 64...255 => UnknownDescriptor,
+        UserPrivate 64..=255 => UnknownDescriptor,
     }
 }
 

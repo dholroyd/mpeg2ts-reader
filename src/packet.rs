@@ -49,7 +49,7 @@ impl TransportScramblingControl {
     fn from(val: u8) -> TransportScramblingControl {
         match val {
             0 => TransportScramblingControl::NotScrambled,
-            1...3 => TransportScramblingControl::Undefined(val),
+            1..=3 => TransportScramblingControl::Undefined(val),
             _ => panic!("invalid value {}", val),
         }
     }
@@ -82,7 +82,7 @@ impl From<ClockRef> for u64 {
 }
 
 impl fmt::Debug for ClockRef {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("PCR")
             .field("base", &self.base)
             .field("extension", &self.extension)
@@ -133,7 +133,7 @@ pub struct AdaptationField<'buf> {
 impl<'buf> AdaptationField<'buf> {
     // TODO: just eager-load all this stuff in new()?  would be simpler!
 
-    pub fn new(buf: &'buf [u8]) -> AdaptationField {
+    pub fn new(buf: &'buf [u8]) -> AdaptationField<'buf> {
         AdaptationField { buf }
     }
 
@@ -431,7 +431,7 @@ impl<'buf> Packet<'buf> {
     /// have the correct value (`0x47`).  Calling code is expected to have already checked those
     /// conditions.
     #[inline(always)]
-    pub fn new(buf: &'buf [u8]) -> Packet {
+    pub fn new(buf: &'buf [u8]) -> Packet<'buf> {
         assert_eq!(buf.len(), Self::SIZE);
         assert!(Packet::is_sync_byte(buf[0]));
         Packet { buf }
@@ -486,7 +486,7 @@ impl<'buf> Packet<'buf> {
     }
 
     /// An `AdaptationField` contains additional packet headers that may be present in the packet.
-    pub fn adaptation_field(&self) -> Option<AdaptationField> {
+    pub fn adaptation_field(&self) -> Option<AdaptationField<'buf>> {
         match self.adaptation_control() {
             AdaptationControl::Reserved | AdaptationControl::PayloadOnly => None,
             AdaptationControl::AdaptationFieldOnly => {
@@ -516,7 +516,7 @@ impl<'buf> Packet<'buf> {
         }
     }
 
-    fn mk_af(&self, len: usize) -> AdaptationField {
+    fn mk_af(&self, len: usize) -> AdaptationField<'buf> {
         AdaptationField::new(&self.buf[ADAPTATION_FIELD_OFFSET..ADAPTATION_FIELD_OFFSET + len])
     }
 
@@ -570,7 +570,7 @@ impl<'buf> Packet<'buf> {
 
 /// trait for objects which process transport stream packets
 pub trait PacketConsumer<Ret> {
-    fn consume(&mut self, pk: Packet) -> Option<Ret>;
+    fn consume(&mut self, pk: Packet<'_>) -> Option<Ret>;
 }
 
 #[cfg(test)]

@@ -32,14 +32,14 @@
 //!   - lots of places return `Option` but should return `Result` and a descriptive error
 
 #![forbid(unsafe_code)]
+#![deny(rust_2018_idioms)]
 
 extern crate hex_slice;
 extern crate hexdump;
 #[cfg(test)]
 #[macro_use]
 extern crate hex_literal;
-extern crate bitreader;
-extern crate byteorder;
+#[cfg(test)]
 extern crate data_encoding;
 #[cfg(test)]
 #[macro_use]
