@@ -1,8 +1,7 @@
 //! A [`Packet`](./struct.Packet.html) struct and associated infrastructure to read an MPEG Transport Stream packet
 
-
-use std::fmt;
 use pes;
+use std::fmt;
 
 /// the different values indicating whether a `Packet`'s `adaptation_field()` and `payload()`
 /// methods will return `Some` or `None`.
@@ -94,30 +93,35 @@ impl ClockRef {
     /// Panics if `data` is shorter than 5 bytes
     pub fn from_slice(data: &[u8]) -> ClockRef {
         ClockRef {
-            base: u64::from(data[0]) << 25 | u64::from(data[1]) << 17 | u64::from(data[2]) << 9 | u64::from(data[3]) << 1 | u64::from(data[4]) >> 7,
+            base: u64::from(data[0]) << 25
+                | u64::from(data[1]) << 17
+                | u64::from(data[2]) << 9
+                | u64::from(data[3]) << 1
+                | u64::from(data[4]) >> 7,
             //reserved: (data[4] >> 1) & 0b00111111,
             extension: (u16::from(data[4]) & 0b1) << 8 | u16::from(data[5]),
         }
     }
     /// Panics if the `base` is greater than 2^33-1 or the `extension` is greater than 2^9-1
     pub fn from_parts(base: u64, extension: u16) -> ClockRef {
-        assert!(base < (1<<33));
-        assert!(extension < (1<<9));
-        ClockRef {
-            base,
-            extension,
-        }
+        assert!(base < (1 << 33));
+        assert!(extension < (1 << 9));
+        ClockRef { base, extension }
     }
 
-    pub fn base(&self) -> u64 { self.base }
-    pub fn extension(&self) -> u16 { self.extension }
+    pub fn base(&self) -> u64 {
+        self.base
+    }
+    pub fn extension(&self) -> u16 {
+        self.extension
+    }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum AdaptationFieldError {
     FieldNotPresent,
     NotEnoughData,
-    SpliceTimestampError(pes::TimestampError)
+    SpliceTimestampError(pes::TimestampError),
 }
 
 /// A collection of fields that may optionally appear within the header of a transport stream
@@ -157,7 +161,7 @@ impl<'buf> AdaptationField<'buf> {
     fn adaptation_field_extension_flag(&self) -> bool {
         self.buf[0] & 0b1 != 0
     }
-    fn slice(&self, from: usize, to: usize) -> Result<&'buf[u8],AdaptationFieldError> {
+    fn slice(&self, from: usize, to: usize) -> Result<&'buf [u8], AdaptationFieldError> {
         if to > self.buf.len() {
             Err(AdaptationFieldError::NotEnoughData)
         } else {
@@ -167,7 +171,7 @@ impl<'buf> AdaptationField<'buf> {
     const PCR_SIZE: usize = 6;
     pub fn pcr(&self) -> Result<ClockRef, AdaptationFieldError> {
         if self.pcr_flag() {
-            Ok(ClockRef::from_slice(self.slice(1, 1+Self::PCR_SIZE)?))
+            Ok(ClockRef::from_slice(self.slice(1, 1 + Self::PCR_SIZE)?))
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
@@ -183,17 +187,13 @@ impl<'buf> AdaptationField<'buf> {
     pub fn opcr(&self) -> Result<ClockRef, AdaptationFieldError> {
         if self.opcr_flag() {
             let off = self.opcr_offset();
-            Ok(ClockRef::from_slice(self.slice(off, off+Self::PCR_SIZE)?))
+            Ok(ClockRef::from_slice(self.slice(off, off + Self::PCR_SIZE)?))
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
     }
     fn splice_countdown_offset(&self) -> usize {
-        self.opcr_offset() + if self.opcr_flag() {
-            Self::PCR_SIZE
-        } else {
-            0
-        }
+        self.opcr_offset() + if self.opcr_flag() { Self::PCR_SIZE } else { 0 }
     }
     pub fn splice_countdown(&self) -> Result<u8, AdaptationFieldError> {
         if self.splicing_point_flag() {
@@ -204,11 +204,7 @@ impl<'buf> AdaptationField<'buf> {
         }
     }
     fn transport_private_data_offset(&self) -> usize {
-        self.splice_countdown_offset() + if self.splicing_point_flag() {
-            1
-        } else {
-            0
-        }
+        self.splice_countdown_offset() + if self.splicing_point_flag() { 1 } else { 0 }
     }
     pub fn transport_private_data(&self) -> Result<&[u8], AdaptationFieldError> {
         if self.transport_private_data_flag() {
@@ -228,15 +224,18 @@ impl<'buf> AdaptationField<'buf> {
             0
         })
     }
-    pub fn adaptation_field_extension(&self) -> Result<AdaptationFieldExtension<'buf>, AdaptationFieldError> {
+    pub fn adaptation_field_extension(
+        &self,
+    ) -> Result<AdaptationFieldExtension<'buf>, AdaptationFieldError> {
         if self.adaptation_field_extension_flag() {
             let off = self.adaptation_field_extension_offset()?;
             let len = self.slice(off, off + 1)?[0] as usize;
-            Ok(AdaptationFieldExtension::new(self.slice(off + 1, off + 1 + len)?))
+            Ok(AdaptationFieldExtension::new(
+                self.slice(off + 1, off + 1 + len)?,
+            ))
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
-
     }
 }
 
@@ -246,12 +245,10 @@ pub struct AdaptationFieldExtension<'buf> {
 }
 impl<'buf> AdaptationFieldExtension<'buf> {
     pub fn new(buf: &'buf [u8]) -> AdaptationFieldExtension<'buf> {
-        AdaptationFieldExtension {
-            buf,
-        }
+        AdaptationFieldExtension { buf }
     }
 
-    fn slice(&self, from: usize, to: usize) -> Result<&'buf[u8],AdaptationFieldError> {
+    fn slice(&self, from: usize, to: usize) -> Result<&'buf [u8], AdaptationFieldError> {
         if to > self.buf.len() {
             Err(AdaptationFieldError::NotEnoughData)
         } else {
@@ -274,8 +271,7 @@ impl<'buf> AdaptationFieldExtension<'buf> {
             let dat = self.slice(1, 3)?;
             let ltw_valid_flag = dat[0] & 0b1000_0000 != 0;
             Ok(if ltw_valid_flag {
-                Some(u16::from(dat[0] & 0b0111_1111)<<8
-                    |u16::from(dat[1]))
+                Some(u16::from(dat[0] & 0b0111_1111) << 8 | u16::from(dat[1]))
             } else {
                 None
             })
@@ -284,46 +280,36 @@ impl<'buf> AdaptationFieldExtension<'buf> {
         }
     }
     fn piecewise_rate_offset(&self) -> usize {
-        1 + if self.ltw_flag() {
-            2
-        } else {
-            0
-        }
+        1 + if self.ltw_flag() { 2 } else { 0 }
     }
     pub fn piecewise_rate(&self) -> Result<u32, AdaptationFieldError> {
         if self.piecewise_rate_flag() {
             let off = self.piecewise_rate_offset();
-            let dat = self.slice(off, off+3)?;
-            Ok(u32::from(dat[0] & 0b0011_1111)<<16
-                |u32::from(dat[1])<<8
-                |u32::from(dat[2]))
+            let dat = self.slice(off, off + 3)?;
+            Ok(u32::from(dat[0] & 0b0011_1111) << 16 | u32::from(dat[1]) << 8 | u32::from(dat[2]))
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
     }
     fn seamless_splice_offset(&self) -> usize {
-        self.piecewise_rate_offset() + if self.piecewise_rate_flag() {
-            3
-        } else {
-            0
-        }
+        self.piecewise_rate_offset() + if self.piecewise_rate_flag() { 3 } else { 0 }
     }
     pub fn seamless_splice(&self) -> Result<SeamlessSplice, AdaptationFieldError> {
         if self.seamless_splice_flag() {
             let off = self.seamless_splice_offset();
-            let dat = self.slice(off, off+5)?;
+            let dat = self.slice(off, off + 5)?;
             Ok(SeamlessSplice {
                 splice_type: dat[0] >> 4,
-                dts_next_au: pes::Timestamp::from_bytes(dat).map_err( AdaptationFieldError::SpliceTimestampError ) ?
+                dts_next_au: pes::Timestamp::from_bytes(dat)
+                    .map_err(AdaptationFieldError::SpliceTimestampError)?,
             })
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
-
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct SeamlessSplice {
     pub splice_type: u8,
     pub dts_next_au: pes::Timestamp,
@@ -334,7 +320,7 @@ pub struct SeamlessSplice {
 /// `adaptation_control` indicates that a payload should be present.
 ///
 /// See [`Packet.continuity_counter()`](struct.Packet.html#method.continuity_counter)
-#[derive(PartialEq,Debug,Clone,Copy)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub struct ContinuityCounter {
     val: u8,
 }
@@ -395,7 +381,12 @@ impl Pid {
     /// Panics if the given value is greater than `Pid::MAX_VALUE`.
     #[inline]
     pub fn new(pid: u16) -> Pid {
-        assert!(pid <= Self::MAX_VALUE, "{} greater than pid max {}", pid, Self::MAX_VALUE);
+        assert!(
+            pid <= Self::MAX_VALUE,
+            "{} greater than pid max {}",
+            pid,
+            Self::MAX_VALUE
+        );
         Pid(pid)
     }
 }
@@ -526,9 +517,7 @@ impl<'buf> Packet<'buf> {
     }
 
     fn mk_af(&self, len: usize) -> AdaptationField {
-        AdaptationField::new(
-            &self.buf[ADAPTATION_FIELD_OFFSET..ADAPTATION_FIELD_OFFSET + len],
-        )
+        AdaptationField::new(&self.buf[ADAPTATION_FIELD_OFFSET..ADAPTATION_FIELD_OFFSET + len])
     }
 
     /// The data contained within the packet, not including the packet headers.
@@ -539,7 +528,9 @@ impl<'buf> Packet<'buf> {
     pub fn payload(&self) -> Option<&'buf [u8]> {
         match self.adaptation_control() {
             AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => None,
-            AdaptationControl::PayloadOnly | AdaptationControl::AdaptationFieldAndPayload => self.mk_payload(),
+            AdaptationControl::PayloadOnly | AdaptationControl::AdaptationFieldAndPayload => {
+                self.mk_payload()
+            }
         }
     }
 
@@ -550,7 +541,10 @@ impl<'buf> Packet<'buf> {
             warn!("no payload data present");
             None
         } else if offset > self.buf.len() {
-            warn!("adaptation_field_length {} too large", self.adaptation_field_length());
+            warn!(
+                "adaptation_field_length {} too large",
+                self.adaptation_field_length()
+            );
             None
         } else {
             Some(&self.buf[offset..])
@@ -558,17 +552,16 @@ impl<'buf> Packet<'buf> {
     }
 
     // borrow a reference to the underlying buffer of this packet
-    pub fn buffer(&self) -> &'buf[u8] {
+    pub fn buffer(&self) -> &'buf [u8] {
         self.buf
     }
 
     #[inline]
     fn content_offset(&self) -> usize {
         match self.adaptation_control() {
-            AdaptationControl::Reserved |
-            AdaptationControl::PayloadOnly => FIXED_HEADER_SIZE,
-            AdaptationControl::AdaptationFieldOnly |
-            AdaptationControl::AdaptationFieldAndPayload => {
+            AdaptationControl::Reserved | AdaptationControl::PayloadOnly => FIXED_HEADER_SIZE,
+            AdaptationControl::AdaptationFieldOnly
+            | AdaptationControl::AdaptationFieldAndPayload => {
                 ADAPTATION_FIELD_OFFSET + self.adaptation_field_length()
             }
         }
@@ -616,15 +609,33 @@ mod test {
         assert!(pk.adaptation_field().is_some());
         let ad = pk.adaptation_field().unwrap();
         assert!(ad.discontinuity_indicator());
-        assert_eq!(ad.pcr(), Ok(ClockRef::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
+        assert_eq!(
+            ad.pcr(),
+            Ok(ClockRef::from_parts(
+                0b1_1111_1111_1111_1111_1111_1111_1111_1111,
+                0b1_1111_1111
+            ))
+        );
         assert_eq!(1234 * 300 + 56, u64::from(ClockRef::from_parts(1234, 56)));
-        assert_eq!(ad.opcr(), Ok(ClockRef::from_parts(0b1_1111_1111_1111_1111_1111_1111_1111_1111, 0b1_1111_1111)));
+        assert_eq!(
+            ad.opcr(),
+            Ok(ClockRef::from_parts(
+                0b1_1111_1111_1111_1111_1111_1111_1111_1111,
+                0b1_1111_1111
+            ))
+        );
         assert_eq!(ad.splice_countdown(), Ok(0b11111111));
         let expected_data = [0xff];
         assert_eq!(ad.transport_private_data(), Ok(&expected_data[..]));
         let ext = ad.adaptation_field_extension().unwrap();
         assert_eq!(ext.ltw_offset(), Ok(Some(0b0111_1111_1111_1111)));
         assert_eq!(ext.piecewise_rate(), Ok(0b0011_1111_1111_1111_1111_1111));
-        assert_eq!(ext.seamless_splice(), Ok(SeamlessSplice{ splice_type: 0b1111, dts_next_au: pes::Timestamp::from_u64(0b1_1111_1111_1111_1111_1111_1111_1111_1111)}));
+        assert_eq!(
+            ext.seamless_splice(),
+            Ok(SeamlessSplice {
+                splice_type: 0b1111,
+                dts_next_au: pes::Timestamp::from_u64(0b1_1111_1111_1111_1111_1111_1111_1111_1111)
+            })
+        );
     }
 }

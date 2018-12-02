@@ -33,74 +33,74 @@
 
 #![forbid(unsafe_code)]
 
-extern crate hexdump;
 extern crate hex_slice;
+extern crate hexdump;
 #[cfg(test)]
 #[macro_use]
 extern crate hex_literal;
+extern crate bitreader;
 extern crate byteorder;
 extern crate data_encoding;
-extern crate bitreader;
 #[cfg(test)]
 #[macro_use]
 extern crate matches;
 #[cfg(test)]
 extern crate bitstream_io;
-extern crate fixedbitset;
 extern crate encoding;
+extern crate fixedbitset;
 #[macro_use]
 extern crate log;
 
 pub mod packet;
 #[macro_use]
 pub mod demultiplex;
-pub mod psi;
-pub mod pes;
 pub mod descriptor;
 mod mpegts_crc;
+pub mod pes;
+pub mod psi;
 
-#[derive(Debug,PartialEq,Eq,Hash,Clone,Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum StreamType {
-	// 0x00 reserved
-	Iso11172Video,
-	H262,
-	Iso11172Audio,
-	Iso138183Audio,
-	H2220PrivateSections,
-	H2220PesPrivateData,
-	Mheg,
-	H2220DsmCc,
-	H2221,
-	Iso138186MultiprotocolEncapsulation,
-	DsmccUnMessages,
-	DsmccStreamDescriptors,
-	DsmccSections,
-	H2220Auxiliary,
-	Adts,
-	Iso144962Visual,
-	Latm,
-	FlexMuxPes,
-	FlexMuxIso14496Sections,
-	SynchronizedDownloadProtocol,
-	MetadataInPes,
-	MetadataInMetadataSections,
-	DsmccDataCarouselMetadata,
-	DsmccObjectCarouselMetadata,
-	SynchronizedDownloadProtocolMetadata,
-	Ipmp,
-	H264,
-	// 0x1c-0x23 reserved
-	H265,
-	// 0x26-0x41 reserved
-	ChineseVideoStandard,
-	// 0x43-0x7f reserved
-	// 0x80 privately defined
-	AtscDolbyDigitalAudio,
-	// 0x82-0x94 privately defined
-	AtscDsmccNetworkResourcesTable,
-	// 0x95-0xc1 privately defined
-	AtscDsmccSynchronousData,
-	// 0xc3-0xff privately defined,
+    // 0x00 reserved
+    Iso11172Video,
+    H262,
+    Iso11172Audio,
+    Iso138183Audio,
+    H2220PrivateSections,
+    H2220PesPrivateData,
+    Mheg,
+    H2220DsmCc,
+    H2221,
+    Iso138186MultiprotocolEncapsulation,
+    DsmccUnMessages,
+    DsmccStreamDescriptors,
+    DsmccSections,
+    H2220Auxiliary,
+    Adts,
+    Iso144962Visual,
+    Latm,
+    FlexMuxPes,
+    FlexMuxIso14496Sections,
+    SynchronizedDownloadProtocol,
+    MetadataInPes,
+    MetadataInMetadataSections,
+    DsmccDataCarouselMetadata,
+    DsmccObjectCarouselMetadata,
+    SynchronizedDownloadProtocolMetadata,
+    Ipmp,
+    H264,
+    // 0x1c-0x23 reserved
+    H265,
+    // 0x26-0x41 reserved
+    ChineseVideoStandard,
+    // 0x43-0x7f reserved
+    // 0x80 privately defined
+    AtscDolbyDigitalAudio,
+    // 0x82-0x94 privately defined
+    AtscDsmccNetworkResourcesTable,
+    // 0x95-0xc1 privately defined
+    AtscDsmccSynchronousData,
+    // 0xc3-0xff privately defined,
     Private(u8),
     Reserved(u8),
 }

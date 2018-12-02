@@ -2,10 +2,15 @@
 
 use packet;
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub enum ProgramDescriptor {
-    Network { pid: packet::Pid },
-    Program { program_number: u16, pid: packet::Pid },
+    Network {
+        pid: packet::Pid,
+    },
+    Program {
+        program_number: u16,
+        pid: packet::Pid,
+    },
 }
 
 impl ProgramDescriptor {
@@ -16,7 +21,10 @@ impl ProgramDescriptor {
         if program_number == 0 {
             ProgramDescriptor::Network { pid }
         } else {
-            ProgramDescriptor::Program { program_number, pid }
+            ProgramDescriptor::Program {
+                program_number,
+                pid,
+            }
         }
     }
 
@@ -31,24 +39,24 @@ impl ProgramDescriptor {
 /// Sections of the _Program Association Table_ give details of the programs within a transport
 /// stream.  There may be only one program, or in the case of a broadcast multiplex, there may
 /// be many.
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct PatSection<'buf> {
-    data: &'buf[u8],
+    data: &'buf [u8],
 }
 impl<'buf> PatSection<'buf> {
-    pub fn new(data: &'buf[u8]) -> PatSection<'buf> {
-        PatSection {
-            data,
-        }
+    pub fn new(data: &'buf [u8]) -> PatSection<'buf> {
+        PatSection { data }
     }
-    pub fn programs(&self) -> impl Iterator<Item=ProgramDescriptor> + 'buf {
-        ProgramIter { buf: &self.data[..] }
+    pub fn programs(&self) -> impl Iterator<Item = ProgramDescriptor> + 'buf {
+        ProgramIter {
+            buf: &self.data[..],
+        }
     }
 }
 
 /// Iterate over the list of programs in a `PatSection`.
 struct ProgramIter<'buf> {
-    buf: &'buf[u8],
+    buf: &'buf [u8],
 }
 impl<'buf> Iterator for ProgramIter<'buf> {
     type Item = ProgramDescriptor;

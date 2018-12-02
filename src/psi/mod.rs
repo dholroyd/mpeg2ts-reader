@@ -22,10 +22,9 @@
 pub mod pat;
 pub mod pmt;
 
-use packet;
 use hexdump;
 use mpegts_crc;
-
+use packet;
 
 /// Trait for types which process the data within a PSI section following the 12-byte
 /// `section_length` field (which is one of the items available in the `SectionCommonHeader` that
@@ -42,12 +41,17 @@ pub trait SectionProcessor {
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
     /// been supplied to this call in the `header` parameter.  This is to allow implementers to
     /// calculate a CRC over the whole section if required.
-    fn start_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, section_data: &'a[u8]);
-    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, section_data: &'a[u8]);
+    fn start_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        section_data: &'a [u8],
+    );
+    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, section_data: &'a [u8]);
     fn reset(&mut self);
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum CurrentNext {
     Current,
     Next,
@@ -70,18 +74,15 @@ impl CurrentNext {
 /// [`section_syntax_indicator`](struct.SectionCommonHeader.html#structfield.section_syntax_indicator)
 /// field in the `SectionCommonHeader` of the section is `true`.
 pub struct TableSyntaxHeader<'buf> {
-    buf: &'buf[u8],
+    buf: &'buf [u8],
 }
-
 
 impl<'buf> TableSyntaxHeader<'buf> {
     pub const SIZE: usize = 5;
 
-    pub fn new(buf: &'buf[u8]) -> TableSyntaxHeader {
+    pub fn new(buf: &'buf [u8]) -> TableSyntaxHeader {
         assert!(buf.len() >= Self::SIZE);
-        TableSyntaxHeader {
-            buf
-        }
+        TableSyntaxHeader { buf }
     }
     /// The initial 16-bit field within a 'section syntax' PSI table (which immediately follows the
     /// `section_length` field).
@@ -122,36 +123,37 @@ impl<'buf> TableSyntaxHeader<'buf> {
 
 pub struct CrcCheckWholeSectionSyntaxPayloadParser<P>
 where
-    P: WholeSectionSyntaxPayloadParser
+    P: WholeSectionSyntaxPayloadParser,
 {
     inner: P,
 }
 impl<P> CrcCheckWholeSectionSyntaxPayloadParser<P>
-    where
-        P: WholeSectionSyntaxPayloadParser
+where
+    P: WholeSectionSyntaxPayloadParser,
 {
     pub fn new(inner: P) -> CrcCheckWholeSectionSyntaxPayloadParser<P> {
-        CrcCheckWholeSectionSyntaxPayloadParser {
-            inner,
-        }
+        CrcCheckWholeSectionSyntaxPayloadParser { inner }
     }
 }
 
 impl<P> WholeSectionSyntaxPayloadParser for CrcCheckWholeSectionSyntaxPayloadParser<P>
 where
-    P: WholeSectionSyntaxPayloadParser
+    P: WholeSectionSyntaxPayloadParser,
 {
     type Context = P::Context;
 
-    fn section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
+    fn section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        table_syntax_header: &TableSyntaxHeader,
+        data: &'a [u8],
+    ) {
         assert!(header.section_syntax_indicator);
         // don't apply CRC checks when fuzzing, to give more chances of test data triggering
         // parser bugs,
         if !cfg!(fuzz) && mpegts_crc::sum32(data) != 0 {
-            warn!(
-                "section crc check failed for table_id {}",
-                header.table_id,
-            );
+            warn!("section crc check failed for table_id {}", header.table_id,);
             hexdump::hexdump(data);
             return;
         }
@@ -162,7 +164,13 @@ where
 pub trait WholeSectionSyntaxPayloadParser {
     type Context;
 
-    fn section<'a>(&mut self, &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]);
+    fn section<'a>(
+        &mut self,
+        &mut Self::Context,
+        header: &SectionCommonHeader,
+        table_syntax_header: &TableSyntaxHeader,
+        data: &'a [u8],
+    );
 }
 
 enum BufferSectionState {
@@ -175,19 +183,19 @@ enum BufferSectionState {
 /// section fits entirely in a single TS packet, the implementation is zero-copy.
 pub struct BufferSectionSyntaxParser<P>
 where
-    P: WholeSectionSyntaxPayloadParser
+    P: WholeSectionSyntaxPayloadParser,
 {
     buf: Vec<u8>,
     state: BufferSectionState,
     parser: P,
 }
 impl<P> BufferSectionSyntaxParser<P>
-    where
-        P: WholeSectionSyntaxPayloadParser
+where
+    P: WholeSectionSyntaxPayloadParser,
 {
     pub fn new(parser: P) -> BufferSectionSyntaxParser<P> {
         BufferSectionSyntaxParser {
-            buf: vec!(),
+            buf: vec![],
             state: BufferSectionState::Complete,
             parser,
         }
@@ -195,16 +203,27 @@ impl<P> BufferSectionSyntaxParser<P>
 }
 impl<P> SectionSyntaxPayloadParser for BufferSectionSyntaxParser<P>
 where
-    P: WholeSectionSyntaxPayloadParser
+    P: WholeSectionSyntaxPayloadParser,
 {
     type Context = P::Context;
 
-    fn start_syntax_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
+    fn start_syntax_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        table_syntax_header: &TableSyntaxHeader,
+        data: &'a [u8],
+    ) {
         let section_length_with_header = header.section_length + SectionCommonHeader::SIZE;
         if section_length_with_header <= data.len() {
             // section data is entirely within this packet,
             self.state = BufferSectionState::Complete;
-            self.parser.section(ctx, header, table_syntax_header, &data[..section_length_with_header])
+            self.parser.section(
+                ctx,
+                header,
+                table_syntax_header,
+                &data[..section_length_with_header],
+            )
         } else {
             // we will need to wait for continuation packets before we have the whole section,
             self.buf.clear();
@@ -218,7 +237,7 @@ where
         match self.state {
             BufferSectionState::Complete => {
                 warn!("attempt to add extra data when section already complete");
-            },
+            }
             BufferSectionState::Buffering(remaining) => {
                 let new_remaining = if data.len() > remaining {
                     0
@@ -229,8 +248,10 @@ where
                     self.buf.extend_from_slice(&data[..remaining]);
                     self.state = BufferSectionState::Complete;
                     let header = SectionCommonHeader::new(&self.buf[..SectionCommonHeader::SIZE]);
-                    let table_syntax_header = TableSyntaxHeader::new(&self.buf[SectionCommonHeader::SIZE..]);
-                    self.parser.section(ctx, &header, &table_syntax_header, &self.buf[..]);
+                    let table_syntax_header =
+                        TableSyntaxHeader::new(&self.buf[SectionCommonHeader::SIZE..]);
+                    self.parser
+                        .section(ctx, &header, &table_syntax_header, &self.buf[..]);
                 } else {
                     self.buf.extend_from_slice(data);
                     self.state = BufferSectionState::Buffering(new_remaining);
@@ -252,15 +273,15 @@ where
 /// usually inserted periodically in the Transport Stream.
 pub struct DedupSectionSyntaxPayloadParser<SSPP>
 where
-    SSPP: SectionSyntaxPayloadParser
+    SSPP: SectionSyntaxPayloadParser,
 {
     inner: SSPP,
     last_version: Option<u8>,
     ignore_rest: bool,
 }
 impl<SSPP> DedupSectionSyntaxPayloadParser<SSPP>
-    where
-        SSPP: SectionSyntaxPayloadParser
+where
+    SSPP: SectionSyntaxPayloadParser,
 {
     pub fn new(inner: SSPP) -> DedupSectionSyntaxPayloadParser<SSPP> {
         DedupSectionSyntaxPayloadParser {
@@ -272,11 +293,17 @@ impl<SSPP> DedupSectionSyntaxPayloadParser<SSPP>
 }
 impl<SSPP> SectionSyntaxPayloadParser for DedupSectionSyntaxPayloadParser<SSPP>
 where
-    SSPP: SectionSyntaxPayloadParser
+    SSPP: SectionSyntaxPayloadParser,
 {
     type Context = SSPP::Context;
 
-    fn start_syntax_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, table_syntax_header: &TableSyntaxHeader, data: &'a [u8]) {
+    fn start_syntax_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        table_syntax_header: &TableSyntaxHeader,
+        data: &'a [u8],
+    ) {
         if let Some(last) = self.last_version {
             if last == table_syntax_header.version() {
                 self.ignore_rest = true;
@@ -285,7 +312,8 @@ where
         }
         self.ignore_rest = false;
         self.last_version = Some(table_syntax_header.version());
-        self.inner.start_syntax_section(ctx, header, table_syntax_header, data);
+        self.inner
+            .start_syntax_section(ctx, header, table_syntax_header, data);
     }
 
     fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
@@ -307,10 +335,13 @@ pub trait SectionSyntaxPayloadParser {
     /// NB the `data` buffer passed to _will_ include the bytes which are represented by `header`
     /// and `table_syntax_header` (in order that the called code can check any CRC that covers the
     /// whole section).
-    fn start_syntax_section<'a>(&mut self,
-                            ctx: &mut Self::Context,
-                            header: &SectionCommonHeader,
-                            table_syntax_header: &TableSyntaxHeader, data: &'a [u8]);
+    fn start_syntax_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        table_syntax_header: &TableSyntaxHeader,
+        data: &'a [u8],
+    );
 
     fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]);
 
@@ -319,14 +350,14 @@ pub trait SectionSyntaxPayloadParser {
 
 pub struct SectionSyntaxSectionProcessor<SP>
 where
-    SP: SectionSyntaxPayloadParser
+    SP: SectionSyntaxPayloadParser,
 {
     payload_parser: SP,
     ignore_rest: bool,
 }
 impl<SP> SectionSyntaxSectionProcessor<SP>
-    where
-        SP: SectionSyntaxPayloadParser
+where
+    SP: SectionSyntaxPayloadParser,
 {
     const SECTION_LIMIT: usize = 1021;
 
@@ -339,11 +370,16 @@ impl<SP> SectionSyntaxSectionProcessor<SP>
 }
 impl<SP> SectionProcessor for SectionSyntaxSectionProcessor<SP>
 where
-    SP: SectionSyntaxPayloadParser
+    SP: SectionSyntaxPayloadParser,
 {
     type Context = SP::Context;
 
-    fn start_section<'a>(&mut self, ctx: &mut Self::Context, header: &SectionCommonHeader, data: &'a [u8]) {
+    fn start_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        data: &'a [u8],
+    ) {
         if !header.section_syntax_indicator {
             warn!(
                 "SectionSyntaxSectionProcessor requires that section_syntax_indicator be set in the section header"
@@ -357,13 +393,18 @@ where
             return;
         }
         if header.section_length > Self::SECTION_LIMIT {
-            warn!("SectionSyntaxSectionProcessor section_length={} is too large (limit {})", header.section_length, Self::SECTION_LIMIT);
+            warn!(
+                "SectionSyntaxSectionProcessor section_length={} is too large (limit {})",
+                header.section_length,
+                Self::SECTION_LIMIT
+            );
             self.ignore_rest = true;
             return;
         }
         self.ignore_rest = false;
         let table_syntax_header = TableSyntaxHeader::new(&data[SectionCommonHeader::SIZE..]);
-        self.payload_parser.start_syntax_section(ctx, header, &table_syntax_header, data)
+        self.payload_parser
+            .start_syntax_section(ctx, header, &table_syntax_header, data)
     }
 
     fn continue_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
@@ -407,15 +448,12 @@ where
     parser: P,
 }
 
-
 impl<P, Ctx> SectionPacketConsumer<P>
 where
-    P: SectionProcessor<Context=Ctx>,
+    P: SectionProcessor<Context = Ctx>,
 {
     pub fn new(parser: P) -> SectionPacketConsumer<P> {
-        SectionPacketConsumer {
-            parser,
-        }
+        SectionPacketConsumer { parser }
     }
 
     pub fn consume(&mut self, ctx: &mut Ctx, pk: &packet::Packet) {
@@ -438,7 +476,9 @@ where
                     }
                     let next_sect = &section_data[pointer..];
                     if next_sect.len() < SectionCommonHeader::SIZE {
-                        warn!("TODO: not enough bytes to read section header - implement buffering");
+                        warn!(
+                            "TODO: not enough bytes to read section header - implement buffering"
+                        );
                         self.parser.reset();
                         return;
                     }
@@ -459,10 +499,10 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use packet::Packet;
     use demultiplex;
-    use std::rc::Rc;
+    use packet::Packet;
     use std::cell::RefCell;
+    use std::rc::Rc;
 
     packet_filter_switch!{
         NullFilterSwitch<NullDemuxContext> {
@@ -478,11 +518,22 @@ mod test {
 
         fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
             match req {
-                demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
-                demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
-                demultiplex::FilterRequest::ByStream{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
-                demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
-                demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
+                demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
+                    NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
+                }
+                demultiplex::FilterRequest::ByPid(_) => {
+                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
+                }
+                demultiplex::FilterRequest::ByStream { .. } => {
+                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
+                }
+                demultiplex::FilterRequest::Pmt {
+                    pid,
+                    program_number,
+                } => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+                demultiplex::FilterRequest::Nit { .. } => {
+                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
+                }
             }
         }
     }
@@ -490,9 +541,15 @@ mod test {
     struct NullSectionProcessor;
     impl SectionProcessor for NullSectionProcessor {
         type Context = NullDemuxContext;
-        fn start_section<'a>(&mut self, _ctx: &mut Self::Context, _header: &SectionCommonHeader, _section_data: &'a [u8]) { }
-        fn continue_section<'a>(&mut self, _ctx: &mut Self::Context, _section_data: &'a [u8]) { }
-        fn reset(&mut self) { }
+        fn start_section<'a>(
+            &mut self,
+            _ctx: &mut Self::Context,
+            _header: &SectionCommonHeader,
+            _section_data: &'a [u8],
+        ) {
+        }
+        fn continue_section<'a>(&mut self, _ctx: &mut Self::Context, _section_data: &'a [u8]) {}
+        fn reset(&mut self) {}
     }
 
     #[test]
@@ -528,14 +585,25 @@ mod test {
         };
         impl WholeSectionSyntaxPayloadParser for MockSectParse {
             type Context = ();
-            fn section<'a>(&mut self, _: &mut Self::Context, _header: &SectionCommonHeader, _table_syntax_header: &TableSyntaxHeader, _data: &[u8]) {
+            fn section<'a>(
+                &mut self,
+                _: &mut Self::Context,
+                _header: &SectionCommonHeader,
+                _table_syntax_header: &TableSyntaxHeader,
+                _data: &[u8],
+            ) {
                 *self.state.borrow_mut() = true;
             }
         }
-        let mut p = BufferSectionSyntaxParser::new(CrcCheckWholeSectionSyntaxPayloadParser::new(MockSectParse { state: state.clone() }));
+        let mut p = BufferSectionSyntaxParser::new(CrcCheckWholeSectionSyntaxPayloadParser::new(
+            MockSectParse {
+                state: state.clone(),
+            },
+        ));
         let ctx = &mut ();
         {
-            let sect = hex!("
+            let sect = hex!(
+                "
             42f13040 84e90000 233aff44 40ff8026
             480d1900 0a424243 2054574f 20484473
             0c66702e 6262632e 636f2e75 6b5f0400
@@ -547,14 +615,16 @@ mod test {
             2e636f6d 5f040000 233a7e01 f74484ff
             8026480d 19000a42 4243204f 4e452048
             44730c66 702e6262 632e636f 2e756b5f
-            04000023 3a7e01");
+            04000023 3a7e01"
+            );
 
             let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
             let table_header = TableSyntaxHeader::new(&sect[SectionCommonHeader::SIZE..]);
             p.start_syntax_section(ctx, &common_header, &table_header, &sect[..]);
         }
         {
-            let sect = hex!("
+            let sect = hex!(
+                "
                 f746c0ff 8023480a 19000743 42424320
                 4844730c 66702e62 62632e63 6f2e756b
                 5f040000 233a7e01 f74f80ff 801e480a
@@ -566,7 +636,8 @@ mod test {
                 ffffffff ffffffff ffffffff ffffffff
                 ffffffff ffffffff ffffffff ffffffff
                 ffffffff ffffffff ffffffff ffffffff
-                ffffffff ffffffff");
+                ffffffff ffffffff"
+            );
 
             p.continue_syntax_section(ctx, &sect[..]);
         }

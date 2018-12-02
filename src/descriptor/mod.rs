@@ -32,16 +32,16 @@
 //! }
 //! ```
 
-pub mod registration;
 pub mod iso_639_language;
+pub mod registration;
 
+use self::iso_639_language::Iso639LanguageDescriptor;
+use self::registration::RegistrationDescriptor;
 use std::fmt;
 use std::marker;
-use self::registration::RegistrationDescriptor;
-use self::iso_639_language::Iso639LanguageDescriptor;
 
 pub trait Descriptor<'buf>: Sized {
-    fn from_bytes(buf: &'buf[u8]) -> Result<Self, DescriptorError>;
+    fn from_bytes(buf: &'buf [u8]) -> Result<Self, DescriptorError>;
 }
 
 #[macro_export]
@@ -85,14 +85,11 @@ macro_rules! descriptor_enum {
 
 pub struct UnknownDescriptor<'buf> {
     pub tag: u8,
-    pub payload: &'buf[u8],
+    pub payload: &'buf [u8],
 }
 impl<'buf> UnknownDescriptor<'buf> {
-    pub fn new(tag: u8, payload: &'buf[u8]) -> Result<UnknownDescriptor<'buf>, DescriptorError> {
-        Ok(UnknownDescriptor {
-            tag,
-            payload,
-        })
+    pub fn new(tag: u8, payload: &'buf [u8]) -> Result<UnknownDescriptor<'buf>, DescriptorError> {
+        Ok(UnknownDescriptor { tag, payload })
     }
 }
 impl<'buf> fmt::Debug for UnknownDescriptor<'buf> {
@@ -142,16 +139,16 @@ descriptor_enum!{
 
 pub struct DescriptorIter<'buf, Desc>
 where
-    Desc: Descriptor<'buf>
+    Desc: Descriptor<'buf>,
 {
-    buf: &'buf[u8],
+    buf: &'buf [u8],
     phantom: marker::PhantomData<Desc>,
 }
 impl<'buf, Desc> DescriptorIter<'buf, Desc>
 where
-    Desc: Descriptor<'buf>
+    Desc: Descriptor<'buf>,
 {
-    pub fn new(buf: &'buf[u8]) -> DescriptorIter<'buf, Desc> {
+    pub fn new(buf: &'buf [u8]) -> DescriptorIter<'buf, Desc> {
         DescriptorIter {
             buf,
             phantom: marker::PhantomData,
@@ -160,7 +157,7 @@ where
 }
 impl<'buf, Desc> Iterator for DescriptorIter<'buf, Desc>
 where
-    Desc: Descriptor<'buf>
+    Desc: Descriptor<'buf>,
 {
     type Item = Result<Desc, DescriptorError>;
 
@@ -174,19 +171,32 @@ where
         if len > remaining_size {
             // ensure anther call to next() will yield None,
             self.buf = &self.buf[0..0];
-            Some(Err(DescriptorError::NotEnoughData { tag, actual: remaining_size, expected: len }))
+            Some(Err(DescriptorError::NotEnoughData {
+                tag,
+                actual: remaining_size,
+                expected: len,
+            }))
         } else {
-            let (desc, rest) = self.buf.split_at(len+2);
+            let (desc, rest) = self.buf.split_at(len + 2);
             self.buf = rest;
             Some(Descriptor::from_bytes(desc))
         }
     }
 }
 
-#[derive(Debug,PartialEq)]
-pub enum DescriptorError  {
-    NotEnoughData { tag: u8, actual: usize, expected: usize },
-    TagTooLongForBuffer { taglen: usize, buflen: usize },
-    BufferTooShort { buflen: usize },
+#[derive(Debug, PartialEq)]
+pub enum DescriptorError {
+    NotEnoughData {
+        tag: u8,
+        actual: usize,
+        expected: usize,
+    },
+    TagTooLongForBuffer {
+        taglen: usize,
+        buflen: usize,
+    },
+    BufferTooShort {
+        buflen: usize,
+    },
     UnhandledTagValue(u8),
 }

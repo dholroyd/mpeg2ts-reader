@@ -1,16 +1,19 @@
-use std::fmt;
 use super::DescriptorError;
 use encoding::all::ISO_8859_1;
-use encoding::Encoding;
 use encoding::types::DecoderTrap;
+use encoding::Encoding;
 use std::borrow::Cow;
+use std::fmt;
 
 pub struct Iso639LanguageDescriptor<'buf> {
-    pub buf: &'buf[u8],
+    pub buf: &'buf [u8],
 }
 impl<'buf> Iso639LanguageDescriptor<'buf> {
     pub const TAG: u8 = 10;
-    pub fn new(_tag: u8, buf: &'buf[u8]) -> Result<Iso639LanguageDescriptor<'buf>, DescriptorError> {
+    pub fn new(
+        _tag: u8,
+        buf: &'buf [u8],
+    ) -> Result<Iso639LanguageDescriptor<'buf>, DescriptorError> {
         Ok(Iso639LanguageDescriptor { buf })
     }
 
@@ -20,10 +23,10 @@ impl<'buf> Iso639LanguageDescriptor<'buf> {
 }
 
 pub struct LanguageIterator<'buf> {
-    remaining_data: &'buf[u8],
+    remaining_data: &'buf [u8],
 }
 impl<'buf> LanguageIterator<'buf> {
-    pub fn new(data: &'buf[u8]) -> LanguageIterator<'buf> {
+    pub fn new(data: &'buf [u8]) -> LanguageIterator<'buf> {
         LanguageIterator {
             remaining_data: data,
         }
@@ -43,7 +46,7 @@ impl<'buf> Iterator for LanguageIterator<'buf> {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 enum AudioType {
     Undefined,
     CleanEffects,
@@ -58,19 +61,17 @@ impl From<u8> for AudioType {
             1 => AudioType::CleanEffects,
             2 => AudioType::HearingImpaired,
             3 => AudioType::VisualImpairedCommentary,
-            _ => AudioType::Reserved(v)
+            _ => AudioType::Reserved(v),
         }
     }
 }
 pub struct Language<'buf> {
-    buf: &'buf[u8],
+    buf: &'buf [u8],
 }
 impl<'buf> Language<'buf> {
-    fn new(buf: &'buf[u8]) -> Language {
+    fn new(buf: &'buf [u8]) -> Language {
         assert_eq!(buf.len(), 4);
-        Language {
-            buf,
-        }
+        Language { buf }
     }
     fn code(&self, trap: DecoderTrap) -> Result<String, Cow<'static, str>> {
         ISO_8859_1.decode(&self.buf[0..3], trap)
@@ -95,18 +96,17 @@ impl<'buf> fmt::Debug for LangsDebug<'buf> {
     }
 }
 impl<'buf> fmt::Debug for Iso639LanguageDescriptor<'buf> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(),fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         f.debug_struct("Iso639LanguageDescriptor")
             .field("languages", &LangsDebug(self))
             .finish()
     }
 }
 
-
 #[cfg(test)]
 mod test {
+    use super::super::{CoreDescriptors, Descriptor};
     use super::*;
-    use super::super::{Descriptor, CoreDescriptors};
     use encoding;
 
     #[test]

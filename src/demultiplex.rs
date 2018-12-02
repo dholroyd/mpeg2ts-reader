@@ -1,12 +1,12 @@
+use fixedbitset;
 use packet;
 use psi;
-use std;
-use fixedbitset;
-use StreamType;
-use std::marker;
+use psi::pat;
 use psi::pmt::PmtSection;
 use psi::pmt::StreamInfo;
-use psi::pat;
+use std;
+use std::marker;
+use StreamType;
 
 pub trait PacketFilter {
     type Ctx: DemuxContext;
@@ -83,7 +83,9 @@ impl<Ctx: DemuxContext> PacketFilter for NullPacketFilter<Ctx> {
 macro_rules! demux_context {
     ($name:ident, $ctor:ty) => {
         pub struct $name {
-            changeset: $crate::demultiplex::FilterChangeset<<$ctor as $crate::demultiplex::StreamConstructor>::F>,
+            changeset: $crate::demultiplex::FilterChangeset<
+                <$ctor as $crate::demultiplex::StreamConstructor>::F,
+            >,
             constructor: $ctor,
         }
         impl $name {
@@ -138,12 +140,12 @@ macro_rules! packet_filter_switch {
     }
 }
 pub struct Filters<F: PacketFilter> {
-    filters_by_pid: Vec<Option<F>>
+    filters_by_pid: Vec<Option<F>>,
 }
 impl<F: PacketFilter> Default for Filters<F> {
     fn default() -> Filters<F> {
         Filters {
-            filters_by_pid: vec!(),
+            filters_by_pid: vec![],
         }
     }
 }
@@ -178,10 +180,18 @@ impl<F: PacketFilter> Filters<F> {
     }
 
     pub fn pids(&self) -> Vec<packet::Pid> {
-        self.filters_by_pid.iter().enumerate().filter_map(|(i, e)| { if e.is_some() { Some(packet::Pid::new(i as u16)) } else { None } } ).collect()
+        self.filters_by_pid
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| {
+                if e.is_some() {
+                    Some(packet::Pid::new(i as u16))
+                } else {
+                    None
+                }
+            }).collect()
     }
 }
-
 
 // A filter can't change the map of filters-by-pid that it is itself owned by while the filter is
 // running, so this changeset protocol allows a filter to specify any filter updates required so
@@ -210,11 +220,13 @@ impl<F: PacketFilter> std::fmt::Debug for FilterChange<F> {
 
 #[derive(Debug)]
 pub struct FilterChangeset<F: PacketFilter> {
-    updates: Vec<FilterChange<F>>
+    updates: Vec<FilterChange<F>>,
 }
 impl<F: PacketFilter> Default for FilterChangeset<F> {
     fn default() -> FilterChangeset<F> {
-        FilterChangeset { updates: Vec::new() }
+        FilterChangeset {
+            updates: Vec::new(),
+        }
     }
 }
 impl<F: PacketFilter> FilterChangeset<F> {
@@ -252,9 +264,17 @@ pub enum FilterRequest<'a, 'buf: 'a> {
     ByPid(packet::Pid),
     /// requests a filter for the stream with the given details which has just been discovered
     /// within a Program Map Table section.
-    ByStream { program_pid: packet::Pid, stream_type: StreamType, pmt: &'a PmtSection<'buf>, stream_info: &'a StreamInfo<'buf> },
+    ByStream {
+        program_pid: packet::Pid,
+        stream_type: StreamType,
+        pmt: &'a PmtSection<'buf>,
+        stream_info: &'a StreamInfo<'buf>,
+    },
     /// Requests a filter implementation for handling Program Map Table sections
-    Pmt { pid: packet::Pid, program_number: u16 },
+    Pmt {
+        pid: packet::Pid,
+        program_number: u16,
+    },
     /// requests a filter implementation to handle packets containing Network Information Table data
     Nit { pid: packet::Pid },
 }
@@ -284,9 +304,18 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         }
     }
 
-    fn new_table(&mut self, ctx: &mut Ctx, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &PmtSection) {
+    fn new_table(
+        &mut self,
+        ctx: &mut Ctx,
+        header: &psi::SectionCommonHeader,
+        table_syntax_header: &psi::TableSyntaxHeader,
+        sect: &PmtSection,
+    ) {
         if 0x02 != header.table_id {
-            warn!("[PMT {:?} program:{}] Expected PMT to have table id 0x2, but got {:#x}", self.pid, self.program_number, header.table_id);
+            warn!(
+                "[PMT {:?} program:{}] Expected PMT to have table id 0x2, but got {:#x}",
+                self.pid, self.program_number, header.table_id
+            );
             return;
         }
         // pass the table_id value this far!
@@ -296,11 +325,13 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
                 program_pid: self.pid,
                 stream_type: stream_info.stream_type(),
                 pmt: &sect,
-                stream_info: &stream_info
+                stream_info: &stream_info,
             });
-            ctx.filter_changeset().insert(stream_info.elementary_pid(), pes_packet_consumer);
+            ctx.filter_changeset()
+                .insert(stream_info.elementary_pid(), pes_packet_consumer);
             pids_seen.insert(usize::from(stream_info.elementary_pid()));
-            self.filters_registered.insert(usize::from(stream_info.elementary_pid()));
+            self.filters_registered
+                .insert(usize::from(stream_info.elementary_pid()));
         }
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
@@ -320,20 +351,32 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
 impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ctx> {
     type Context = Ctx;
 
-    fn section<'a>(&mut self, ctx: &mut Self::Context, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) {
-        let start = psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE;
-        let end = data.len() - 4;  // remove CRC bytes
+    fn section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &psi::SectionCommonHeader,
+        table_syntax_header: &psi::TableSyntaxHeader,
+        data: &'a [u8],
+    ) {
+        let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
+        let end = data.len() - 4; // remove CRC bytes
         match PmtSection::from_bytes(&data[start..end]) {
             Ok(sect) => self.new_table(ctx, header, table_syntax_header, &sect),
-            Err(e) => warn!("[PMT {:?} program:{}] problem reading data: {:?}", self.pid, self.program_number, e),
+            Err(e) => warn!(
+                "[PMT {:?} program:{}] problem reading data: {:?}",
+                self.pid, self.program_number, e
+            ),
         }
     }
 }
 
-
 #[derive(Debug)]
 pub enum DemuxError {
-    NotEnoughData{ field: &'static str, expected: usize, actual: usize }
+    NotEnoughData {
+        field: &'static str,
+        expected: usize,
+        actual: usize,
+    },
 }
 
 pub struct PmtPacketFilter<Ctx: DemuxContext + 'static> {
@@ -341,12 +384,10 @@ pub struct PmtPacketFilter<Ctx: DemuxContext + 'static> {
         psi::SectionSyntaxSectionProcessor<
             psi::DedupSectionSyntaxPayloadParser<
                 psi::BufferSectionSyntaxParser<
-                    psi::CrcCheckWholeSectionSyntaxPayloadParser<
-                        PmtProcessor<Ctx>
-                    >
-                >
-            >
-        >
+                    psi::CrcCheckWholeSectionSyntaxPayloadParser<PmtProcessor<Ctx>>,
+                >,
+            >,
+        >,
     >,
 }
 impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
@@ -354,16 +395,12 @@ impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
         let pmt_proc = PmtProcessor::new(pid, program_number);
         PmtPacketFilter {
             pmt_section_packet_consumer: psi::SectionPacketConsumer::new(
-                psi::SectionSyntaxSectionProcessor::new(
-                    psi::DedupSectionSyntaxPayloadParser::new(
-                        psi::BufferSectionSyntaxParser::new(
-                            psi::CrcCheckWholeSectionSyntaxPayloadParser::new(
-                                pmt_proc
-                            )
-                        )
-                    )
-                )
-            )
+                psi::SectionSyntaxSectionProcessor::new(psi::DedupSectionSyntaxPayloadParser::new(
+                    psi::BufferSectionSyntaxParser::new(
+                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pmt_proc),
+                    ),
+                )),
+            ),
         }
     }
 }
@@ -377,7 +414,7 @@ impl<Ctx: DemuxContext> PacketFilter for PmtPacketFilter<Ctx> {
 
 pub struct PatProcessor<Ctx: DemuxContext> {
     current_version: Option<u8>,
-    filters_registered: fixedbitset::FixedBitSet,  // TODO: https://crates.io/crates/typenum_bitset ?
+    filters_registered: fixedbitset::FixedBitSet, // TODO: https://crates.io/crates/typenum_bitset ?
     phantom: marker::PhantomData<Ctx>,
 }
 
@@ -391,17 +428,34 @@ impl<Ctx: DemuxContext> Default for PatProcessor<Ctx> {
     }
 }
 impl<Ctx: DemuxContext> PatProcessor<Ctx> {
-    fn new_table(&mut self, ctx: &mut Ctx, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, sect: &pat::PatSection) {
+    fn new_table(
+        &mut self,
+        ctx: &mut Ctx,
+        header: &psi::SectionCommonHeader,
+        table_syntax_header: &psi::TableSyntaxHeader,
+        sect: &pat::PatSection,
+    ) {
         if 0x00 != header.table_id {
-            warn!("Expected PAT to have table id 0x0, but got {:#x}", header.table_id);
+            warn!(
+                "Expected PAT to have table id 0x0, but got {:#x}",
+                header.table_id
+            );
             return;
         }
         let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT);
         // add or update filters for descriptors we've not seen before,
         for desc in sect.programs() {
             let filter = match desc {
-                pat::ProgramDescriptor::Program { program_number, pid } => ctx.filter_constructor().construct(FilterRequest::Pmt { pid, program_number }),
-                pat::ProgramDescriptor::Network { pid } => ctx.filter_constructor().construct(FilterRequest::Nit { pid }),
+                pat::ProgramDescriptor::Program {
+                    program_number,
+                    pid,
+                } => ctx.filter_constructor().construct(FilterRequest::Pmt {
+                    pid,
+                    program_number,
+                }),
+                pat::ProgramDescriptor::Network { pid } => ctx
+                    .filter_constructor()
+                    .construct(FilterRequest::Nit { pid }),
             };
             ctx.filter_changeset().insert(desc.pid(), filter);
             pids_seen.insert(usize::from(desc.pid()));
@@ -425,10 +479,21 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
 impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ctx> {
     type Context = Ctx;
 
-    fn section<'a>(&mut self, ctx: &mut Self::Context, header: &psi::SectionCommonHeader, table_syntax_header: &psi::TableSyntaxHeader, data: &'a [u8]) {
-        let start = psi::SectionCommonHeader::SIZE+psi::TableSyntaxHeader::SIZE;
-        let end = data.len() - 4;  // remove CRC bytes
-        self.new_table(ctx, header, table_syntax_header, &pat::PatSection::new(&data[start..end]));
+    fn section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &psi::SectionCommonHeader,
+        table_syntax_header: &psi::TableSyntaxHeader,
+        data: &'a [u8],
+    ) {
+        let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
+        let end = data.len() - 4; // remove CRC bytes
+        self.new_table(
+            ctx,
+            header,
+            table_syntax_header,
+            &pat::PatSection::new(&data[start..end]),
+        );
     }
 }
 
@@ -448,7 +513,7 @@ impl<Ctx: DemuxContext> Default for UnhandledPid<Ctx> {
     fn default() -> UnhandledPid<Ctx> {
         UnhandledPid {
             pid_seen: false,
-            phantom: marker::PhantomData
+            phantom: marker::PhantomData,
         }
     }
 }
@@ -463,8 +528,8 @@ impl<Ctx: DemuxContext> PacketFilter for UnhandledPid<Ctx> {
 }
 
 pub trait DemuxContext: Sized {
-    type F: PacketFilter<Ctx=Self>;
-    type Ctor: StreamConstructor<F=Self::F>;
+    type F: PacketFilter<Ctx = Self>;
+    type Ctor: StreamConstructor<F = Self::F>;
 
     fn filter_changeset(&mut self) -> &mut FilterChangeset<Self::F>;
     fn filter_constructor(&mut self) -> &mut Self::Ctor;
@@ -475,12 +540,10 @@ pub struct PatPacketFilter<Ctx: DemuxContext> {
         psi::SectionSyntaxSectionProcessor<
             psi::DedupSectionSyntaxPayloadParser<
                 psi::BufferSectionSyntaxParser<
-                    psi::CrcCheckWholeSectionSyntaxPayloadParser<
-                        PatProcessor<Ctx>
-                    >
-                >
-            >
-        >
+                    psi::CrcCheckWholeSectionSyntaxPayloadParser<PatProcessor<Ctx>>,
+                >,
+            >,
+        >,
     >,
 }
 impl<Ctx: DemuxContext> Default for PatPacketFilter<Ctx> {
@@ -488,13 +551,11 @@ impl<Ctx: DemuxContext> Default for PatPacketFilter<Ctx> {
         let pat_proc = PatProcessor::default();
         PatPacketFilter {
             pat_section_packet_consumer: psi::SectionPacketConsumer::new(
-                psi::SectionSyntaxSectionProcessor::new(
-                    psi::DedupSectionSyntaxPayloadParser::new(
-                        psi::BufferSectionSyntaxParser::new(
-                            psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pat_proc)
-                        )
-                    )
-                )
+                psi::SectionSyntaxSectionProcessor::new(psi::DedupSectionSyntaxPayloadParser::new(
+                    psi::BufferSectionSyntaxParser::new(
+                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pat_proc),
+                    ),
+                )),
             ),
         }
     }
@@ -516,7 +577,11 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
             processor_by_pid: Filters::default(),
         };
 
-        result.processor_by_pid.insert(packet::Pid::PAT, ctx.filter_constructor().construct(FilterRequest::ByPid(packet::Pid::PAT)));
+        result.processor_by_pid.insert(
+            packet::Pid::PAT,
+            ctx.filter_constructor()
+                .construct(FilterRequest::ByPid(packet::Pid::PAT)),
+        );
 
         result
     }
@@ -525,9 +590,9 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
         // TODO: simplify
         // (maybe once chunks_exact() is stable; right now an iterator-based version of the
         // following always comes out performing slower, when I try.)
-        let mut i=0;
+        let mut i = 0;
         loop {
-            let end = i+packet::Packet::SIZE;
+            let end = i + packet::Packet::SIZE;
             if end > buf.len() {
                 break;
             }
@@ -537,21 +602,23 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                     let mut pk = packet::Packet::new(pk_buf);
                     let this_pid = pk.pid();
                     if !self.processor_by_pid.contains(this_pid) {
-                        let filter = ctx.filter_constructor().construct(FilterRequest::ByPid(this_pid));
+                        let filter = ctx
+                            .filter_constructor()
+                            .construct(FilterRequest::ByPid(this_pid));
                         self.processor_by_pid.insert(this_pid, filter);
                     };
                     let this_proc = self.processor_by_pid.get(this_pid).unwrap();
                     while ctx.filter_changeset().is_empty() {
                         this_proc.consume(ctx, &pk);
                         i += packet::Packet::SIZE;
-                        let end = i+packet::Packet::SIZE;
+                        let end = i + packet::Packet::SIZE;
                         if end > buf.len() {
                             break;
                         }
                         pk_buf = &buf[i..end];
                         if !packet::Packet::is_sync_byte(pk_buf[0]) {
                             // TODO: attempt to resynchronise
-                            return
+                            return;
                         }
                         pk = packet::Packet::new(pk_buf);
                         if pk.pid() != this_pid {
@@ -566,7 +633,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                 debug_assert!(ctx.filter_changeset().is_empty());
             } else {
                 // TODO: attempt to resynchronise
-                return
+                return;
             }
             i += packet::Packet::SIZE;
         }
@@ -575,14 +642,14 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
 
 #[cfg(test)]
 mod test {
+    use bitstream_io::{BitWriter, BE};
     use data_encoding::base16;
-    use bitstream_io::{BE, BitWriter};
     use std::io;
 
     use demultiplex;
+    use packet;
     use psi;
     use psi::WholeSectionSyntaxPayloadParser;
-    use packet;
 
     packet_filter_switch!{
         NullFilterSwitch<NullDemuxContext> {
@@ -599,11 +666,22 @@ mod test {
 
         fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
             match req {
-                demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
-                demultiplex::FilterRequest::ByPid(_) => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
-                demultiplex::FilterRequest::ByStream{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
-                demultiplex::FilterRequest::Pmt{pid, program_number} => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
-                demultiplex::FilterRequest::Nit{..} => NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default()),
+                demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
+                    NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
+                }
+                demultiplex::FilterRequest::ByPid(_) => {
+                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
+                }
+                demultiplex::FilterRequest::ByStream { .. } => {
+                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
+                }
+                demultiplex::FilterRequest::Pmt {
+                    pid,
+                    program_number,
+                } => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+                demultiplex::FilterRequest::Nit { .. } => {
+                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
+                }
             }
         }
     }
@@ -627,23 +705,21 @@ mod test {
     #[test]
     fn pat_no_existing_program() {
         let mut processor = demultiplex::PatProcessor::default();
-        let section = vec!(
-            // common header
-            0, 0, 0,
-
+        let section = vec![
+            0, 0, 0, // common header
             // table syntax header
-            0x0D, 0x00, 0b00000001, 0xC1, 0x00,
-
-            0, 1,   // program_number
-            0, 101,  // pid
-            0, 0, 0, 0  // CRC (incorrect!)
-        );
+            0x0D, 0x00, 0b00000001, 0xC1, 0x00, // PAT section
+            0, 1, // program_number
+            0, 101, // pid
+            0, 0, 0, 0, // CRC (incorrect!)
+        ];
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
-        let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
         let mut ctx = NullDemuxContext::new(NullStreamConstructor);
         processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
         let mut changes = ctx.changeset.updates.into_iter();
-        if let Some(demultiplex::FilterChange::Insert(pid,_)) = changes.next() {
+        if let Some(demultiplex::FilterChange::Insert(pid, _)) = changes.next() {
             assert_eq!(packet::Pid::new(101), pid);
         } else {
             panic!();
@@ -655,38 +731,32 @@ mod test {
         let mut ctx = NullDemuxContext::new(NullStreamConstructor);
         let mut processor = demultiplex::PatProcessor::default();
         {
-            let section = vec!(
-                // common header
-                0, 0, 0,
-
+            let section = vec![
+                0, 0, 0, // common header
                 // table syntax header
                 0x0D, 0x00, 0b00000001, 0xC1, 0x00,
-
                 // PAT with a single program; next version of the  table removes this,
-                0, 1,   // program_number
+                0, 1, // program_number
                 0, 101, // pid
-
-                0, 0, 0, 0,  // CRC (incorrect)
-            );
+                0, 0, 0, 0, // CRC (incorrect)
+            ];
             let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
-            let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+            let table_syntax_header =
+                psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
             processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
         }
         ctx.changeset.updates.clear();
         {
-            let section = vec!(
-                // common header
-                0, 0, 0,
-
+            let section = vec![
+                0, 0, 0, // common header
                 // table syntax header
-                0x0D, 0x00, 0b00000011, 0xC1, 0x00,  // new version!
-
+                0x0D, 0x00, 0b00000011, 0xC1, 0x00, // new version!
                 // empty PMT - simulate removal of PID 101
-
-                0, 0, 0, 0,  // CRC (incorrect)
-            );
+                0, 0, 0, 0, // CRC (incorrect)
+            ];
             let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
-            let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+            let table_syntax_header =
+                psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
             processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
         }
         let mut changes = ctx.changeset.updates.into_iter();
@@ -699,7 +769,7 @@ mod test {
 
     fn make_test_data<F>(builder: F) -> Vec<u8>
     where
-        F: Fn(BitWriter<BE>)->Result<(), io::Error>
+        F: Fn(BitWriter<BE>) -> Result<(), io::Error>,
     {
         let mut data: Vec<u8> = Vec::new();
         builder(BitWriter::<BE>::new(&mut data)).unwrap();
@@ -714,47 +784,51 @@ mod test {
         let mut processor = demultiplex::PmtProcessor::new(pid, program_number);
         let section = make_test_data(|mut w| {
             // common section header,
-            w.write(8, 0x02)?;   // table_id
-            w.write_bit(true)?;  // section_syntax_indicator
+            w.write(8, 0x02)?; // table_id
+            w.write_bit(true)?; // section_syntax_indicator
             w.write_bit(false)?; // private_indicator
-            w.write(2, 3)?;      // reserved
-            w.write(12, 20)?;    // section_length
+            w.write(2, 3)?; // reserved
+            w.write(12, 20)?; // section_length
 
             // section syntax header,
-            w.write(16, 0)?;    // id
-            w.write(2, 3)?;     // reserved
-            w.write(5, 0)?;     // version
-            w.write(1, 1)?;     // current_next_indicator
-            w.write(8, 0)?;     // section_number
-            w.write(8, 0)?;     // last_section_number
+            w.write(16, 0)?; // id
+            w.write(2, 3)?; // reserved
+            w.write(5, 0)?; // version
+            w.write(1, 1)?; // current_next_indicator
+            w.write(8, 0)?; // section_number
+            w.write(8, 0)?; // last_section_number
 
             // PMT section payload
-            w.write(3, 7)?;     // reserved
-            w.write(13, 123)?;  // pcr_pid
-            w.write(4, 15)?;    // reserved
-            w.write(12, 0)?;    // program_info_length
+            w.write(3, 7)?; // reserved
+            w.write(13, 123)?; // pcr_pid
+            w.write(4, 15)?; // reserved
+            w.write(12, 0)?; // program_info_length
+
             // program_info_length=0, so no descriptors follow; straight into stream info
-            w.write(8, 0)?;     // stream_type
-            w.write(3, 7)?;     // reserved
-            w.write(13, 201)?;  // elementary_pid
-            w.write(4, 15)?;    // reserved
-            w.write(12, 6)?;    // es_info_length
+            w.write(8, 0)?; // stream_type
+            w.write(3, 7)?; // reserved
+            w.write(13, 201)?; // elementary_pid
+            w.write(4, 15)?; // reserved
+            w.write(12, 6)?; // es_info_length
+
             // and now, two made-up descriptors which need to fill up es_info_length-bytes
-            w.write(8, 0)?;     // descriptor_tag
-            w.write(8, 1)?;     // descriptor_length
-            w.write(8, 0)?;     // made-up descriptor data not following any spec
+            w.write(8, 0)?; // descriptor_tag
+            w.write(8, 1)?; // descriptor_length
+            w.write(8, 0)?; // made-up descriptor data not following any spec
+
             // second descriptor
-            w.write(8, 0)?;     // descriptor_tag
-            w.write(8, 1)?;     // descriptor_length
-            w.write(8, 0)?;     // made-up descriptor data not following any spec
-            w.write(32, 0)      // CRC (incorrect)
+            w.write(8, 0)?; // descriptor_tag
+            w.write(8, 1)?; // descriptor_length
+            w.write(8, 0)?; // made-up descriptor data not following any spec
+            w.write(32, 0) // CRC (incorrect)
         });
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
-        let table_syntax_header = psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
         let mut ctx = NullDemuxContext::new(NullStreamConstructor);
         processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
         let mut changes = ctx.changeset.updates.into_iter();
-        if let Some(demultiplex::FilterChange::Insert(pid,_)) = changes.next() {
+        if let Some(demultiplex::FilterChange::Insert(pid, _)) = changes.next() {
             assert_eq!(packet::Pid::new(201), pid);
         } else {
             panic!();

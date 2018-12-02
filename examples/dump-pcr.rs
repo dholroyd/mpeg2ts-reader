@@ -1,18 +1,17 @@
 #[macro_use]
 extern crate mpeg2ts_reader;
 
+use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::psi;
 use std::env;
 use std::fs::File;
 use std::io::Read;
-use mpeg2ts_reader::demultiplex;
-use mpeg2ts_reader::psi;
 
-use std::marker;
-use mpeg2ts_reader::demultiplex::PacketFilter;
 use mpeg2ts_reader::demultiplex::DemuxContext;
-use mpeg2ts_reader::packet::Packet;
+use mpeg2ts_reader::demultiplex::PacketFilter;
 use mpeg2ts_reader::packet;
-
+use mpeg2ts_reader::packet::Packet;
+use std::marker;
 
 packet_filter_switch!{
     PcrDumpFilterSwitch<PcrDumpDemuxContext> {
@@ -30,23 +29,36 @@ impl demultiplex::StreamConstructor for PcrDumpStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
-            demultiplex::FilterRequest::Pmt{pid, program_number} => PcrDumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
+                PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
+            }
+            demultiplex::FilterRequest::Pmt {
+                pid,
+                program_number,
+            } => PcrDumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
 
-            demultiplex::FilterRequest::ByStream{ pmt, stream_info, .. } => PcrDumpFilterSwitch::Pcr(PcrPacketFilter::construct(pmt, stream_info)),
+            demultiplex::FilterRequest::ByStream {
+                pmt, stream_info, ..
+            } => PcrDumpFilterSwitch::Pcr(PcrPacketFilter::construct(pmt, stream_info)),
 
-            demultiplex::FilterRequest::ByPid(_) => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
-            demultiplex::FilterRequest::Nit{..} => PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(_) => {
+                PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+            }
+            demultiplex::FilterRequest::Nit { .. } => {
+                PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+            }
         }
     }
 }
-
 
 pub struct PcrPacketFilter<Ctx: DemuxContext> {
     phantom: marker::PhantomData<Ctx>,
 }
 impl<Ctx: DemuxContext> PcrPacketFilter<Ctx> {
-    pub fn construct(_pmt: &psi::pmt::PmtSection, _stream_info: &psi::pmt::StreamInfo) -> PcrPacketFilter<Ctx> {
+    pub fn construct(
+        _pmt: &psi::pmt::PmtSection,
+        _stream_info: &psi::pmt::StreamInfo,
+    ) -> PcrPacketFilter<Ctx> {
         Self::new()
     }
     pub fn new() -> PcrPacketFilter<Ctx> {
@@ -66,7 +78,6 @@ impl<Ctx: DemuxContext> PacketFilter for PcrPacketFilter<Ctx> {
     }
 }
 
-
 fn main() {
     // open input file named on command line,
     let name = env::args().nth(1).unwrap();
@@ -80,10 +91,10 @@ fn main() {
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);
 
     // consume the input file,
-    let mut buf = [0u8; 188*1024];
+    let mut buf = [0u8; 188 * 1024];
     loop {
         match f.read(&mut buf[..]).expect("read failed") {
-            0 => break ,
+            0 => break,
             n => demux.push(&mut ctx, &buf[0..n]),
         }
     }

@@ -1,14 +1,14 @@
 //! Types related to the _Program Map Table_
 
-use std::fmt;
-use descriptor;
 use demultiplex::DemuxError;
-use StreamType;
+use descriptor;
 use packet;
+use std::fmt;
+use StreamType;
 
 /// Sections of the _Program Map Table_ give details of the streams within a particular program
 pub struct PmtSection<'buf> {
-    data: &'buf[u8],
+    data: &'buf [u8],
 }
 impl<'buf> fmt::Debug for PmtSection<'buf> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -28,18 +28,22 @@ impl<'buf> fmt::Debug for StreamsDebug<'buf> {
 struct DescriptorsDebug<'buf>(&'buf PmtSection<'buf>);
 impl<'buf> fmt::Debug for DescriptorsDebug<'buf> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        f.debug_list().entries(self.0.descriptors::<descriptor::CoreDescriptors>()).finish()
+        f.debug_list()
+            .entries(self.0.descriptors::<descriptor::CoreDescriptors>())
+            .finish()
     }
 }
 
 impl<'buf> PmtSection<'buf> {
-    pub fn from_bytes(data: &'buf[u8]) -> Result<PmtSection<'buf>, DemuxError> {
+    pub fn from_bytes(data: &'buf [u8]) -> Result<PmtSection<'buf>, DemuxError> {
         if data.len() < Self::HEADER_SIZE {
-            Err(DemuxError::NotEnoughData { field: "program_map_section", expected: Self::HEADER_SIZE, actual: data.len() })
-        } else {
-            Ok(PmtSection {
-                data,
+            Err(DemuxError::NotEnoughData {
+                field: "program_map_section",
+                expected: Self::HEADER_SIZE,
+                actual: data.len(),
             })
+        } else {
+            Ok(PmtSection { data })
         }
     }
 
@@ -57,25 +61,31 @@ impl<'buf> PmtSection<'buf> {
     pub fn program_info_length(&self) -> u16 {
         u16::from(self.data[2] & 0b0000_1111) << 8 | u16::from(self.data[3])
     }
-    pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(&self) -> impl Iterator<Item=Result<Desc, descriptor::DescriptorError>> + 'buf {
+    pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(
+        &self,
+    ) -> impl Iterator<Item = Result<Desc, descriptor::DescriptorError>> + 'buf {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
         let descriptor_data = &self.data[Self::HEADER_SIZE..descriptor_end];
         descriptor::DescriptorIter::new(descriptor_data)
     }
-    pub fn streams(&self) -> impl Iterator<Item=StreamInfo<'buf>> {
+    pub fn streams(&self) -> impl Iterator<Item = StreamInfo<'buf>> {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
         if descriptor_end > self.data.len() {
-            panic!("program_info_length={} extends beyond end of PMT section (section_length={})", self.program_info_length(), self.data.len());
+            panic!(
+                "program_info_length={} extends beyond end of PMT section (section_length={})",
+                self.program_info_length(),
+                self.data.len()
+            );
         }
         StreamInfoIter::new(&self.data[descriptor_end..])
     }
 }
 /// Iterator over the `StreamInfo` entries in a `PmtSection`.
 struct StreamInfoIter<'buf> {
-    buf: &'buf[u8],
+    buf: &'buf [u8],
 }
 impl<'buf> StreamInfoIter<'buf> {
-    fn new(buf: &'buf[u8]) -> StreamInfoIter<'buf> {
+    fn new(buf: &'buf [u8]) -> StreamInfoIter<'buf> {
         StreamInfoIter { buf }
     }
 }
@@ -104,24 +114,31 @@ impl<'buf> Iterator for StreamInfoIter<'buf> {
 ///     stream's properties (for example, the streams 'language' might be given in a descriptor; or
 ///     it might not)
 pub struct StreamInfo<'buf> {
-    data: &'buf[u8],
+    data: &'buf [u8],
 }
 
 impl<'buf> StreamInfo<'buf> {
     const HEADER_SIZE: usize = 5;
 
-    fn from_bytes(data: &'buf[u8]) -> Option<(StreamInfo<'buf>, usize)> {
+    fn from_bytes(data: &'buf [u8]) -> Option<(StreamInfo<'buf>, usize)> {
         if data.len() < Self::HEADER_SIZE {
-            warn!("only {} bytes remaining for stream info, at least {} required {:?}", data.len(), Self::HEADER_SIZE, data);
+            warn!(
+                "only {} bytes remaining for stream info, at least {} required {:?}",
+                data.len(),
+                Self::HEADER_SIZE,
+                data
+            );
             return None;
         }
-        let result = StreamInfo {
-            data,
-        };
+        let result = StreamInfo { data };
 
         let descriptor_end = Self::HEADER_SIZE + result.es_info_length() as usize;
         if descriptor_end > data.len() {
-            warn!("PMT section of size {} is not large enough to contain es_info_length of {}", data.len(), result.es_info_length());
+            warn!(
+                "PMT section of size {} is not large enough to contain es_info_length of {}",
+                data.len(),
+                result.es_info_length()
+            );
             return None;
         }
         Some((result, descriptor_end))
@@ -143,7 +160,9 @@ impl<'buf> StreamInfo<'buf> {
         u16::from(self.data[3] & 0b0000_1111) << 8 | u16::from(self.data[4])
     }
 
-    pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(&self) -> impl Iterator<Item=Result<Desc, descriptor::DescriptorError>> + 'buf {
+    pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(
+        &self,
+    ) -> impl Iterator<Item = Result<Desc, descriptor::DescriptorError>> + 'buf {
         let descriptor_end = Self::HEADER_SIZE + self.es_info_length() as usize;
         descriptor::DescriptorIter::new(&self.data[Self::HEADER_SIZE..descriptor_end])
     }
@@ -160,6 +179,8 @@ impl<'buf> fmt::Debug for StreamInfo<'buf> {
 struct StreamInfoDescriptorsDebug<'buf>(&'buf StreamInfo<'buf>);
 impl<'buf> fmt::Debug for StreamInfoDescriptorsDebug<'buf> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        f.debug_list().entries(self.0.descriptors::<descriptor::CoreDescriptors>()).finish()
+        f.debug_list()
+            .entries(self.0.descriptors::<descriptor::CoreDescriptors>())
+            .finish()
     }
 }
