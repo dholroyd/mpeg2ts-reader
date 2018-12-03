@@ -366,7 +366,7 @@ impl ContinuityCounter {
 /// PID values identify a particular sub-stream within the overall Transport Stream.
 ///
 /// As returned by the [`Packet::pid`](struct.Packet.html#method.pid) method for example.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Pid(u16);
 impl Pid {
     /// The largest possible PID value, `0x1fff`.
@@ -400,6 +400,11 @@ impl From<Pid> for usize {
     #[inline]
     fn from(pid: Pid) -> Self {
         pid.0 as usize
+    }
+}
+impl fmt::Debug for Pid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "Pid({:04x})", self.0)
     }
 }
 
