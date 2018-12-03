@@ -50,6 +50,11 @@ impl demultiplex::StreamConstructor for DumpStreamConstructor {
             demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
                 DumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
             }
+            // 'Stuffing' data on PID 0x1fff may be used to pad-out parts of the transport stream
+            // so that it has constant overall bitrate.  This causes it to be ignored if present.
+            demultiplex::FilterRequest::ByPid(packet::Pid::STUFFING) => {
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+            }
             // Some Transport Streams will contain data on 'well known' PIDs, which are not
             // announced in PAT / PMT metadata.  This application does not process any of these
             // well known PIDs, so we register NullPacketFiltet such that they will be ignored

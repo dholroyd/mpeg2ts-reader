@@ -377,6 +377,8 @@ impl Pid {
 
     /// The identifier of TS Packets containing Program Association Table sections, with value `0`.
     pub const PAT: Pid = Pid(0);
+    /// The identifier of TS Packets containing 'stuffing' data, with value `0x1fff`
+    pub const STUFFING: Pid = Pid(0x1fff);
 
     /// Panics if the given value is greater than `Pid::MAX_VALUE`.
     #[inline]
