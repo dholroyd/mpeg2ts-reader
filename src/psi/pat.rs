@@ -65,6 +65,13 @@ impl<'buf> Iterator for ProgramIter<'buf> {
         if self.buf.is_empty() {
             return None;
         }
+        if self.buf.len() < 4 {
+            warn!(
+                "too few bytes remaining for PAT descriptor: {}",
+                self.buf.len()
+            );
+            return None;
+        }
         let (head, tail) = self.buf.split_at(4);
         self.buf = tail;
         Some(ProgramDescriptor::from_bytes(head))
