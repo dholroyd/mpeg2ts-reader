@@ -149,6 +149,15 @@ where
         data: &'a [u8],
     ) {
         assert!(header.section_syntax_indicator);
+        if data.len() < 4 {
+            // must be big enough to hold the CRC!
+            warn!(
+                "section data length too small for table_id {}: {}",
+                header.table_id,
+                data.len()
+            );
+            return;
+        }
         // don't apply CRC checks when fuzzing, to give more chances of test data triggering
         // parser bugs,
         if !cfg!(fuzzing) && mpegts_crc::sum32(data) != 0 {
