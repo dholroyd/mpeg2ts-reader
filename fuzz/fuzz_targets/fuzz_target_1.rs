@@ -5,7 +5,7 @@ extern crate libfuzzer_sys;
 #[macro_use]
 extern crate mpeg2ts_reader;
 
-use mpeg2ts_reader::{demultiplex, pes};
+use mpeg2ts_reader::{demultiplex, pes, packet};
 
 pub struct FuzzElementaryStreamConsumer;
 impl pes::ElementaryStreamConsumer for FuzzElementaryStreamConsumer {
@@ -22,7 +22,6 @@ packet_filter_switch!{
         Pmt: demultiplex::PmtPacketFilter<FuzzDemuxContext>,
         Elem: pes::PesPacketFilter<FuzzDemuxContext,FuzzElementaryStreamConsumer>,
         Null: demultiplex::NullPacketFilter<FuzzDemuxContext>,
-        Unhandled: demultiplex::UnhandledPid<FuzzDemuxContext>,
     }
 }
 demux_context!(FuzzDemuxContext, FuzzStreamConstructor);
@@ -33,9 +32,9 @@ impl demultiplex::StreamConstructor for FuzzStreamConstructor {
 
     fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
         match req {
-            demultiplex::FilterRequest::ByPid(0) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
-            demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Unhandled(demultiplex::UnhandledPid::default()),
-            demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
+            demultiplex::FilterRequest::ByStream { .. } => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             demultiplex::FilterRequest::Pmt{pid, program_number} => FuzzFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
             demultiplex::FilterRequest::Nit{pid} => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
