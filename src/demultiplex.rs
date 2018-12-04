@@ -502,34 +502,6 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
 
 // ---- demux ----
 
-/// an implementation of `PacketFilter` that will log a message the first time that `consume()` is
-/// called, reporting the PID of the given packet.  Register this pid filter as the 'default' in
-/// order to have diagnostic logging for packets within the Transport Stream that were not
-/// announced in the PAT or PMT tables.
-///
-/// If you do not want those diagnostic messages, use `NullPacketFilter` as the default instead.
-pub struct UnhandledPid<Ctx: DemuxContext> {
-    pid_seen: bool,
-    phantom: marker::PhantomData<Ctx>,
-}
-impl<Ctx: DemuxContext> Default for UnhandledPid<Ctx> {
-    fn default() -> UnhandledPid<Ctx> {
-        UnhandledPid {
-            pid_seen: false,
-            phantom: marker::PhantomData,
-        }
-    }
-}
-impl<Ctx: DemuxContext> PacketFilter for UnhandledPid<Ctx> {
-    type Ctx = Ctx;
-    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
-        if !self.pid_seen {
-            warn!("unhandled {:?}", pk.pid());
-            self.pid_seen = true;
-        }
-    }
-}
-
 pub trait DemuxContext: Sized {
     type F: PacketFilter<Ctx = Self>;
     type Ctor: StreamConstructor<F = Self::F>;

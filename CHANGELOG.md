@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+### Changed
+ - Removed the `demultiplex::UnhandledPid` type to try and simplify the API slightly.
+
 ## 0.7.0
 ### Fixed
  - Removed some unused dependencies
