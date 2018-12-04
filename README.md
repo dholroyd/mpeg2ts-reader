@@ -24,14 +24,16 @@ Dump H264 payload data as hex.
 extern crate mpeg2ts_reader;
 extern crate hex_slice;
 
+use hex_slice::AsHex;
+use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::packet;
+use mpeg2ts_reader::pes;
+use mpeg2ts_reader::psi;
+use mpeg2ts_reader::StreamType;
+use std::cmp;
 use std::env;
 use std::fs::File;
 use std::io::Read;
-use mpeg2ts_reader::demultiplex;
-use mpeg2ts_reader::pes;
-use mpeg2ts_reader::StreamType;
-use hex_slice::AsHex;
-use std::cmp;
 
 // This macro invocation creates an enum called DumpFilterSwitch, encapsulating all possible ways
 // that this application may handle transport stream packets.  Each enum variant is just a wrapper
@@ -67,94 +69,117 @@ impl demultiplex::StreamConstructor for DumpStreamConstructor {
         match req {
             // The 'Program Association Table' is is always on PID 0.  We just use the standard
             // handling here, but an application could insert its own logic if required,
-            demultiplex::FilterRequest::ByPid(0) =>
-                DumpFilterSwitch::Pat(demultiplex::PatPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
+                DumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
+            }
+            // 'Stuffing' data on PID 0x1fff may be used to pad-out parts of the transport stream
+            // so that it has constant overall bitrate.  This causes it to be ignored if present.
+            demultiplex::FilterRequest::ByPid(packet::Pid::STUFFING) => {
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+            }
             // Some Transport Streams will contain data on 'well known' PIDs, which are not
             // announced in PAT / PMT metadata.  This application does not process any of these
             // well known PIDs, so we register NullPacketFiltet such that they will be ignored
-            demultiplex::FilterRequest::ByPid(_) =>
-                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::ByPid(_) => {
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+            }
             // This match-arm installs our application-specific handling for each H264 stream
             // discovered within the transport stream,
-            demultiplex::FilterRequest::ByStream(StreamType::H264, pmt_section, stream_info) =>
-                PtsDumpElementaryStreamConsumer::construct(pmt_section, stream_info),
+            demultiplex::FilterRequest::ByStream {
+                stream_type: StreamType::H264,
+                pmt,
+                stream_info,
+                ..
+            } => PtsDumpElementaryStreamConsumer::construct(pmt, stream_info),
             // We need to have a match-arm to specify how to handle any other StreamType values
             // that might be present; we answer with NullPacketFilter so that anything other than
             // H264 (handled above) is ignored,
-            demultiplex::FilterRequest::ByStream(_stype, _pmt_section, _stream_info) =>
-                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::new()),
+            demultiplex::FilterRequest::ByStream { .. } => {
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+            }
             // The 'Program Map Table' defines the sub-streams for a particular program within the
             // Transport Stream (it is common for Transport Streams to contain only one program).
             // We just use the standard handling here, but an application could insert its own
             // logic if required,
-            demultiplex::FilterRequest::Pmt{pid, program_number} =>
-                DumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+            demultiplex::FilterRequest::Pmt {
+                pid,
+                program_number,
+            } => DumpFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
+            // Ignore 'Network Information Table', if present,
+            demultiplex::FilterRequest::Nit { .. } => {
+                DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+            }
         }
     }
 }
 
 // Implement the ElementaryStreamConsumer to just dump and PTS/DTS timestamps to stdout
 pub struct PtsDumpElementaryStreamConsumer {
-    pid: u16,
+    pid: packet::Pid,
     len: Option<usize>,
 }
 impl PtsDumpElementaryStreamConsumer {
-    fn construct(_pmt_sect: &demultiplex::PmtSection, stream_info: &demultiplex::StreamInfo)
-        -> DumpFilterSwitch
-    {
-        let filter = pes::PesPacketFilter::new(
-            PtsDumpElementaryStreamConsumer {
-                pid: stream_info.elementary_pid(),
-                len: None
-            }
-        );
+    fn construct(
+        _pmt_sect: &psi::pmt::PmtSection,
+        stream_info: &psi::pmt::StreamInfo,
+    ) -> DumpFilterSwitch {
+        let filter = pes::PesPacketFilter::new(PtsDumpElementaryStreamConsumer {
+            pid: stream_info.elementary_pid(),
+            len: None,
+        });
         DumpFilterSwitch::Pes(filter)
     }
 }
 impl pes::ElementaryStreamConsumer for PtsDumpElementaryStreamConsumer {
-    fn start_stream(&mut self) { }
+    fn start_stream(&mut self) {}
     fn begin_packet(&mut self, header: pes::PesHeader) {
         match header.contents() {
             pes::PesContents::Parsed(Some(parsed)) => {
                 match parsed.pts_dts() {
-                    pes::PtsDts::PtsOnly(Ok(pts)) => {
-                        print!("PID {}: pts {:#08x}                ",
-                               self.pid,
-                               pts.value())
-                    },
-                    pes::PtsDts::Both{pts:Ok(pts), dts:Ok(dts)} => {
-                        print!("PID {}: pts {:#08x} dts {:#08x} ",
-                               self.pid,
-                               pts.value(),
-                               dts.value())
-                    },
+                    Ok(pes::PtsDts::PtsOnly(Ok(pts))) => {
+                        print!("{:?}: pts {:#08x}                ", self.pid, pts.value())
+                    }
+                    Ok(pes::PtsDts::Both {
+                        pts: Ok(pts),
+                        dts: Ok(dts),
+                    }) => print!(
+                        "{:?}: pts {:#08x} dts {:#08x} ",
+                        self.pid,
+                        pts.value(),
+                        dts.value()
+                    ),
                     _ => (),
                 }
                 let payload = parsed.payload();
                 self.len = Some(payload.len());
-                println!("{:02x}", payload[..cmp::min(payload.len(),16)].plain_hex(false))
-            },
+                println!(
+                    "{:02x}",
+                    payload[..cmp::min(payload.len(), 16)].plain_hex(false)
+                )
+            }
             pes::PesContents::Parsed(None) => (),
             pes::PesContents::Payload(payload) => {
                 self.len = Some(payload.len());
-                println!("PID {}:                               {:02x}",
-                         self.pid,
-                         payload[..cmp::min(payload.len(),16)].plain_hex(false))
-            },
+                println!(
+                    "{:?}:                               {:02x}",
+                    self.pid,
+                    payload[..cmp::min(payload.len(), 16)].plain_hex(false)
+                )
+            }
         }
     }
     fn continue_packet(&mut self, data: &[u8]) {
-        println!("PID {}:                     continues {:02x}",
-                 self.pid,
-                 data[..cmp::min(data.len(),16)].plain_hex(false));
-        self.len = self.len.map(|l| l+data.len() );
+        println!(
+            "{:?}:                     continues {:02x}",
+            self.pid,
+            data[..cmp::min(data.len(), 16)].plain_hex(false)
+        );
+        self.len = self.len.map(|l| l + data.len());
     }
     fn end_packet(&mut self) {
-        println!("PID {}: end of packet length={:?}",
-                 self.pid,
-                 self.len);
+        println!("{:?}: end of packet length={:?}", self.pid, self.len);
     }
-    fn continuity_error(&mut self) { }
+    fn continuity_error(&mut self) {}
 }
 
 fn main() {
@@ -170,10 +195,10 @@ fn main() {
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);
 
     // consume the input file,
-    let mut buf = [0u8; 188*1024];
+    let mut buf = [0u8; 188 * 1024];
     loop {
         match f.read(&mut buf[..]).expect("read failed") {
-            0 => break ,
+            0 => break,
             n => demux.push(&mut ctx, &buf[0..n]),
         }
     }
