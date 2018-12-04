@@ -1,3 +1,8 @@
+//! Main types implementing the demultiplexer state-machine.
+//!
+//! Construct an instance of [`Demultiplex`](struct.Demultiplex.html) and feed it one a succession
+//! of byte-slices containing the Transport Stream data.
+
 use crate::packet;
 use crate::psi;
 use crate::psi::pat;
@@ -142,6 +147,10 @@ macro_rules! packet_filter_switch {
         }
     }
 }
+
+/// Growable list of filters (implementations of [`PacketFilter`](trait.PacketFilter.html)),
+/// indexed by [`Pid`](../packet/struct.Pid.html).  Lookups produce an `Option`, and the result
+/// is `None` rather than `panic!()` when not found.
 pub struct Filters<F: PacketFilter> {
     filters_by_pid: Vec<Option<F>>,
 }
@@ -543,6 +552,17 @@ impl<Ctx: DemuxContext> PacketFilter for PatPacketFilter<Ctx> {
     }
 }
 
+/// Transport Stream demultiplexer.
+///
+/// Uses the `StreamConstructor` of the `DemuxContext` passed to `new()` to create Filters for
+/// processing the payloads of each packet discovered in the TransportStream.
+///
+/// # Incremental parsing
+///
+/// Successive sections of transport stream data can be passed in order to `push()`, and the
+/// demultiplexing process will resume at the start of one buffer where it left off at the end of
+/// the last.  This supports for example the processing of sections of TS data as they are received
+/// from the network, without needing to copy them out of the source network buffer.
 pub struct Demultiplex<Ctx: DemuxContext> {
     processor_by_pid: Filters<Ctx::F>,
 }
