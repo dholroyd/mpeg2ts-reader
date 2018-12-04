@@ -134,6 +134,7 @@ impl<'buf> AdaptationField<'buf> {
     // TODO: just eager-load all this stuff in new()?  would be simpler!
 
     pub fn new(buf: &'buf [u8]) -> AdaptationField<'buf> {
+        assert!(buf.len() > 0);
         AdaptationField { buf }
     }
 
@@ -518,6 +519,9 @@ impl<'buf> Packet<'buf> {
                     // TODO: Option<Result<AdaptationField>> instead?
                     return None;
                 }
+                if len == 0 {
+                    return None;
+                }
                 Some(self.mk_af(len))
             }
         }
@@ -644,5 +648,18 @@ mod test {
                 dts_next_au: pes::Timestamp::from_u64(0b1_1111_1111_1111_1111_1111_1111_1111_1111)
             })
         );
+    }
+
+    #[test]
+    fn empty_adaptation_field() {
+        let mut buf = [0xffu8; Packet::SIZE];
+        buf[0] = Packet::SYNC_BYTE;
+        buf[4] = 0; // adaptation_field_length
+        let pk = Packet::new(&buf[..]);
+        assert_eq!(
+            pk.adaptation_control(),
+            AdaptationControl::AdaptationFieldAndPayload
+        );
+        assert!(pk.adaptation_field().is_none());
     }
 }

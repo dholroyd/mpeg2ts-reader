@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+### Fixed
+ - Avoid panics due to 0-length `adaptation_field`
+
 ### Changed
  - Removed the `demultiplex::UnhandledPid` type to try and simplify the API slightly.
 
