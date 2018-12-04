@@ -151,7 +151,7 @@ where
         assert!(header.section_syntax_indicator);
         // don't apply CRC checks when fuzzing, to give more chances of test data triggering
         // parser bugs,
-        if !cfg!(fuzz) && mpegts_crc::sum32(data) != 0 {
+        if !cfg!(fuzzing) && mpegts_crc::sum32(data) != 0 {
             warn!("section crc check failed for table_id {}", header.table_id,);
             return;
         }
