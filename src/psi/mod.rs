@@ -24,7 +24,6 @@ pub mod pmt;
 
 use crate::mpegts_crc;
 use crate::packet;
-use hexdump;
 
 /// Trait for types which process the data within a PSI section following the 12-byte
 /// `section_length` field (which is one of the items available in the `SectionCommonHeader` that
@@ -154,7 +153,6 @@ where
         // parser bugs,
         if !cfg!(fuzz) && mpegts_crc::sum32(data) != 0 {
             warn!("section crc check failed for table_id {}", header.table_id,);
-            hexdump::hexdump(data);
             return;
         }
         self.inner.section(ctx, header, table_syntax_header, data);

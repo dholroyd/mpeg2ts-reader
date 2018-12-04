@@ -10,7 +10,6 @@ keywords = [ "mpegts", "ISO-13818-1", "H-222-0" ]
 readme = "README.md"
 
 [dependencies]
-hexdump = "0.1.0"
 fixedbitset = "0.1.8"
 hex-slice = "0.1.4"
 encoding = "0.2"

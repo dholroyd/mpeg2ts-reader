@@ -35,7 +35,6 @@
 #![deny(rust_2018_idioms, future_incompatible)]
 
 extern crate hex_slice;
-extern crate hexdump;
 #[cfg(test)]
 #[macro_use]
 extern crate hex_literal;
