@@ -151,7 +151,7 @@ macro_rules! packet_filter_switch {
 /// Growable list of filters (implementations of [`PacketFilter`](trait.PacketFilter.html)),
 /// indexed by [`Pid`](../packet/struct.Pid.html).  Lookups produce an `Option`, and the result
 /// is `None` rather than `panic!()` when not found.
-pub struct Filters<F: PacketFilter> {
+struct Filters<F: PacketFilter> {
     filters_by_pid: Vec<Option<F>>,
 }
 impl<F: PacketFilter> Default for Filters<F> {
@@ -189,19 +189,6 @@ impl<F: PacketFilter> Filters<F> {
         if usize::from(pid) < self.filters_by_pid.len() {
             self.filters_by_pid[usize::from(pid)] = None;
         }
-    }
-
-    pub fn pids(&self) -> Vec<packet::Pid> {
-        self.filters_by_pid
-            .iter()
-            .enumerate()
-            .filter_map(|(i, e)| {
-                if e.is_some() {
-                    Some(packet::Pid::new(i as u16))
-                } else {
-                    None
-                }
-            }).collect()
     }
 }
 
