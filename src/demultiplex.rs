@@ -309,7 +309,7 @@ pub trait StreamConstructor {
     fn construct(&mut self, req: FilterRequest<'_, '_>) -> Self::F;
 }
 
-pub struct PmtProcessor<Ctx: DemuxContext> {
+struct PmtProcessor<Ctx: DemuxContext> {
     pid: packet::Pid,
     program_number: u16,
     current_version: Option<u8>,
@@ -436,7 +436,7 @@ impl<Ctx: DemuxContext> PacketFilter for PmtPacketFilter<Ctx> {
     }
 }
 
-pub struct PatProcessor<Ctx: DemuxContext> {
+struct PatProcessor<Ctx: DemuxContext> {
     current_version: Option<u8>,
     filters_registered: fixedbitset::FixedBitSet, // TODO: https://crates.io/crates/typenum_bitset ?
     phantom: marker::PhantomData<Ctx>,
