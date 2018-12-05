@@ -3,7 +3,7 @@ use hex_slice::AsHex;
 use std::fmt;
 
 pub struct RegistrationDescriptor<'buf> {
-    pub buf: &'buf [u8],
+    buf: &'buf [u8],
 }
 impl<'buf> RegistrationDescriptor<'buf> {
     pub const TAG: u8 = 5;
