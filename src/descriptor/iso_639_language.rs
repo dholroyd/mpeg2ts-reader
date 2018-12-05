@@ -17,12 +17,12 @@ impl<'buf> Iso639LanguageDescriptor<'buf> {
         Ok(Iso639LanguageDescriptor { buf })
     }
 
-    pub fn languages(&self) -> LanguageIterator<'buf> {
+    pub fn languages(&self) -> impl Iterator<Item = Language<'buf>> {
         LanguageIterator::new(self.buf)
     }
 }
 
-pub struct LanguageIterator<'buf> {
+struct LanguageIterator<'buf> {
     remaining_data: &'buf [u8],
 }
 impl<'buf> LanguageIterator<'buf> {
