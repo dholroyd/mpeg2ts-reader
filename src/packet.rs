@@ -579,11 +579,6 @@ impl<'buf> Packet<'buf> {
     }
 }
 
-/// trait for objects which process transport stream packets
-pub trait PacketConsumer<Ret> {
-    fn consume(&mut self, pk: Packet<'_>) -> Option<Ret>;
-}
-
 #[cfg(test)]
 mod test {
     use crate::packet::*;
