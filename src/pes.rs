@@ -118,6 +118,8 @@ where
     }
 }
 
+/// Implementation of [`demultiplex::PacketFilter`](../demultiplex/trait.PacketFilter.html) for
+/// packets that contain PES data.
 pub struct PesPacketFilter<Ctx, E>
 where
     Ctx: demultiplex::DemuxContext,
@@ -271,6 +273,10 @@ pub enum PesContents<'buf> {
     Payload(&'buf [u8]),
 }
 
+/// _Digital Storage Media_ 'trick mode' options.
+///
+/// Returned by
+/// [PesParsedContents::dsm_trick_mode()](struct.PesParsedContents.html#method.dsm_trick_mode).
 #[derive(Debug)]
 pub enum DsmTrickMode {
     FastForward {
@@ -298,6 +304,8 @@ pub enum DsmTrickMode {
     },
 }
 
+/// Indication of the restricted set of coefficients that may have been used to encode the video,
+/// specified within [`DsmTrickMode`](enum.DsmTrickMode.html).
 #[derive(Debug)]
 pub enum FrequencyTruncationCoefficientSelection {
     DCNonZero,
@@ -317,7 +325,7 @@ impl FrequencyTruncationCoefficientSelection {
     }
 }
 
-// Indication of an Elementary Stream's data rate
+/// Indication of an Elementary Stream's data rate
 #[derive(Debug)]
 pub struct EsRate(u32);
 impl EsRate {
@@ -708,6 +716,10 @@ impl Timestamp {
     }
 }
 
+/// Contains some combination of PTS and DTS timestamps (or maybe neither).
+///
+/// The timestamps will be wrapped in `Result`, in case an error in the stored timestamp syntax
+/// means that it can't be decoded.
 #[derive(PartialEq, Debug)]
 pub enum PtsDts {
     None,
