@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt;
 
 pub struct Iso639LanguageDescriptor<'buf> {
-    pub buf: &'buf [u8],
+    buf: &'buf [u8],
 }
 impl<'buf> Iso639LanguageDescriptor<'buf> {
     pub const TAG: u8 = 10;
