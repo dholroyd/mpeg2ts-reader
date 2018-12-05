@@ -13,12 +13,22 @@ use fixedbitset;
 use std;
 use std::marker;
 
+/// Trait to which `Demultiplex` delegates handling of subsets of Transport Stream packets.
+///
+/// A packet filter can collaborate with the owning `Demultiplex` instance via the `DemuxContext`
+/// to which they will both be lent mutable access.  For example, by making entries in the
+/// `FilterChangeset` owned by the `DemuxContext`, a `PacketFilter` implementation may alter
+/// the handling of subsequent packets in the Transport Stream.
 pub trait PacketFilter {
     type Ctx: DemuxContext;
 
     fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet<'_>);
 }
 
+/// No-op implementation of `PacketFilter`.
+///
+/// Sometimes a Transport Stream will contain packets that you know you want to ignore.  This type
+/// can be used when you have to register a filter for such packets with the demultiplexer.
 pub struct NullPacketFilter<Ctx: DemuxContext> {
     phantom: marker::PhantomData<Ctx>,
 }
@@ -196,6 +206,8 @@ impl<F: PacketFilter> Filters<F> {
 // running, so this changeset protocol allows a filter to specify any filter updates required so
 // the demultiplexer can apply them when the filter is complete
 
+/// Represents the intention to either insert a new `PacketFilter` into the `Demultiplex` instance
+/// or remove an old `PacketFilter` from the `Demultiplex` instance.
 pub enum FilterChange<F: PacketFilter> {
     Insert(packet::Pid, F),
     Remove(packet::Pid),
@@ -217,6 +229,15 @@ impl<F: PacketFilter> std::fmt::Debug for FilterChange<F> {
     }
 }
 
+/// Owns a queue of [`FilterChange`](enum.FilterChange.html) objects representing pending updates
+/// to the Pid handling of the `Demultiplexer`.
+///
+/// These changes need to be queued since practically a `PacketFilter` implementation cannot be
+/// allowed to remove itself from the owning `Demultiplex` instance while it is in the act of
+/// filtering a packet.
+///
+/// The public interface allows items to be added to the queue, and the internal implementation of
+/// `Demultiplex` will later remove them.
 #[derive(Debug)]
 pub struct FilterChangeset<F: PacketFilter> {
     updates: Vec<FilterChange<F>>,
@@ -229,10 +250,14 @@ impl<F: PacketFilter> Default for FilterChangeset<F> {
     }
 }
 impl<F: PacketFilter> FilterChangeset<F> {
-    fn insert(&mut self, pid: packet::Pid, filter: F) {
+    /// Queue the insertion of the given `PacketFilter` for the given Pid, after the `Demultiplex`
+    /// instance has finished handling the current packet.
+    pub fn insert(&mut self, pid: packet::Pid, filter: F) {
         self.updates.push(FilterChange::Insert(pid, filter))
     }
-    fn remove(&mut self, pid: packet::Pid) {
+    /// Queue the removal of the existing `PacketFilter` for the given Pid, after the `Demultiplex`
+    /// instance has finished handling the current packet.
+    pub fn remove(&mut self, pid: packet::Pid) {
         self.updates.push(FilterChange::Remove(pid))
     }
 
@@ -241,7 +266,7 @@ impl<F: PacketFilter> FilterChangeset<F> {
             update.apply(filters);
         }
     }
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.updates.is_empty()
     }
 }
