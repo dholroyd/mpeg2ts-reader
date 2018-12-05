@@ -2,6 +2,17 @@
 //!
 //! Construct an instance of [`Demultiplex`](struct.Demultiplex.html) and feed it one a succession
 //! of byte-slices containing the Transport Stream data.
+//!
+//! Users of this crate are expected to provide their own implementations of,
+//!
+//!  - [`StreamConstructor`](trail.StreamConstructor.html) - to create specific `PacketFilter` instances
+//!    for each type of sub-stream found within the Transport Stream data.
+//!  - [`PacketFilter`](trait.PacketFilter.html) - for defining per-stream-type handling, possibly
+//!    by using the [`packet_filter_switch!()`](../macro.packet_filter_switch.html) macro to create
+//!    an enum implementing this trait.
+//!  - [`DemuxContext`](trait.DemuxContext.html) - to specify the specific `StreamConstructor` and
+//!    `DemuxContext` types to actually be used. possibly by using the
+//!    [`demux_context!()`](../macro.demux_context.html) macro.
 
 use crate::packet;
 use crate::psi;
@@ -280,8 +291,8 @@ impl<F: PacketFilter> std::iter::IntoIterator for FilterChangeset<F> {
     }
 }
 
-// TODO: would be nice to have an impl of this trait for `Fn(FilterRequest)->F`, but that ends up
-// not being usable without having additional type-parameters over several parts of the API.
+/// Request that may be submitted to a
+/// [`StreamConstructor`](trait.StreamConstructor.html) implementation.
 pub enum FilterRequest<'a, 'buf: 'a> {
     /// requests a filter implementation for handling a PID contained in the transport stream that
     /// was not announced via other means (PAT/PMT).
@@ -303,6 +314,7 @@ pub enum FilterRequest<'a, 'buf: 'a> {
     Nit { pid: packet::Pid },
 }
 
+/// Trait for type able to construct a `PacketFilter` instance for a given `FilterRequest`.
 pub trait StreamConstructor {
     type F: PacketFilter;
 
@@ -394,6 +406,7 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
     }
 }
 
+/// TODO: this type does not belong here
 #[derive(Debug)]
 pub enum DemuxError {
     NotEnoughData {
@@ -403,6 +416,12 @@ pub enum DemuxError {
     },
 }
 
+/// `PacketFilter` implementation which will insert some other `PacketFilter` into the `Demultiplex`
+/// instance for each sub-stream listed in one of the stream's PMT-sections.
+///
+/// The particular `PacketFilter` to be inserted is determined by querying the
+/// [`StreamConstructor`](trait.StreamConstructor.html) from the `DemuxContext`, passing a
+/// [`FilterRequest::ByStream`](enum.FilterRequest.html#variant.ByStream) request.
 pub struct PmtPacketFilter<Ctx: DemuxContext + 'static> {
     pmt_section_packet_consumer: psi::SectionPacketConsumer<
         psi::SectionSyntaxSectionProcessor<
@@ -531,6 +550,12 @@ pub trait DemuxContext: Sized {
     fn filter_constructor(&mut self) -> &mut Self::Ctor;
 }
 
+/// `PacketFilter` implementation which will insert some other `PacketFilter` into the `Demultiplex`
+/// instance for each program listed in the stream's PAT-section.
+///
+/// The particular `PacketFilter` to be inserted is determined by querying the
+/// [`StreamConstructor`](trait.StreamConstructor.html) from the `DemuxContext`, passing a
+/// [`FilterRequest::Pmt`](enum.FilterRequest.html#variant.Pmt) request.
 pub struct PatPacketFilter<Ctx: DemuxContext> {
     pat_section_packet_consumer: psi::SectionPacketConsumer<
         psi::SectionSyntaxSectionProcessor<
