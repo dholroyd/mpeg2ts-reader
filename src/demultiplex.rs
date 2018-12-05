@@ -43,14 +43,6 @@ pub trait PacketFilter {
 pub struct NullPacketFilter<Ctx: DemuxContext> {
     phantom: marker::PhantomData<Ctx>,
 }
-impl<Ctx: DemuxContext> NullPacketFilter<Ctx> {
-    pub fn construct(
-        _pmt: &PmtSection<'_>,
-        _stream_info: &StreamInfo<'_>,
-    ) -> NullPacketFilter<Ctx> {
-        Self::default()
-    }
-}
 impl<Ctx: DemuxContext> Default for NullPacketFilter<Ctx> {
     fn default() -> NullPacketFilter<Ctx> {
         NullPacketFilter {
