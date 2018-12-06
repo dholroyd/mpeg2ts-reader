@@ -31,8 +31,11 @@ use std::marker;
 /// `FilterChangeset` owned by the `DemuxContext`, a `PacketFilter` implementation may alter
 /// the handling of subsequent packets in the Transport Stream.
 pub trait PacketFilter {
+    /// The type of context-object used by the `Demultiplex` instance with which implementing
+    /// `PacketFilters` will be collaborating.
     type Ctx: DemuxContext;
 
+    /// Implements filter-specific packet processing logic.
     fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet<'_>);
 }
 
@@ -212,7 +215,9 @@ impl<F: PacketFilter> Filters<F> {
 /// Represents the intention to either insert a new `PacketFilter` into the `Demultiplex` instance
 /// or remove an old `PacketFilter` from the `Demultiplex` instance.
 pub enum FilterChange<F: PacketFilter> {
+    /// Insert the given filter for the given `Pid`.
     Insert(packet::Pid, F),
+    /// Remove any filter for the given `Pid`.
     Remove(packet::Pid),
 }
 impl<F: PacketFilter> FilterChange<F> {
@@ -269,6 +274,7 @@ impl<F: PacketFilter> FilterChangeset<F> {
             update.apply(filters);
         }
     }
+    /// Are there any changes queued in this changeset?
     pub fn is_empty(&self) -> bool {
         self.updates.is_empty()
     }
@@ -292,24 +298,36 @@ pub enum FilterRequest<'a, 'buf: 'a> {
     /// requests a filter for the stream with the given details which has just been discovered
     /// within a Program Map Table section.
     ByStream {
+        /// The `Pid` of the program containing the stream to be handled
         program_pid: packet::Pid,
+        /// The type of the stream to be handled
         stream_type: StreamType,
+        /// The full PmtSection defining the stream needing to he handled
         pmt: &'a PmtSection<'buf>,
+        /// the PMT stream information for the specific stream being handled (which will be one
+        /// of the values inside the `pmt` which is also provided.
         stream_info: &'a StreamInfo<'buf>,
     },
     /// Requests a filter implementation for handling Program Map Table sections
     Pmt {
+        /// the `Pid` which contains the PMT
         pid: packet::Pid,
+        /// the _program number_ of the program for which this will be the PMT
         program_number: u16,
     },
     /// requests a filter implementation to handle packets containing Network Information Table data
-    Nit { pid: packet::Pid },
+    Nit {
+        /// The `Pid` of the packets which contain the NIT.
+        pid: packet::Pid,
+    },
 }
 
 /// Trait for type able to construct a `PacketFilter` instance for a given `FilterRequest`.
 pub trait StreamConstructor {
+    /// the `PacketFilter` type which this constructor will create.
     type F: PacketFilter;
 
+    /// Construct a `PacketFilter` implementation based on the requested spec.
     fn construct(&mut self, req: FilterRequest<'_, '_>) -> Self::F;
 }
 
@@ -401,9 +419,14 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
 /// TODO: this type does not belong here
 #[derive(Debug)]
 pub enum DemuxError {
+    /// The transport stream has a syntax error that means there was not enough data present to
+    /// parse the requested structure.
     NotEnoughData {
+        /// The name of the field we were unable to parse
         field: &'static str,
+        /// The expected size of the field data
         expected: usize,
+        /// the actual size of date available within the transport stream
         actual: usize,
     },
 }
@@ -426,6 +449,8 @@ pub struct PmtPacketFilter<Ctx: DemuxContext + 'static> {
     >,
 }
 impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
+    /// creates a new `PmtPacketFilter` for PMT sections in packets with the given `Pid`, and for
+    /// the given _program number_.
     pub fn new(pid: packet::Pid, program_number: u16) -> PmtPacketFilter<Ctx> {
         let pmt_proc = PmtProcessor::new(pid, program_number);
         PmtPacketFilter {
@@ -534,11 +559,18 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
 
 // ---- demux ----
 
+/// Context data shared between the `Dumultiplex` object and the `PacketFilter` implementations
+/// which customise its behavior.
 pub trait DemuxContext: Sized {
+    /// the type of `PacketFilter` which the `Demultiplex` object needs to use
     type F: PacketFilter<Ctx = Self>;
+    /// the type of `StreamCOnstructor` which the `Demultiplex` object uses to create new
+    /// `PacketFilter` instances
     type Ctor: StreamConstructor<F = Self::F>;
 
+    /// mutable reference to the `FilterChangeset` this context holds
     fn filter_changeset(&mut self) -> &mut FilterChangeset<Self::F>;
+    /// mutable reference to the `StreamConstructor` this context holds
     fn filter_constructor(&mut self) -> &mut Self::Ctor;
 }
 
@@ -596,6 +628,10 @@ pub struct Demultiplex<Ctx: DemuxContext> {
     processor_by_pid: Filters<Ctx::F>,
 }
 impl<Ctx: DemuxContext> Demultiplex<Ctx> {
+    /// Create a `Dumultiplex` instance, and populate it with an initial `PacketFilter` for
+    /// handling PAT packets (which is created by the `StreamConstructor` from the given
+    /// `DemuxContext` object).  The returned value does not retain any reference to the given
+    /// `DemuxContext` reference.
     pub fn new(ctx: &mut Ctx) -> Demultiplex<Ctx> {
         let mut result = Demultiplex {
             processor_by_pid: Filters::default(),
@@ -610,6 +646,8 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
         result
     }
 
+    /// Parse the Transport Stream packets in the given buffer, using functions from the given
+    /// `DemuxContent` object
     pub fn push(&mut self, ctx: &mut Ctx, buf: &[u8]) {
         // TODO: simplify
         // (maybe once chunks_exact() is stable; right now an iterator-based version of the

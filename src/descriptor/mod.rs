@@ -40,7 +40,19 @@ use self::registration::RegistrationDescriptor;
 use std::fmt;
 use std::marker;
 
+/// Trait allowing users of this trait to supply their own implementation of descriptor parsing.
+///
+/// The default implementation provided by this crate is
+/// [`CoreDescriptors`](enum.CoreDescriptors.html), which will only provide support for descriptor
+/// types directly defined by _ISO/IEC 13818-1_.  To support descriptors from other standards,
+/// an alternative implementation of this trait may be passed as a type parameter to methods such as
+/// [`PmtSection::descriptors()`](..//demultiplex/struct.PmtSection.html#method.descriptors).
+///
+/// The [`descriptor_enum!{}`](../macro.descriptor_enum.html) macro can be used to help create
+/// implementations of this trait.
 pub trait Descriptor<'buf>: Sized {
+    /// Create an object that that can wrap and parse the type of descriptor at the start of the
+    /// given slice.
     fn from_bytes(buf: &'buf [u8]) -> Result<Self, DescriptorError>;
 }
 
@@ -83,11 +95,17 @@ macro_rules! descriptor_enum {
     }
 }
 
+/// Catch-all type for when there is no explicit handling for the given descriptor type.
 pub struct UnknownDescriptor<'buf> {
+    /// the descriptor's identifying 'tag' value; different types of descriptors are assigned
+    /// different tag values
     pub tag: u8,
+    /// the descriptor's payload bytes
     pub payload: &'buf [u8],
 }
 impl<'buf> UnknownDescriptor<'buf> {
+    /// Constructor, in the form required for use with the
+    /// [`descriptor_enum!{}`](../macro.descriptor_enum.html) macro.
     pub fn new(tag: u8, payload: &'buf [u8]) -> Result<UnknownDescriptor<'buf>, DescriptorError> {
         Ok(UnknownDescriptor { tag, payload })
     }
@@ -102,41 +120,77 @@ impl<'buf> fmt::Debug for UnknownDescriptor<'buf> {
 }
 
 descriptor_enum!{
+    /// Default implementation of [`Descriptor`](trait.Descriptor.html) covering descriptor types
+    /// from _ISO/IEC 13818-1_.
+    ///
+    /// **NB** coverage of the range of descriptors from the spec with descriptor-type-specific
+    /// Rust types is currently incomplete, with those variants currently containing
+    /// `UnknownDescriptor` needing to be changed to have type-specific implementations in some
+    /// future release of this crate.
     #[derive(Debug)]
     CoreDescriptors {
+        /// descriptor tag values `0`, `1` and `36` to `63` inclusive are marked as reserved by _ISO/IEC 13818-1_.
         Reserved 0|1|36..=63 => UnknownDescriptor,
+        /// The `video_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
         VideoStream 2 => UnknownDescriptor,
+        /// The `audio_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
         AudioStream 3 => UnknownDescriptor,
+        /// The `hierarchy_descriptor()` syntax element from _ISO/IEC 13818-1_.
         Hierarchy 4 => UnknownDescriptor,
+        /// The `registration_descriptor()` syntax element from _ISO/IEC 13818-1_.
         Registration 5 => RegistrationDescriptor,
+        /// The `data_stream_alignment_descriptor()` syntax element from _ISO/IEC 13818-1_.
         DataStreamAlignment 6 => UnknownDescriptor,
+        /// The `target_background_grid_descriptor()` syntax element from _ISO/IEC 13818-1_.
         TargetBackgroundGrid 7 => UnknownDescriptor,
+        /// The `video_window_descriptor()` syntax element from _ISO/IEC 13818-1_.
         VideoWindow 8 => UnknownDescriptor,
+        /// The `CA_descriptor()` syntax element from _ISO/IEC 13818-1_ ("Conditional Access").
         CA 9 => UnknownDescriptor,
+        /// The `ISO_639_language_descriptor()` syntax element from _ISO/IEC 13818-1_.
         ISO639Language 10 => Iso639LanguageDescriptor,
+        /// The `system_clock_descriptor()` syntax element from _ISO/IEC 13818-1_.
         SystemClock 11 => UnknownDescriptor,
+        /// The `multiplex_buffer_utilization_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MultiplexBufferUtilization 12 => UnknownDescriptor,
+        /// The `copyright_descriptor()` syntax element from _ISO/IEC 13818-1_.
         Copyright 13 => UnknownDescriptor,
+        /// The `maximum_bitrate_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MaximumBitrate 14 => UnknownDescriptor,
+        /// The `private_data_indicator_descriptor()` syntax element from _ISO/IEC 13818-1_.
         PrivateDataIndicator 15 => UnknownDescriptor,
+        /// The `smoothing_buffer_descriptor()` syntax element from _ISO/IEC 13818-1_.
         SmoothingBuffer 16 => UnknownDescriptor,
+        /// The `STD_descriptor()` syntax element from _ISO/IEC 13818-1_.
         STD 17 => UnknownDescriptor,
+        /// The `ibp_descriptor()` syntax element from _ISO/IEC 13818-1_.
         IBP 18 => UnknownDescriptor,
-        /// ISO IEC 13818-6
+        /// descriptor tag values `19` to `26` inclusive are marked as reserved by _ISO IEC 13818-6_ (NB a different standard than the one supported by this crate).
         IsoIec13818dash6 19..=26 => UnknownDescriptor,
+        /// The `MPEG-4_video_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MPEG4Video 27 => UnknownDescriptor,
+        /// The `MPEG-4_audio_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MPEG4Audio 28 => UnknownDescriptor,
+        /// The `IOD_descriptor()` syntax element from _ISO/IEC 13818-1_ ("Initial Object Descriptor").
         IOD 29 => UnknownDescriptor,
+        /// The `SL_descriptor()` syntax element from _ISO/IEC 13818-1_ ("Synchronization Layer").
         SL 30 => UnknownDescriptor,
+        /// The `FMC_descriptor()` syntax element from _ISO/IEC 13818-1_ ("FlexMux Channel").
         FMC 31 => UnknownDescriptor,
+        /// The `External_ES_ID_descriptor()` syntax element from _ISO/IEC 13818-1_.
         ExternalESID 32 => UnknownDescriptor,
+        /// The `Muxcode_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MuxCode 33 => UnknownDescriptor,
+        /// The `FmxBufferSize_descriptor()` syntax element from _ISO/IEC 13818-1_ ("FlexMux buffer").
         FmxBufferSize 34 => UnknownDescriptor,
+        /// The `MultiplexBuffer_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MultiplexBuffer 35 => UnknownDescriptor,
+        /// descriptor tag values `64` to `255` inclusive are marked for 'use private' use by _ISO/IEC 13818-1_.
         UserPrivate 64..=255 => UnknownDescriptor,
     }
 }
 
+/// Iterator over the descriptor elements in a given byte slice.
 pub struct DescriptorIter<'buf, Desc>
 where
     Desc: Descriptor<'buf>,
@@ -148,6 +202,7 @@ impl<'buf, Desc> DescriptorIter<'buf, Desc>
 where
     Desc: Descriptor<'buf>,
 {
+    /// Create an iterator over all the descriptors in the given slice
     pub fn new(buf: &'buf [u8]) -> DescriptorIter<'buf, Desc> {
         DescriptorIter {
             buf,
@@ -184,19 +239,31 @@ where
     }
 }
 
+/// An error during parsing of a descriptor
 #[derive(Debug, PartialEq)]
 pub enum DescriptorError {
+    /// The amount of data available in the buffer is not enough to hold the descriptor's declared
+    /// size.
     NotEnoughData {
+        /// descriptor tag value
         tag: u8,
+        /// actual buffer size
         actual: usize,
+        /// expected buffer size
         expected: usize,
     },
+    /// TODO: replace with NotEnoughData
     TagTooLongForBuffer {
+        /// actual length in descriptor header
         taglen: usize,
+        /// remaining bytes in buffer (which is seen to be shorter than `taglen`)
         buflen: usize,
     },
+    /// The buffer is too short to even hold the two bytes of generic descriptor header data
     BufferTooShort {
+        /// the actual buffer length
         buflen: usize,
     },
+    /// There is no mapping defined of the given descriptor tag value to a `Descriptor` value.
     UnhandledTagValue(u8),
 }

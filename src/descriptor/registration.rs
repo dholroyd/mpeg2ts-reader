@@ -1,12 +1,19 @@
+//! Registration descriptor indicates which kind of syntax any 'private data' within the transport
+//! stream will be following
+
 use super::DescriptorError;
 use hex_slice::AsHex;
 use std::fmt;
 
+/// Indicates which kind of syntax any 'private data' within the transport stream will be following
 pub struct RegistrationDescriptor<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> RegistrationDescriptor<'buf> {
+    /// The descriptor tag value which identifies the descriptor as a `RegistrationDescriptor`.
     pub const TAG: u8 = 5;
+    /// Construct a `RegistrationDescriptor` instance that will parse the data from the given
+    /// slice.
     pub fn new(_tag: u8, buf: &'buf [u8]) -> Result<RegistrationDescriptor<'buf>, DescriptorError> {
         if buf.len() < 4 {
             Err(DescriptorError::NotEnoughData {
@@ -19,6 +26,7 @@ impl<'buf> RegistrationDescriptor<'buf> {
         }
     }
 
+    /// Format identifier value assigned by a _Registration Authority_.
     pub fn format_identifier(&self) -> u32 {
         u32::from(self.buf[0]) << 24
             | u32::from(self.buf[1]) << 16
@@ -26,6 +34,8 @@ impl<'buf> RegistrationDescriptor<'buf> {
             | u32::from(self.buf[3])
     }
 
+    /// borrows a slice of additional_identification_info bytes, whose meaning is defined by
+    /// the identifier returned by `format_idenfifier()`.
     pub fn additional_identification_info(&self) -> &[u8] {
         &self.buf[4..]
     }

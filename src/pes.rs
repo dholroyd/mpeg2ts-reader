@@ -24,11 +24,25 @@ use std::{fmt, num};
 /// [`PesPacketConsumer`](struct.PesPacketConsumer.html), which itself is responsible for
 /// extracting elementary stream data from transport stream packets.
 pub trait ElementaryStreamConsumer {
+    /// called before the first call to `begin_packet()`
     fn start_stream(&mut self);
+
+    /// called with the header at the start of the PES packet, which may not contain the complete
+    /// PES payload
     fn begin_packet(&mut self, header: PesHeader<'_>);
+
+    /// called after an earlier call to `begin_packet()` when another part of the packet's payload
+    /// data is found in the Transport Stream.
     fn continue_packet(&mut self, data: &[u8]);
+
+    /// called when a PES packet ends, prior to the next call to `begin_packet()` (if any).
     fn end_packet(&mut self);
+
+    /// called when gap is seen in _continuity counter_ values for this stream, indicating that
+    /// some data in the original Transpport Stream did not reach the parser.
     fn continuity_error(&mut self);
+
+    // TODO: end_stream() for symmetry?
 }
 
 #[derive(Debug, PartialEq)]
@@ -40,6 +54,9 @@ enum PesState {
 
 /// Implementation of [`demultiplex::PacketFilter`](../demultiplex/trait.PacketFilter.html) for
 /// packets that contain PES data.
+///
+/// Delegates handling of PES data to an implementation of
+/// [`ElementaryStreamConsumer`](trait.ElementaryStreamConsumer.html).
 pub struct PesPacketFilter<Ctx, E>
 where
     Ctx: demultiplex::DemuxContext,
@@ -55,6 +72,8 @@ where
     Ctx: demultiplex::DemuxContext,
     E: ElementaryStreamConsumer,
 {
+    /// Construct a new `PesPacketFIlter` that will pass pieces of PES data to the given
+    /// `ElementaryStreamConsumer`
     pub fn new(stream_consumer: E) -> PesPacketFilter<Ctx, E> {
         PesPacketFilter {
             stream_consumer,
@@ -155,7 +174,16 @@ pub struct PesHeader<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> PesHeader<'buf> {
+    /// Wraps the given slice in a PesHeader, which will then provide method to parse the header
+    /// fields within the slice.
+    ///
+    /// Returns `None` if the buffer is too small to hold the PES header, or if the PES
+    /// 'start code prefix' is missing.
+    ///
+    /// TODO: should probably return `Result`.
     pub fn from_bytes(buf: &'buf [u8]) -> Option<PesHeader<'buf>> {
+        // TODO: could the header straddle the boundary between TS packets?
+        //       ..In which case we'd need to implement buffering.
         if buf.len() < 6 {
             warn!("Buffer size {} too small to hold PES header", buf.len());
             return None;
@@ -172,10 +200,14 @@ impl<'buf> PesHeader<'buf> {
         Some(PesHeader { buf })
     }
 
+    /// Indicator of the type of stream per _ISO/IEC 13818-1_, _Table 2-18_.
     pub fn stream_id(&self) -> u8 {
+        // TODO: refine an enum for these values
         self.buf[3]
     }
 
+    /// The overall length of the PES packet, once all pieces from the transport stream have
+    /// been collected.
     pub fn pes_packet_length(&self) -> PesLength {
         let len = u16::from(self.buf[4]) << 8 | u16::from(self.buf[5]);
         match num::NonZeroU16::new(len) {
@@ -185,6 +217,9 @@ impl<'buf> PesHeader<'buf> {
     }
 
     // maaaaaybe just have parsed_contents(&self) + payload(&self)
+
+    /// Either `PesContents::Parsed`, or `PesContents::Payload`, depending on the value of
+    /// `stream_id()`
     pub fn contents(&self) -> PesContents<'buf> {
         let header_len = 6;
         let rest = &self.buf[header_len..];
@@ -204,14 +239,20 @@ fn is_parsed(stream_id: u8) -> bool {
     }
 }
 
+/// Errors which may be encountered while processing PES data.
 #[derive(Debug, PartialEq)]
 pub enum PesError {
+    /// The value of an optional field was requested, but the field is not actually present in the
+    /// given PES data
     FieldNotPresent,
     /// The `pts_dts_flags` field of the PES packet signals that DTS is present and PTS is not,
     /// which not a valid combination
     PtsDtsFlagsInvalid,
+    /// There is not enough data in the buffer to hold the expected syntax element
     NotEnoughData {
+        /// the number of bytes required to hold the requested syntax element
         requested: usize,
+        /// the number of bytes actually remaining in the buffer
         available: usize,
     },
     /// Marker bits are expected to always have the value `1` -- the value `0` presumably implies
@@ -242,7 +283,9 @@ pub enum PesError {
 /// }
 /// ```
 pub enum PesContents<'buf> {
+    /// payload with extra PES headers
     Parsed(Option<PesParsedContents<'buf>>),
+    /// just payload without headers
     Payload(&'buf [u8]),
 }
 

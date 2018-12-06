@@ -1,3 +1,6 @@
+//! Support for [ISO-639](https://en.wikipedia.org/wiki/ISO_639) language code metadata, and
+//! audio-type metadata.
+
 use super::DescriptorError;
 use encoding::all::ISO_8859_1;
 use encoding::types::DecoderTrap;
@@ -5,11 +8,16 @@ use encoding::Encoding;
 use std::borrow::Cow;
 use std::fmt;
 
+/// Descriptor which may be attached to Transport Stream metadata to indicate the language of the
+/// content.
 pub struct Iso639LanguageDescriptor<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> Iso639LanguageDescriptor<'buf> {
+    /// The descriptor tag value which identifies the descriptor as an `Iso639LanguageDescriptor`.
     pub const TAG: u8 = 10;
+    /// Construct a `Iso639LanguageDescriptor` instance that will parse the data from the given
+    /// slice.
     pub fn new(
         _tag: u8,
         buf: &'buf [u8],
@@ -17,6 +25,7 @@ impl<'buf> Iso639LanguageDescriptor<'buf> {
         Ok(Iso639LanguageDescriptor { buf })
     }
 
+    /// Produce an iterator over the `Language` items in the provided buffer.
     pub fn languages(&self) -> impl Iterator<Item = Language<'buf>> {
         LanguageIterator::new(self.buf)
     }
@@ -65,6 +74,7 @@ impl From<u8> for AudioType {
         }
     }
 }
+/// One of potentially many pieces of language metadata within an `Iso639LanguageDescriptor`.
 pub struct Language<'buf> {
     buf: &'buf [u8],
 }

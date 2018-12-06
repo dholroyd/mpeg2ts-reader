@@ -30,6 +30,7 @@ impl AdaptationControl {
         }
     }
 
+    /// True if this AdaptationControl variant indicates that the packet will have a payload
     #[inline(always)]
     pub fn has_payload(self) -> bool {
         match self {
@@ -39,9 +40,15 @@ impl AdaptationControl {
     }
 }
 
+/// Indicates content scrambling in use, if any.
+///
+/// Actual content scrambling schemes, indicates through the `u8` value in the `Unefined` variant,
+/// are undefined in the main TS spec (left to be described by other specifications).
 #[derive(Eq, PartialEq, Debug)]
 pub enum TransportScramblingControl {
+    /// The stream is not scrambled.
     NotScrambled,
+    /// The stream is scrambled using a scheme not defined in the TS spec.
     Undefined(u8),
 }
 
@@ -109,18 +116,28 @@ impl ClockRef {
         ClockRef { base, extension }
     }
 
+    /// get the 33-bit, 90kHz 'base' component of the timestamp
     pub fn base(&self) -> u64 {
         self.base
     }
+
+    /// get the 9-bit 'extension' component of the timestamp, measured in 300ths of the 90kHz base
+    /// clockrate (i.e. 27MHz)
     pub fn extension(&self) -> u16 {
         self.extension
     }
 }
 
+/// Some error encountered while parsing adaptation field syntax
 #[derive(Debug, PartialEq)]
 pub enum AdaptationFieldError {
+    /// The an optional field's value was requested, but the field is not actually present
     FieldNotPresent,
+    /// There is a syntactic problem in the adaptation field being parsed, and not enough data
+    /// is present in the stream to hold the requested component which is supposed to be present.
     NotEnoughData,
+    /// The `seamless_splice()` function found a syntax error is the adaptation field data holding
+    /// the _seamless_splice_ field.
     SpliceTimestampError(pes::TimestampError),
 }
 
@@ -133,17 +150,25 @@ pub struct AdaptationField<'buf> {
 impl<'buf> AdaptationField<'buf> {
     // TODO: just eager-load all this stuff in new()?  would be simpler!
 
+    /// Create a new structure to parse the adaptation field data held within the given slice.
+    ///
+    /// Panics if the slice is empty.
     pub fn new(buf: &'buf [u8]) -> AdaptationField<'buf> {
         assert!(buf.len() > 0);
         AdaptationField { buf }
     }
 
+    /// Get the value of the _discontinuity_indicator_ field which might have been written into
+    /// the transport stream by some 'upstream' processor on discovering that there was a break
+    /// in the data.
     pub fn discontinuity_indicator(&self) -> bool {
         self.buf[0] & 0b1000_0000 != 0
     }
+    /// Get the value of the _random_access_indicator_ field.
     pub fn random_access_indicator(&self) -> bool {
         self.buf[0] & 0b0100_0000 != 0
     }
+    /// Get the value of the _elementary_stream_priority_indicator_ field.
     pub fn elementary_stream_priority_indicator(&self) -> u8 {
         (self.buf[0] & 0b10_0000) >> 5
     }
@@ -170,6 +195,8 @@ impl<'buf> AdaptationField<'buf> {
         }
     }
     const PCR_SIZE: usize = 6;
+    /// Get the _Program Clock Reference_ field,
+    /// or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn pcr(&self) -> Result<ClockRef, AdaptationFieldError> {
         if self.pcr_flag() {
             Ok(ClockRef::from_slice(self.slice(1, 1 + Self::PCR_SIZE)?))
@@ -184,7 +211,8 @@ impl<'buf> AdaptationField<'buf> {
             1
         }
     }
-    /// Returns the 'Original Program Clock Reference' value, is present.
+    /// Returns the 'Original Program Clock Reference' value,
+    /// or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn opcr(&self) -> Result<ClockRef, AdaptationFieldError> {
         if self.opcr_flag() {
             let off = self.opcr_offset();
@@ -196,6 +224,8 @@ impl<'buf> AdaptationField<'buf> {
     fn splice_countdown_offset(&self) -> usize {
         self.opcr_offset() + if self.opcr_flag() { Self::PCR_SIZE } else { 0 }
     }
+    /// Get the value of the _splice_countdown_ field,
+    /// or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn splice_countdown(&self) -> Result<u8, AdaptationFieldError> {
         if self.splicing_point_flag() {
             let off = self.splice_countdown_offset();
@@ -207,6 +237,8 @@ impl<'buf> AdaptationField<'buf> {
     fn transport_private_data_offset(&self) -> usize {
         self.splice_countdown_offset() + if self.splicing_point_flag() { 1 } else { 0 }
     }
+    /// Borrow a slice of the underlying buffer containing private data,
+    /// or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn transport_private_data(&self) -> Result<&[u8], AdaptationFieldError> {
         if self.transport_private_data_flag() {
             let off = self.transport_private_data_offset();
@@ -225,6 +257,8 @@ impl<'buf> AdaptationField<'buf> {
             0
         })
     }
+    /// TODO: unimplemented,
+    /// or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn adaptation_field_extension(
         &self,
     ) -> Result<AdaptationFieldExtension<'buf>, AdaptationFieldError> {
@@ -245,6 +279,8 @@ pub struct AdaptationFieldExtension<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> AdaptationFieldExtension<'buf> {
+    /// Create a new structure to parse the adaptation field extension data held within the given
+    /// slice.
     pub fn new(buf: &'buf [u8]) -> AdaptationFieldExtension<'buf> {
         AdaptationFieldExtension { buf }
     }
@@ -283,6 +319,8 @@ impl<'buf> AdaptationFieldExtension<'buf> {
     fn piecewise_rate_offset(&self) -> usize {
         1 + if self.ltw_flag() { 2 } else { 0 }
     }
+    /// Get the value of the _piecewise_rate_ field,
+    /// or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn piecewise_rate(&self) -> Result<u32, AdaptationFieldError> {
         if self.piecewise_rate_flag() {
             let off = self.piecewise_rate_offset();
@@ -295,6 +333,8 @@ impl<'buf> AdaptationFieldExtension<'buf> {
     fn seamless_splice_offset(&self) -> usize {
         self.piecewise_rate_offset() + if self.piecewise_rate_flag() { 3 } else { 0 }
     }
+    /// Get the value of the _seamless_splice_ field,
+    /// or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn seamless_splice(&self) -> Result<SeamlessSplice, AdaptationFieldError> {
         if self.seamless_splice_flag() {
             let off = self.seamless_splice_offset();
@@ -310,9 +350,14 @@ impl<'buf> AdaptationFieldExtension<'buf> {
     }
 }
 
+/// Value of the _seamless_splice_ field, as returned by
+/// [`AdaptationFieldExtension::seamless_splice()`](struct.AdaptationFieldExtension.html#method.seamless_splice)
+/// method
 #[derive(Debug, PartialEq)]
 pub struct SeamlessSplice {
+    /// see _ISO/IEC 13818-1 : 2000_, Table 2-7 through Table 2-16
     pub splice_type: u8,
+    /// The DTS of the access unit after the splice-point.
     pub dts_next_au: pes::Timestamp,
 }
 
@@ -445,6 +490,8 @@ impl<'buf> Packet<'buf> {
         Packet { buf }
     }
 
+    /// *May* have been set if some previous processing of this TS data detected at least
+    /// 1 uncorrectable bit error in this TS packet.
     pub fn transport_error_indicator(&self) -> bool {
         self.buf[1] & 0b1000_0000 != 0
     }
@@ -458,6 +505,8 @@ impl<'buf> Packet<'buf> {
         self.buf[1] & 0b0100_0000 != 0
     }
 
+    /// When `1`, this TS packet has higher priority than other packets of the the same PID having
+    /// PID `0`.
     pub fn transport_priority(&self) -> bool {
         self.buf[1] & 0b0010_0000 != 0
     }
@@ -469,6 +518,7 @@ impl<'buf> Packet<'buf> {
         Pid(u16::from(self.buf[1] & 0b0001_1111) << 8 | u16::from(self.buf[2]))
     }
 
+    /// Value of the _transport_scrambling_control_ field.
     pub fn transport_scrambling_control(&self) -> TransportScramblingControl {
         TransportScramblingControl::from(self.buf[3] >> 6 & 0b11)
     }
@@ -562,7 +612,7 @@ impl<'buf> Packet<'buf> {
         }
     }
 
-    // borrow a reference to the underlying buffer of this packet
+    /// borrow a reference to the underlying buffer of this packet
     pub fn buffer(&self) -> &'buf [u8] {
         self.buf
     }
