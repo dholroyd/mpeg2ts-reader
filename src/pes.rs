@@ -63,7 +63,7 @@ where
         }
     }
 
-    pub fn is_continuous(&self, packet: &packet::Packet<'_>) -> bool {
+    fn is_continuous(&self, packet: &packet::Packet<'_>) -> bool {
         if let Some(cc) = self.ccounter {
             // counter only increases if the packet has a payload,
             let result = if packet.adaptation_control().has_payload() {
