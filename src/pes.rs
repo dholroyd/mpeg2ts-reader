@@ -38,28 +38,29 @@ enum PesState {
     IgnoreRest,
 }
 
-/// Extracts elementary stream data from a series of transport stream packets which are passed
-/// one-by-one.
-///
-/// A `PesPacketConsumer` is registered with a
-/// [`Demultiplex`](../demultiplex/struct.Demultiplex.html) instance
-pub struct PesPacketConsumer<C>
+/// Implementation of [`demultiplex::PacketFilter`](../demultiplex/trait.PacketFilter.html) for
+/// packets that contain PES data.
+pub struct PesPacketFilter<Ctx, E>
 where
-    C: ElementaryStreamConsumer,
+    Ctx: demultiplex::DemuxContext,
+    E: ElementaryStreamConsumer,
 {
-    stream_consumer: C,
+    stream_consumer: E,
     ccounter: Option<packet::ContinuityCounter>,
     state: PesState,
+    phantom: marker::PhantomData<Ctx>,
 }
-impl<C> PesPacketConsumer<C>
+impl<Ctx, E> PesPacketFilter<Ctx, E>
 where
-    C: ElementaryStreamConsumer,
+    Ctx: demultiplex::DemuxContext,
+    E: ElementaryStreamConsumer,
 {
-    pub fn new(stream_consumer: C) -> PesPacketConsumer<C> {
-        PesPacketConsumer {
+    pub fn new(stream_consumer: E) -> PesPacketFilter<Ctx, E> {
+        PesPacketFilter {
             stream_consumer,
             ccounter: None,
             state: PesState::Begin,
+            phantom: marker::PhantomData,
         }
     }
 
@@ -79,9 +80,16 @@ where
             true
         }
     }
+}
+impl<Ctx, E> demultiplex::PacketFilter for PesPacketFilter<Ctx, E>
+where
+    Ctx: demultiplex::DemuxContext,
+    E: ElementaryStreamConsumer,
+{
+    type Ctx = Ctx;
 
     #[inline(always)]
-    pub fn consume(&mut self, packet: &packet::Packet<'_>) {
+    fn consume(&mut self, _ctx: &mut Self::Ctx, packet: &packet::Packet<'_>) {
         if !self.is_continuous(&packet) {
             self.stream_consumer.continuity_error();
             self.state = PesState::IgnoreRest;
@@ -115,41 +123,6 @@ where
                 PesState::IgnoreRest => (),
             }
         }
-    }
-}
-
-/// Implementation of [`demultiplex::PacketFilter`](../demultiplex/trait.PacketFilter.html) for
-/// packets that contain PES data.
-pub struct PesPacketFilter<Ctx, E>
-where
-    Ctx: demultiplex::DemuxContext,
-    E: ElementaryStreamConsumer,
-{
-    consumer: PesPacketConsumer<E>,
-    phantom: marker::PhantomData<Ctx>,
-}
-impl<Ctx, E> PesPacketFilter<Ctx, E>
-where
-    Ctx: demultiplex::DemuxContext,
-    E: ElementaryStreamConsumer,
-{
-    pub fn new(consumer: E) -> PesPacketFilter<Ctx, E> {
-        PesPacketFilter {
-            consumer: PesPacketConsumer::new(consumer),
-            phantom: marker::PhantomData,
-        }
-    }
-}
-impl<Ctx, E> demultiplex::PacketFilter for PesPacketFilter<Ctx, E>
-where
-    Ctx: demultiplex::DemuxContext,
-    E: ElementaryStreamConsumer,
-{
-    type Ctx = Ctx;
-
-    #[inline(always)]
-    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
-        self.consumer.consume(pk);
     }
 }
 
@@ -762,11 +735,28 @@ pub enum OriginalOrCopy {
 #[cfg(test)]
 mod test {
     use bitstream_io::{BitWriter, BE};
+    use crate::demultiplex;
+    use crate::demultiplex::PacketFilter;
     use crate::packet;
     use crate::pes;
     use data_encoding::base16;
     use std;
     use std::io;
+
+    packet_filter_switch!{
+        NullFilterSwitch<NullDemuxContext> {
+            Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
+        }
+    }
+    demux_context!(NullDemuxContext, NullStreamConstructor);
+    pub struct NullStreamConstructor;
+    impl demultiplex::StreamConstructor for NullStreamConstructor {
+        type F = NullFilterSwitch;
+
+        fn construct(&mut self, _: demultiplex::FilterRequest<'_, '_>) -> Self::F {
+            NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
+        }
+    }
 
     fn make_test_data<F>(builder: F) -> Vec<u8>
     where
@@ -1072,10 +1062,11 @@ mod test {
     fn pes_packet_consumer() {
         let state = std::rc::Rc::new(std::cell::RefCell::new(MockState::new()));
         let mock = MockElementaryStreamConsumer::new(state.clone());
-        let mut pes_consumer = pes::PesPacketConsumer::new(mock);
+        let mut pes_filter = pes::PesPacketFilter::new(mock);
         let buf = base16::decode(b"4741F510000001E0000084C00A355DDD11B1155DDBF5910000000109100000000167640029AD843FFFC21FFFE10FFFF087FFF843FFFC21FFFE10FFFFFFFFFFFFFFFF087FFFFFFFFFFFFFFF2CC501E0113F780A1010101F00000303E80000C350940000000168FF3CB0000001060001C006018401103A0408D2BA80000050204E95D400000302040AB500314454473141FEFF53040000C815540DF04F77FFFFFFFFFFFFFFFFFFFF80000000016588800005DB001008673FC365F48EAE").unwrap();
         let pk = packet::Packet::new(&buf[..]);
-        pes_consumer.consume(&pk);
+        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        pes_filter.consume(&mut ctx, &pk);
         {
             let state = state.borrow();
             assert!(state.start_stream_called);
@@ -1085,7 +1076,7 @@ mod test {
         // processing the same packet again (therefore with the same continuity_counter value),
         // should cause a continuity error to be flagged,
         let pk = packet::Packet::new(&buf[..]);
-        pes_consumer.consume(&pk);
+        pes_filter.consume(&mut ctx, &pk);
         {
             let state = state.borrow();
             assert!(state.continuity_error_called);
