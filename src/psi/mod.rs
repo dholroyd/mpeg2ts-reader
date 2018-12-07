@@ -152,6 +152,8 @@ impl<P> CrcCheckWholeSectionSyntaxPayloadParser<P>
 where
     P: WholeSectionSyntaxPayloadParser,
 {
+    const CRC_SIZE: usize = 4;
+
     /// create a new CrcCheckWholeSectionSyntaxPayloadParser which wraps and delegates to the given
     /// `WholeSectionSyntaxPayloadParser` instance
     pub fn new(inner: P) -> CrcCheckWholeSectionSyntaxPayloadParser<P> {
@@ -173,7 +175,7 @@ where
         data: &'a [u8],
     ) {
         assert!(header.section_syntax_indicator);
-        if data.len() < 4 {
+        if data.len() < SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE + Self::CRC_SIZE {
             // must be big enough to hold the CRC!
             warn!(
                 "section data length too small for table_id {}: {}",
