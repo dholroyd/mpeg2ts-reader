@@ -88,7 +88,12 @@ pub enum StreamType {
     SynchronizedDownloadProtocolMetadata,
     Ipmp,
     H264,
-    // 0x1c-0x23 reserved
+    /// ISO/IEC 14496-3 Audio, without using any additional transport syntax, such as DST, ALS and SLS
+    AudioWithoutTransportSyntax,
+    /// ISO/IEC 14496-17 Text
+    Iso1449617text,
+    // 0x1e-0x23 reserved
+    /// ITU-T Rec. H.265 and ISO/IEC 23008-2
     H265,
     // 0x26-0x41 reserved
     ChineseVideoStandard,
@@ -133,6 +138,8 @@ impl From<u8> for StreamType {
             0x19 => StreamType::SynchronizedDownloadProtocolMetadata,
             0x1a => StreamType::Ipmp,
             0x1b => StreamType::H264,
+            0x1c => StreamType::AudioWithoutTransportSyntax,
+            0x1d => StreamType::Iso1449617text,
             0x24 => StreamType::H265,
             0x42 => StreamType::ChineseVideoStandard,
             0x81 => StreamType::AtscDolbyDigitalAudio,
@@ -179,6 +186,8 @@ impl From<StreamType> for u8 {
             StreamType::SynchronizedDownloadProtocolMetadata => 0x19,
             StreamType::Ipmp => 0x1a,
             StreamType::H264 => 0x1b,
+            StreamType::AudioWithoutTransportSyntax => 0x1c,
+            StreamType::Iso1449617text => 0x1d,
             StreamType::H265 => 0x24,
             StreamType::ChineseVideoStandard => 0x42,
             StreamType::AtscDolbyDigitalAudio => 0x81,
