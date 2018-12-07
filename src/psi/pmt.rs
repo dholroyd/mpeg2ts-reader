@@ -170,7 +170,7 @@ impl<'buf> fmt::Debug for StreamInfo<'buf> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("StreamInfo")
             .field("stream_type", &self.stream_type())
-            .field("elementry_pid", &self.elementary_pid())
+            .field("elementary_pid", &self.elementary_pid())
             .field("descriptors", &StreamInfoDescriptorsDebug(self))
             .finish()
     }
