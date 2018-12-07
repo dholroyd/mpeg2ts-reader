@@ -143,6 +143,8 @@ pub enum AdaptationFieldError {
 
 /// A collection of fields that may optionally appear within the header of a transport stream
 /// `Packet`.
+///
+/// As returned by [`Packet::adaptation_field()`](struct.Packet.html#method.adaptation_field)
 pub struct AdaptationField<'buf> {
     buf: &'buf [u8],
 }
@@ -257,8 +259,7 @@ impl<'buf> AdaptationField<'buf> {
             0
         })
     }
-    /// TODO: unimplemented,
-    /// or `AdaptationFieldError::FieldNotPresent` if absent
+    /// Returns extended adaptation fields, or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn adaptation_field_extension(
         &self,
     ) -> Result<AdaptationFieldExtension<'buf>, AdaptationFieldError> {
@@ -275,6 +276,9 @@ impl<'buf> AdaptationField<'buf> {
 }
 
 /// Optional extensions within an [`AdaptationField`](struct.AdaptationField.html).
+///
+/// As returned by
+/// [`AdaptationField::adaptation_field_extension()`](struct.AdaptationField.html#method.adaptation_field_extension).
 pub struct AdaptationFieldExtension<'buf> {
     buf: &'buf [u8],
 }
@@ -483,6 +487,9 @@ impl<'buf> Packet<'buf> {
     /// Panics if the given buffer is less than 188 bytes, or if the initial sync-byte does not
     /// have the correct value (`0x47`).  Calling code is expected to have already checked those
     /// conditions.
+    ///
+    /// Panics if the buffer size is not exactly `Packet::SIZE` (188) bytes, or if the first
+    /// byte value is not equal to `Packet::SYNC_BYTE` (0x47).
     #[inline(always)]
     pub fn new(buf: &'buf [u8]) -> Packet<'buf> {
         assert_eq!(buf.len(), Self::SIZE);

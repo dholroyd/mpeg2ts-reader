@@ -294,6 +294,7 @@ pub enum PesContents<'buf> {
 /// Returned by
 /// [PesParsedContents::dsm_trick_mode()](struct.PesParsedContents.html#method.dsm_trick_mode).
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub enum DsmTrickMode {
     FastForward {
         field_id: u8,
@@ -324,9 +325,13 @@ pub enum DsmTrickMode {
 /// specified within [`DsmTrickMode`](enum.DsmTrickMode.html).
 #[derive(Debug)]
 pub enum FrequencyTruncationCoefficientSelection {
+    /// Only DC coefficients are non-zero
     DCNonZero,
+    /// Only the first three coefficients are non-zero
     FirstThreeNonZero,
+    /// Only the first six coefficients are non-zero
     FirstSixNonZero,
+    /// All coefficients may be non-zero
     AllMaybeNonZero,
 }
 impl FrequencyTruncationCoefficientSelection {
@@ -346,10 +351,12 @@ impl FrequencyTruncationCoefficientSelection {
 pub struct EsRate(u32);
 impl EsRate {
     const RATE_BYTES_PER_SECOND: u32 = 50;
+    /// panics if the given value is greater than _2^22 -1_.
     pub fn new(es_rate: u32) -> EsRate {
         assert!(es_rate < 1 << 22);
         EsRate(es_rate)
     }
+    /// return the _es_rate_ value converted into a bytes-per-second quantity.
     pub fn bytes_per_second(&self) -> u32 {
         self.0 * Self::RATE_BYTES_PER_SECOND
     }
@@ -372,6 +379,13 @@ pub struct PesParsedContents<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> PesParsedContents<'buf> {
+    /// Wrap the given slice in a `ParsedPesContents` whose methods can parse the structure's
+    /// fields
+    ///
+    /// Returns `None` if the buffer is too short to hold the expected structure, or if the
+    /// 'check bit' values within the buffer do not have the expected values.
+    ///
+    /// TODO: return `Result`
     pub fn from_bytes(buf: &'buf [u8]) -> Option<PesParsedContents<'buf>> {
         if buf.len() < 3 {
             warn!(
@@ -395,6 +409,9 @@ impl<'buf> PesParsedContents<'buf> {
     pub fn pes_priority(&self) -> u8 {
         self.buf[0] >> 3 & 1
     }
+    /// if the returned value is `DataAlignment::Aligned`, then video or audio access units within
+    /// this PES data are aligned to the start of PES packets.  If the value is
+    /// `DataAlignment::NotAligned`, then alignment of access units is not defined.
     pub fn data_alignment_indicator(&self) -> DataAlignment {
         if self.buf[0] & 0b100 != 0 {
             DataAlignment::Aligned
@@ -402,6 +419,7 @@ impl<'buf> PesParsedContents<'buf> {
             DataAlignment::NotAligned
         }
     }
+    /// Indicates copyright status of the material in this PES data.
     pub fn copyright(&self) -> Copyright {
         if self.buf[0] & 0b10 != 0 {
             Copyright::Undefined
@@ -409,6 +427,7 @@ impl<'buf> PesParsedContents<'buf> {
             Copyright::Protected
         }
     }
+    /// Indicates the originality of the data in this PES stream.
     pub fn original_or_copy(&self) -> OriginalOrCopy {
         if self.buf[0] & 0b1 != 0 {
             OriginalOrCopy::Original
@@ -469,6 +488,12 @@ impl<'buf> PesParsedContents<'buf> {
             v => panic!("unexpected value {}", v),
         }
     }
+    /// Returns the timestamps present in this PES header.
+    ///
+    /// If no timestamp fields are present, then `Err(PesError::FieldNotPresent)` is produced.
+    ///
+    /// If the value of the _pts_dts_flags_ field in the header is invalid then
+    /// `Err(PesError::PtsDtsFlagsInvalid)` is produced.
     pub fn pts_dts(&self) -> Result<PtsDts, PesError> {
         match self.pts_dts_flags() {
             0b00 => Err(PesError::FieldNotPresent),
@@ -487,6 +512,10 @@ impl<'buf> PesParsedContents<'buf> {
     }
     const ESCR_SIZE: usize = 6;
 
+    /// Returns the 'Elementary Stream Clock Reference' value.
+    ///
+    /// If the field is not present in the header, then `Err(PesError::FieldNotPresent)` is
+    /// produced.
     pub fn escr(&self) -> Result<ClockRef, PesError> {
         if self.escr_flag() {
             self.header_slice(self.pts_dts_end(), self.pts_dts_end() + Self::ESCR_SIZE)
@@ -510,6 +539,11 @@ impl<'buf> PesParsedContents<'buf> {
         self.pts_dts_end() + if self.escr_flag() { Self::ESCR_SIZE } else { 0 }
     }
     const ES_RATE_SIZE: usize = 3;
+
+    /// Returns the 'Elementary Stream Rate' value.
+    ///
+    /// If the field is not present in the header, then `Err(PesError::FieldNotPresent)` is
+    /// produced.
     pub fn es_rate(&self) -> Result<EsRate, PesError> {
         if self.esrate_flag() {
             self.header_slice(self.escr_end(), self.escr_end() + Self::ES_RATE_SIZE)
@@ -532,6 +566,10 @@ impl<'buf> PesParsedContents<'buf> {
         }
     }
     const DSM_TRICK_MODE_SIZE: usize = 1;
+    /// Returns information about the 'Digital Storage Media trick mode'
+    ///
+    /// If the field is not present in the header, then `Err(PesError::FieldNotPresent)` is
+    /// produced.
     pub fn dsm_trick_mode(&self) -> Result<DsmTrickMode, PesError> {
         if self.dsm_trick_mode_flag() {
             self.header_slice(
@@ -582,6 +620,10 @@ impl<'buf> PesParsedContents<'buf> {
         }
     }
     const ADDITIONAL_COPY_INFO_SIZE: usize = 1;
+    /// Returns a 7-bit value containing private data relating to copyright information
+    ///
+    /// If the field is not present in the header, then `Err(PesError::FieldNotPresent)` is
+    /// produced.
     pub fn additional_copy_info(&self) -> Result<u8, PesError> {
         if self.additional_copy_info_flag() {
             self.header_slice(
@@ -606,6 +648,13 @@ impl<'buf> PesParsedContents<'buf> {
         }
     }
     const PREVIOUS_PES_PACKET_CRC_SIZE: usize = 2;
+    /// returns a 16-bit _Cyclic Redundancy Check_ value for the PES packet data bytes that
+    /// precededed this one
+    ///
+    /// This crate does not perform any CRC-checks based on this value being present.
+    ///
+    /// If the field is not present in the header, then `Err(PesError::FieldNotPresent)` is
+    /// produced.
     pub fn previous_pes_packet_crc(&self) -> Result<u16, PesError> {
         if self.pes_crc_flag() {
             self.header_slice(
@@ -623,6 +672,7 @@ impl<'buf> PesParsedContents<'buf> {
             0
         }
     }
+    /// Returns the PES extension structure if present, or `Err(PesError::FieldNotPresent)` if not.
     pub fn pes_extension(&self) -> Result<PesExtension<'buf>, PesError> {
         if self.pes_extension_flag() {
             self.header_slice(
@@ -633,6 +683,16 @@ impl<'buf> PesParsedContents<'buf> {
             Err(PesError::FieldNotPresent)
         }
     }
+
+    // TODO: consider dropping payload() data access from header; uniformly providing payload
+    //       data through ElementaryStreamConsumer::continue_packet() callbacks or similar
+
+    /// Provides the portion of the PES payload that was in the same TS packet as the PES header
+    ///
+    /// **NB** the full PES payload is likely to be split across multiple TS packets, and
+    /// implementors of `ElementaryStreamConsumer` must be prepared to accept the PES payload data
+    /// split between the header and multiple subsequent calls to
+    /// `ElementaryStreamConsumer::continue_packet()`
     pub fn payload(&self) -> &'buf [u8] {
         &self.buf[Self::FIXED_HEADER_SIZE + self.pes_header_data_len()..]
     }
@@ -672,21 +732,39 @@ impl<'buf> fmt::Debug for PesParsedContents<'buf> {
 /// value being parsed.
 #[derive(PartialEq, Debug)]
 pub enum TimestampError {
-    IncorrectPrefixBits { expected: u8, actual: u8 },
-    MarkerBitNotSet { bit_number: u8 },
+    /// Parsing the timestamp failed because the 'prefix-bit' values within the timestamp did not
+    /// have the expected values
+    IncorrectPrefixBits {
+        /// expected prefix-bits for this timestamp
+        expected: u8,
+        /// the actual, incorrect bits that were present
+        actual: u8,
+    },
+    /// Parsing the timestamp failed because a 'marker-bit' value within the timestamp did not
+    /// have the expected value
+    MarkerBitNotSet {
+        /// the bit-index of the bit which should have been 1, but was found to be 0
+        bit_number: u8,
+    },
 }
 
 /// A 33-bit Elementary Stream timestamp, used to represent PTS and DTS values which may appear in
-/// an Elementy Stream header.
+/// an Elementary Stream header.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Timestamp {
     val: u64,
 }
 impl Timestamp {
+    /// Parse a Presentation Time Stamp value from the 5 bytes at the start of the given slice
+    ///
+    /// Panics if fewer than 5 bytes given
     pub fn from_pts_bytes(buf: &[u8]) -> Result<Timestamp, TimestampError> {
         Timestamp::check_prefix(buf, 0b0010)?;
         Timestamp::from_bytes(buf)
     }
+    /// Parse a Decode Time Stamp value from the 5 bytes at the start of the given slice
+    ///
+    /// Panics if fewer than 5 bytes given
     pub fn from_dts_bytes(buf: &[u8]) -> Result<Timestamp, TimestampError> {
         Timestamp::check_prefix(buf, 0b0001)?;
         Timestamp::from_bytes(buf)
@@ -710,6 +788,11 @@ impl Timestamp {
             Err(TimestampError::MarkerBitNotSet { bit_number })
         }
     }
+    /// Parse a Time Stamp value from the 5 bytes at the start of the given slice, without checking
+    /// the 4-bit prefix for any particular value (the `from_pts_bytes()` and `from_dts_bytes()`
+    /// methods, in contrast, do check that the expected prefix bits are present).
+    ///
+    /// Panics if fewer than 5 bytes given
     pub fn from_bytes(buf: &[u8]) -> Result<Timestamp, TimestampError> {
         Timestamp::check_marker_bit(buf, 7)?;
         Timestamp::check_marker_bit(buf, 23)?;
@@ -727,6 +810,7 @@ impl Timestamp {
         assert!(val < 1 << 34);
         Timestamp { val }
     }
+    /// produces the timestamp's value (only the low 33 bits are used)
     pub fn value(self) -> u64 {
         self.val
     }
@@ -738,11 +822,17 @@ impl Timestamp {
 /// means that it can't be decoded.
 #[derive(PartialEq, Debug)]
 pub enum PtsDts {
+    /// There are no timestamps present
     None,
+    /// Only Presentation Time Stamp is present
     PtsOnly(Result<Timestamp, TimestampError>),
+    /// the _pts_dts_flags_ field contained an invalid value
     Invalid,
+    /// Both Presentation and Decode Time Stamps are present
     Both {
+        /// Presentation Time Stamp
         pts: Result<Timestamp, TimestampError>,
+        /// Decode Time Stamp
         dts: Result<Timestamp, TimestampError>,
     },
 }
@@ -754,7 +844,9 @@ pub enum PtsDts {
 /// [`PesParsedContents.data_alignment_indicator()`](struct.PesParsedContents.html#method.data_alignment_indicator)
 #[derive(PartialEq, Debug)]
 pub enum DataAlignment {
+    /// Access Units are aligned to the start of the PES packet payload
     Aligned,
+    /// Access Units are might not be aligned to the start of the PES packet payload
     NotAligned,
 }
 /// Indicates the copyright status of the contents of the Elementary Stream packet.
@@ -762,7 +854,9 @@ pub enum DataAlignment {
 /// Returned by [`PesParsedContents.copyright()`](struct.PesParsedContents.html#method.copyright)
 #[derive(PartialEq, Debug)]
 pub enum Copyright {
+    /// Content of this Elementry Stream is protected by copyright
     Protected,
+    /// Copyright protection of the content of this Elementary Stream is not defined
     Undefined,
 }
 /// Indicates weather the contents of the Elementary Stream packet are original or a copy.
@@ -771,7 +865,9 @@ pub enum Copyright {
 /// [`PesParsedContents.original_or_copy()`](struct.PesParsedContents.html#method.original_or_copy)
 #[derive(PartialEq, Debug)]
 pub enum OriginalOrCopy {
+    /// The Elementary Stream is original content
     Original,
+    /// The Elementary Stream is a copy
     Copy,
 }
 

@@ -14,7 +14,6 @@
 //! # Core types
 //!
 //! * [`SectionPacketConsumer`](struct.SectionPacketConsumer.html) converts *Packets* into *Sections*
-//! * [`TableSectionConsumer`](struct.TableSectionConsumer.html) converts *Sections* into *Tables*
 //!
 //! Note that the specific types of table such as Program Association Table are defined elsewhere
 //! with only the generic functionality in this module.
@@ -34,7 +33,14 @@ use crate::packet;
 ///    can be used.
 ///  - This trait should be implemented directly for PSI tables that use 'compact' syntax (i.e.
 ///    they lack the 5-bytes-worth of fields represented by [`TableSyntaxHeader`](struct.TableSyntaxHeader.html))
+///
+/// Implementations of this trait will need to use the `section_length` method of the `header`
+/// param passed to `start_section()` to determine when the complete section has been supplied
+/// (if the complete header is not supplied in the call to `start_section()` more data may be
+/// supplied in one or more subsequent calls to `continue_section()`.
 pub trait SectionProcessor {
+    /// The type of the context object that the caller will pass through to the methods of this
+    /// trait
     type Context;
 
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
@@ -46,13 +52,21 @@ pub trait SectionProcessor {
         header: &SectionCommonHeader,
         section_data: &'a [u8],
     );
+    /// may be called to pass the implementation additional slices of section data, if the
+    /// complete section was not already passed.
     fn continue_section<'a>(&mut self, ctx: &mut Self::Context, section_data: &'a [u8]);
+
+    /// called if there is a problem in the transport stream that means any in-progress section
+    /// data should be discarded.
     fn reset(&mut self);
 }
 
+/// Represents the value of the Transport Stream `current_next_indicator` field.
 #[derive(Debug, PartialEq)]
 pub enum CurrentNext {
+    /// The section version number applies to the currently applicable section data
     Current,
+    /// The section version number applies to the next applicable section data
     Next,
 }
 
@@ -77,8 +91,13 @@ pub struct TableSyntaxHeader<'buf> {
 }
 
 impl<'buf> TableSyntaxHeader<'buf> {
+    /// The size of the header; 5 bytes
     pub const SIZE: usize = 5;
 
+    /// Constructs a new TableSyntaxHeader, wrapping the given slice, which will all parsing of
+    /// the header's fields.
+    ///
+    /// Panics if the given slice is less than `TableSyntaxHeader::SIZE` bytes long.
     pub fn new(buf: &'buf [u8]) -> TableSyntaxHeader<'buf> {
         assert!(buf.len() >= Self::SIZE);
         TableSyntaxHeader { buf }
@@ -120,6 +139,9 @@ impl<'buf> TableSyntaxHeader<'buf> {
     }
 }
 
+/// An implementation of `WholeSectionSyntaxPayloadParser` which will delegate to another
+/// instance of `WholeSectionSyntaxPayloadParser` only if the CRC of the section data is
+/// correct.
 pub struct CrcCheckWholeSectionSyntaxPayloadParser<P>
 where
     P: WholeSectionSyntaxPayloadParser,
@@ -130,6 +152,8 @@ impl<P> CrcCheckWholeSectionSyntaxPayloadParser<P>
 where
     P: WholeSectionSyntaxPayloadParser,
 {
+    /// create a new CrcCheckWholeSectionSyntaxPayloadParser which wraps and delegates to the given
+    /// `WholeSectionSyntaxPayloadParser` instance
     pub fn new(inner: P) -> CrcCheckWholeSectionSyntaxPayloadParser<P> {
         CrcCheckWholeSectionSyntaxPayloadParser { inner }
     }
@@ -168,9 +192,14 @@ where
     }
 }
 
+/// Trait for types that parse fully reconstructed PSI table sections (which requires the caller
+/// to have buffered section data if it spanned multiple TS packets.
 pub trait WholeSectionSyntaxPayloadParser {
+    /// Type of the context object that will be passed to all methods.
     type Context;
 
+    /// Method that will receive a complete PSI table section, where the `data` parameter will
+    /// be `header.section_length` bytes long
     fn section<'a>(
         &mut self,
         _: &mut Self::Context,
@@ -185,7 +214,7 @@ enum BufferSectionState {
     Complete,
 }
 
-/// Implements `BufferSectionSyntaxParser` so that any sections that cross TS-packet boundaries
+/// Implements `SectionSyntaxPayloadParser` so that any sections that cross TS-packet boundaries
 /// are collected into a single byte-buffer for easier parsing.  In the common case that the
 /// section fits entirely in a single TS packet, the implementation is zero-copy.
 pub struct BufferSectionSyntaxParser<P>
@@ -200,6 +229,8 @@ impl<P> BufferSectionSyntaxParser<P>
 where
     P: WholeSectionSyntaxPayloadParser,
 {
+    /// wraps the given `WholeSectionSyntaxPayloadParser` instance in a new
+    /// `BufferSectionSyntaxParser`.
     pub fn new(parser: P) -> BufferSectionSyntaxParser<P> {
         BufferSectionSyntaxParser {
             buf: vec![],
@@ -290,6 +321,8 @@ impl<SSPP> DedupSectionSyntaxPayloadParser<SSPP>
 where
     SSPP: SectionSyntaxPayloadParser,
 {
+    /// Wraps the given `SectionSyntaxPayloadParser` in a new `DedupSectionSyntaxPayloadParser`
+    /// instance.
     pub fn new(inner: SSPP) -> DedupSectionSyntaxPayloadParser<SSPP> {
         DedupSectionSyntaxPayloadParser {
             inner,
@@ -337,6 +370,7 @@ where
 
 /// Trait for types that will handle MPEGTS PSI table sections with 'section syntax'.
 pub trait SectionSyntaxPayloadParser {
+    /// The type of the context object passed to all methods
     type Context;
 
     /// NB the `data` buffer passed to _will_ include the bytes which are represented by `header`
@@ -350,11 +384,20 @@ pub trait SectionSyntaxPayloadParser {
         data: &'a [u8],
     );
 
+    /// may be called to pass the implementation additional slices of section data, if the
+    /// complete section was not already passed.
     fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]);
 
+    /// called if there is a problem in the transport stream that means any in-progress section
+    /// data should be discarded.
     fn reset(&mut self);
 }
 
+/// An implementation of `SectionProcessor` to be used for sections that implement 'section syntax'
+/// (rather than 'compact syntax').
+///
+/// Parses the `TableSyntaxHeader` at the front of the section data, and then delegates handling
+/// to the `SectionSyntaxPayloadParser` instance given at construction time.
 pub struct SectionSyntaxSectionProcessor<SP>
 where
     SP: SectionSyntaxPayloadParser,
@@ -368,6 +411,8 @@ where
 {
     const SECTION_LIMIT: usize = 1021;
 
+    /// Wraps the given `SectionSyntaxPayloadParser` instance in a new
+    /// `SectionSyntaxSectionProcessor`.
     pub fn new(payload_parser: SP) -> SectionSyntaxSectionProcessor<SP> {
         SectionSyntaxSectionProcessor {
             payload_parser,
@@ -424,16 +469,29 @@ where
     }
 }
 
+/// Header common to all PSI sections, whether they then use 'section syntax' or 'compact syntax'.
 #[derive(Debug)]
 pub struct SectionCommonHeader {
+    /// The type of table of which this is a section
     pub table_id: u8,
+    /// `true` for 'section syntax`, `false` for 'compact syntax'.
     pub section_syntax_indicator: bool,
+    /// indicates that the data in the table is for private use not defined in _ISO/IEC 13818-1_
+    /// (section types implemented in this crate are to be used with data that has `e` in
+    /// this field, but other crates might be written to support private table sections).
     pub private_indicator: bool,
+    /// the number of bytes in the section data immediately following this field (which may be
+    /// more bytes than will fit into a single TS packet).
     pub section_length: usize,
 }
 
 impl SectionCommonHeader {
+    /// The fixed size of the CommonSectionHeader data in the Transport Stream; 3 bytes.
     pub const SIZE: usize = 3;
+
+    /// Parses the data in the given slice into a new `SectionCommonHeader`.
+    ///
+    /// Panics if the slice is not exactly 3 bytes long.
     pub fn new(buf: &[u8]) -> SectionCommonHeader {
         assert_eq!(buf.len(), Self::SIZE);
         SectionCommonHeader {
@@ -445,9 +503,8 @@ impl SectionCommonHeader {
     }
 }
 
-/// A `PacketConsumer` for buffering Program Specific Information, which may be split across
-/// multiple TS packets, and passing a complete PSI table to the given `SectionProcessor` when a
-/// complete, valid section has been received.
+/// A type for locating the headers of PSI sections, which may be split across multiple TS packets,
+/// and passing each piece to the given `SectionProcessor` as it is discovered.
 pub struct SectionPacketConsumer<P>
 where
     P: SectionProcessor,
@@ -455,14 +512,20 @@ where
     parser: P,
 }
 
+// TODO: maybe just implement PacketFilter directly
+
 impl<P, Ctx> SectionPacketConsumer<P>
 where
     P: SectionProcessor<Context = Ctx>,
 {
+    /// Construct a new instance that will delegate processing of section data found in TS packet
+    /// payloads to the given `SectionProcessor` instance.
     pub fn new(parser: P) -> SectionPacketConsumer<P> {
         SectionPacketConsumer { parser }
     }
 
+    /// process the payload of the given TS packet, passing each piece of section data discovered
+    /// to the `SectionProcessor` instance given at time of construction.
     pub fn consume(&mut self, ctx: &mut Ctx, pk: &packet::Packet<'_>) {
         match pk.payload() {
             Some(pk_buf) => {

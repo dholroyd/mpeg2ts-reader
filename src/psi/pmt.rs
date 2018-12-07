@@ -35,6 +35,8 @@ impl<'buf> fmt::Debug for DescriptorsDebug<'buf> {
 }
 
 impl<'buf> PmtSection<'buf> {
+    /// Create a `PmtSection`, wrapping the given slice, whose methods can parse the section's
+    /// fields
     pub fn from_bytes(data: &'buf [u8]) -> Result<PmtSection<'buf>, DemuxError> {
         if data.len() < Self::HEADER_SIZE {
             Err(DemuxError::NotEnoughData {
@@ -49,12 +51,14 @@ impl<'buf> PmtSection<'buf> {
 
     const HEADER_SIZE: usize = 4;
 
+    /// Returns the Pid of packets that will contain the Program Clock Reference for this program
     pub fn pcr_pid(&self) -> packet::Pid {
         packet::Pid::new(u16::from(self.data[0] & 0b0001_1111) << 8 | u16::from(self.data[1]))
     }
     fn program_info_length(&self) -> u16 {
         u16::from(self.data[2] & 0b0000_1111) << 8 | u16::from(self.data[3])
     }
+    /// Returns an iterator over the descriptors attached to this PMT section.
     pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(
         &self,
     ) -> impl Iterator<Item = Result<Desc, descriptor::DescriptorError>> + 'buf {
@@ -62,6 +66,7 @@ impl<'buf> PmtSection<'buf> {
         let descriptor_data = &self.data[Self::HEADER_SIZE..descriptor_end];
         descriptor::DescriptorIter::new(descriptor_data)
     }
+    /// Returns an iterator over the streams of which this program is composed
     pub fn streams(&self) -> impl Iterator<Item = StreamInfo<'buf>> {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
         if descriptor_end > self.data.len() {
@@ -138,9 +143,11 @@ impl<'buf> StreamInfo<'buf> {
         Some((result, descriptor_end))
     }
 
+    /// The type of this stream
     pub fn stream_type(&self) -> StreamType {
         self.data[0].into()
     }
+    /// The Pid that will be used for TS packets containing the data of this stream
     pub fn elementary_pid(&self) -> packet::Pid {
         packet::Pid::new(u16::from(self.data[1] & 0b0001_1111) << 8 | u16::from(self.data[2]))
     }
@@ -148,6 +155,7 @@ impl<'buf> StreamInfo<'buf> {
         u16::from(self.data[3] & 0b0000_1111) << 8 | u16::from(self.data[4])
     }
 
+    /// Returns an iterator over the descriptors attached to this stream
     pub fn descriptors<Desc: descriptor::Descriptor<'buf> + 'buf>(
         &self,
     ) -> impl Iterator<Item = Result<Desc, descriptor::DescriptorError>> + 'buf {

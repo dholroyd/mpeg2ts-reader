@@ -2,13 +2,22 @@
 
 use crate::packet;
 
+/// Identifiers related to a specific program within the Transport Stream
 #[derive(Clone, Debug)]
 pub enum ProgramDescriptor {
+    // TODO: consider renaming 'ProgramAssociationEntry', so as not to cause confusion with types
+    //       actually implementing the Descriptor trait (which this type should not do)
+    /// this PAT section entry describes where the Network Information Table will be found
     Network {
+        /// The PID of NIT section packets
         pid: packet::Pid,
     },
+    /// this PAT section entry gives the PID and Program Number of a program within this Transport
+    /// Stream
     Program {
+        /// The program number might represent the 'channel' of the program
         program_number: u16,
+        /// The PID where PMT sections for this program can be found
         pid: packet::Pid,
     },
 }
@@ -28,6 +37,8 @@ impl ProgramDescriptor {
         }
     }
 
+    /// produces the Pid of either the NIT or PMT, depending on which type of `ProgramDescriptor`
+    /// this is
     pub fn pid(&self) -> packet::Pid {
         match *self {
             ProgramDescriptor::Network { pid } => pid,
@@ -44,9 +55,12 @@ pub struct PatSection<'buf> {
     data: &'buf [u8],
 }
 impl<'buf> PatSection<'buf> {
+    /// Create a `PatSection`, wrapping the given slice, whose methods can parse the section's
+    /// fields
     pub fn new(data: &'buf [u8]) -> PatSection<'buf> {
         PatSection { data }
     }
+    /// Returns an iterator over the entries in this program association table section.
     pub fn programs(&self) -> impl Iterator<Item = ProgramDescriptor> + 'buf {
         ProgramIter {
             buf: &self.data[..],

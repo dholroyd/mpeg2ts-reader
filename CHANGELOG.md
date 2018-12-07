@@ -5,6 +5,7 @@
  - Avoid panics due to 0-length `adaptation_field`
 
 ### Changed
+ - All public API members now have at least minimal documentation
  - Removed the `demultiplex::UnhandledPid` type to try and simplify the API slightly.
  - Removed `PesPacketConsumer`.  The types `PesPacketFilter` and `PesPacketConsumer` seem in hindsight to be redundant (the first just being a thin
    wrapper for the second).  `PesPacketFilter` now implements the complete functionality.

@@ -58,35 +58,66 @@ mod mpegts_crc;
 pub mod pes;
 pub mod psi;
 
+/// The types of Elementary Stream specified in _ISO/IEC 13818-1_.
+///
+/// As returned by
+/// [`StreamInfo::stream_type()`](psi/pmt/struct.StreamInfo.html#method.stream_type).
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum StreamType {
     // 0x00 reserved
+    /// ISO/IEC 11172 Video
     Iso11172Video,
+    /// ITU-T Rec. H.262 | ISO/IEC 13818-2 Video or ISO/IEC 11172-2 constrained parameter video stream
     H262,
+    /// ISO/IEC 11172 Audio
     Iso11172Audio,
+    /// ISO/IEC 13818-3 Audio
     Iso138183Audio,
+    /// ITU-T Rec. H.222.0 | ISO/IEC 13818-1 private_sections
     H2220PrivateSections,
+    /// ITU-T Rec. H.222.0 | ISO/IEC 13818-1 PES packets containing private data
     H2220PesPrivateData,
+    /// ISO/IEC 13522 MHEG
     Mheg,
+    /// ITU-T Rec. H.222.0 | ISO/IEC 13818-1 Annex A DSM-CC
     H2220DsmCc,
+    /// ITU-T Rec. H.222.1
     H2221,
+    /// ISO/IEC 13818-6 DSM CC multiprotocol encapsulation
     Iso138186MultiprotocolEncapsulation,
+    /// ISO/IEC 13818-6 DSM CC U-N messages
     DsmccUnMessages,
+    /// ISO/IEC 13818-6 DSM CC stream descriptors
     DsmccStreamDescriptors,
+    /// ISO/IEC 13818-6 DSM CC tabled data
     DsmccSections,
+    /// ITU-T Rec. H.222.0 | ISO/IEC 13818-1 auxiliary
     H2220Auxiliary,
+    /// ISO/IEC 13818-7 Audio with ADTS transport syntax
     Adts,
+    /// ISO/IEC 14496-2 Visual
     Iso144962Visual,
+    /// ISO/IEC 14496-3 Audio with the LATM transport syntax as defined in ISO/IEC 14496-3 / AMD 1
     Latm,
+    /// ISO/IEC 14496-1 SL-packetized stream or FlexMux stream carried in PES packets
     FlexMuxPes,
+    /// ISO/IEC 14496-1 SL-packetized stream or FlexMux stream carried in ISO/IEC14496_sections.
     FlexMuxIso14496Sections,
+    /// ISO/IEC 13818-6 Synchronized Download Protocol
     SynchronizedDownloadProtocol,
+    /// Metadata carried in PES packets
     MetadataInPes,
+    /// Metadata carried in metadata_sections
     MetadataInMetadataSections,
+    /// Metadata carried in ISO/IEC 13818-6 Data Carousel
     DsmccDataCarouselMetadata,
+    /// Metadata carried in ISO/IEC 13818-6 Object Carousel
     DsmccObjectCarouselMetadata,
+    /// Metadata carried in ISO/IEC 13818-6 Synchronized Download Protocol
     SynchronizedDownloadProtocolMetadata,
+    /// IPMP stream (defined in ISO/IEC 13818-11, MPEG-2 IPMP)
     Ipmp,
+    /// AVC video stream as defined in ITU-T Rec. H.264 | ISO/IEC 14496-10 Video
     H264,
     /// ISO/IEC 14496-3 Audio, without using any additional transport syntax, such as DST, ALS and SLS
     AudioWithoutTransportSyntax,
@@ -96,16 +127,21 @@ pub enum StreamType {
     /// ITU-T Rec. H.265 and ISO/IEC 23008-2
     H265,
     // 0x26-0x41 reserved
+    /// Chinese Video Standard
     ChineseVideoStandard,
     // 0x43-0x7f reserved
     // 0x80 privately defined
+    /// Dolby Digital (AC-3) audio for ATSC
     AtscDolbyDigitalAudio,
     // 0x82-0x94 privately defined
+    /// ATSC Data Service Table, Network Resources Table
     AtscDsmccNetworkResourcesTable,
     // 0x95-0xc1 privately defined
+    /// PES packets containing ATSC streaming synchronous data
     AtscDsmccSynchronousData,
-    // 0xc3-0xff privately defined,
+    /// 0xc3-0xff privately defined,
     Private(u8),
+    /// Reserved for use in future standards
     Reserved(u8),
 }
 impl From<u8> for StreamType {
