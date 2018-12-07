@@ -70,13 +70,16 @@ impl<'buf> PmtSection<'buf> {
     pub fn streams(&self) -> impl Iterator<Item = StreamInfo<'buf>> {
         let descriptor_end = Self::HEADER_SIZE + self.program_info_length() as usize;
         if descriptor_end > self.data.len() {
-            panic!(
+            warn!(
                 "program_info_length={} extends beyond end of PMT section (section_length={})",
                 self.program_info_length(),
                 self.data.len()
             );
+            // return an iterator that will produce no items,
+            StreamInfoIter::new(&self.data[0..0])
+        } else {
+            StreamInfoIter::new(&self.data[descriptor_end..])
         }
-        StreamInfoIter::new(&self.data[descriptor_end..])
     }
 }
 /// Iterator over the `StreamInfo` entries in a `PmtSection`.
