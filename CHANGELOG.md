@@ -8,7 +8,7 @@
  - Removed the `demultiplex::UnhandledPid` type to try and simplify the API slightly.
  - Removed `PesPacketConsumer`.  The types `PesPacketFilter` and `PesPacketConsumer` seem in hindsight to be redundant (the first just being a thin
    wrapper for the second).  `PesPacketFilter` now implements the complete functionality.
- - Removed `PmtSection::program_info_length()` from public API.
+ - Removed `PmtSection::program_info_length()` and `StreamInfo::es_info_length()` from public API.
 
 ## 0.7.0
 ### Fixed
