@@ -32,7 +32,7 @@
 //!   - lots of places return `Option` but should return `Result` and a descriptive error
 
 #![forbid(unsafe_code)]
-#![deny(rust_2018_idioms, future_incompatible)]
+#![deny(rust_2018_idioms, future_incompatible, missing_docs)]
 
 extern crate hex_slice;
 #[cfg(test)]
