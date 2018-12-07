@@ -49,14 +49,8 @@ impl<'buf> PmtSection<'buf> {
 
     const HEADER_SIZE: usize = 4;
 
-    pub fn reserved1(&self) -> u8 {
-        self.data[0] >> 5
-    }
     pub fn pcr_pid(&self) -> u16 {
         u16::from(self.data[0] & 0b0001_1111) << 8 | u16::from(self.data[1])
-    }
-    pub fn reserved2(&self) -> u8 {
-        self.data[2] >> 4
     }
     pub fn program_info_length(&self) -> u16 {
         u16::from(self.data[2] & 0b0000_1111) << 8 | u16::from(self.data[3])
