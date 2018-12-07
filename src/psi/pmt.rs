@@ -141,14 +141,8 @@ impl<'buf> StreamInfo<'buf> {
     pub fn stream_type(&self) -> StreamType {
         self.data[0].into()
     }
-    pub fn reserved1(&self) -> u8 {
-        self.data[1] >> 5
-    }
     pub fn elementary_pid(&self) -> packet::Pid {
         packet::Pid::new(u16::from(self.data[1] & 0b0001_1111) << 8 | u16::from(self.data[2]))
-    }
-    pub fn reserved2(&self) -> u8 {
-        self.data[3] >> 4
     }
     pub fn es_info_length(&self) -> u16 {
         u16::from(self.data[3] & 0b0000_1111) << 8 | u16::from(self.data[4])
