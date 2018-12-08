@@ -252,12 +252,13 @@ impl<'buf> AdaptationField<'buf> {
     }
     fn adaptation_field_extension_offset(&self) -> Result<usize, AdaptationFieldError> {
         let off = self.transport_private_data_offset();
-        Ok(off + if self.transport_private_data_flag() {
-            let len = self.slice(off, off + 1)?[0] as usize;
-            len + 1
-        } else {
-            0
-        })
+        Ok(off
+            + if self.transport_private_data_flag() {
+                let len = self.slice(off, off + 1)?[0] as usize;
+                len + 1
+            } else {
+                0
+            })
     }
     /// Returns extended adaptation fields, or `AdaptationFieldError::FieldNotPresent` if absent
     pub fn adaptation_field_extension(
@@ -433,6 +434,8 @@ impl Pid {
     /// Panics if the given value is greater than `Pid::MAX_VALUE`.
     #[inline]
     pub fn new(pid: u16) -> Pid {
+        // Ideally, this would be a const fn, so that other code could define Pid constants too,
+        // however const fn's can't assert that the argument is valid, in current Rust.
         assert!(
             pid <= Self::MAX_VALUE,
             "{} greater than pid max {}",

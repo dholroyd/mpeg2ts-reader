@@ -576,7 +576,7 @@ mod test {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    packet_filter_switch!{
+    packet_filter_switch! {
         NullFilterSwitch<NullDemuxContext> {
             Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
             Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,

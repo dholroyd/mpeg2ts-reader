@@ -119,7 +119,7 @@ impl<'buf> fmt::Debug for UnknownDescriptor<'buf> {
     }
 }
 
-descriptor_enum!{
+descriptor_enum! {
     /// Default implementation of [`Descriptor`](trait.Descriptor.html) covering descriptor types
     /// from _ISO/IEC 13818-1_.
     ///

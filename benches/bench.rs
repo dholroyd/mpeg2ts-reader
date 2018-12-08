@@ -11,7 +11,7 @@ use mpeg2ts_reader::psi;
 use std::fs::File;
 use std::io::Read;
 
-packet_filter_switch!{
+packet_filter_switch! {
     NullFilterSwitch<NullDemuxContext> {
         Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
         Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,
@@ -92,7 +92,8 @@ fn mpeg2ts_reader(c: &mut Criterion) {
             b.iter(|| {
                 demux.push(&mut ctx, &buf[..]);
             });
-        }).throughput(Throughput::Bytes(size as u32)),
+        })
+        .throughput(Throughput::Bytes(size as u32)),
     );
 }
 

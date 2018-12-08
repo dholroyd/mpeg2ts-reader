@@ -713,7 +713,7 @@ mod test {
     use crate::psi;
     use crate::psi::WholeSectionSyntaxPayloadParser;
 
-    packet_filter_switch!{
+    packet_filter_switch! {
         NullFilterSwitch<NullDemuxContext> {
             Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
             Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,

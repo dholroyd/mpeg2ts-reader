@@ -13,7 +13,7 @@ use mpeg2ts_reader::packet;
 use mpeg2ts_reader::packet::Packet;
 use std::marker;
 
-packet_filter_switch!{
+packet_filter_switch! {
     PcrDumpFilterSwitch<PcrDumpDemuxContext> {
         Pat: demultiplex::PatPacketFilter<PcrDumpDemuxContext>,
         Pmt: demultiplex::PmtPacketFilter<PcrDumpDemuxContext>,

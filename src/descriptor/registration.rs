@@ -47,7 +47,8 @@ impl<'buf> fmt::Debug for RegistrationDescriptor<'buf> {
             .field(
                 "additional_identification_info",
                 &format!("{:x}", self.additional_identification_info().as_hex()),
-            ).finish()
+            )
+            .finish()
     }
 }
 

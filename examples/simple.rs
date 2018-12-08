@@ -16,7 +16,7 @@ use std::io::Read;
 // This macro invocation creates an enum called DumpFilterSwitch, encapsulating all possible ways
 // that this application may handle transport stream packets.  Each enum variant is just a wrapper
 // around an implementation of the PacketFilter trait
-packet_filter_switch!{
+packet_filter_switch! {
     DumpFilterSwitch<DumpDemuxContext> {
         // the DumpFilterSwitch::Pes variant will perform the logic actually specific to this
         // application,

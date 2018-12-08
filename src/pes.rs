@@ -559,11 +559,12 @@ impl<'buf> PesParsedContents<'buf> {
         }
     }
     fn es_rate_end(&self) -> usize {
-        self.escr_end() + if self.esrate_flag() {
-            Self::ES_RATE_SIZE
-        } else {
-            0
-        }
+        self.escr_end()
+            + if self.esrate_flag() {
+                Self::ES_RATE_SIZE
+            } else {
+                0
+            }
     }
     const DSM_TRICK_MODE_SIZE: usize = 1;
     /// Returns information about the 'Digital Storage Media trick mode'
@@ -575,7 +576,8 @@ impl<'buf> PesParsedContents<'buf> {
             self.header_slice(
                 self.es_rate_end(),
                 self.es_rate_end() + Self::DSM_TRICK_MODE_SIZE,
-            ).map(|s| {
+            )
+            .map(|s| {
                 let trick_mode_control = s[0] >> 5;
                 let trick_mode_data = s[0] & 0b0001_1111;
                 match trick_mode_control {
@@ -613,11 +615,12 @@ impl<'buf> PesParsedContents<'buf> {
         }
     }
     fn dsm_trick_mode_end(&self) -> usize {
-        self.es_rate_end() + if self.dsm_trick_mode_flag() {
-            Self::DSM_TRICK_MODE_SIZE
-        } else {
-            0
-        }
+        self.es_rate_end()
+            + if self.dsm_trick_mode_flag() {
+                Self::DSM_TRICK_MODE_SIZE
+            } else {
+                0
+            }
     }
     const ADDITIONAL_COPY_INFO_SIZE: usize = 1;
     /// Returns a 7-bit value containing private data relating to copyright information
@@ -629,7 +632,8 @@ impl<'buf> PesParsedContents<'buf> {
             self.header_slice(
                 self.dsm_trick_mode_end(),
                 self.dsm_trick_mode_end() + Self::ADDITIONAL_COPY_INFO_SIZE,
-            ).and_then(|s| {
+            )
+            .and_then(|s| {
                 if s[0] & 0b1000_0000 == 0 {
                     Err(PesError::MarkerBitNotSet)
                 } else {
@@ -641,11 +645,12 @@ impl<'buf> PesParsedContents<'buf> {
         }
     }
     fn additional_copy_info_end(&self) -> usize {
-        self.dsm_trick_mode_end() + if self.additional_copy_info_flag() {
-            Self::ADDITIONAL_COPY_INFO_SIZE
-        } else {
-            0
-        }
+        self.dsm_trick_mode_end()
+            + if self.additional_copy_info_flag() {
+                Self::ADDITIONAL_COPY_INFO_SIZE
+            } else {
+                0
+            }
     }
     const PREVIOUS_PES_PACKET_CRC_SIZE: usize = 2;
     /// returns a 16-bit _Cyclic Redundancy Check_ value for the PES packet data bytes that
@@ -660,17 +665,19 @@ impl<'buf> PesParsedContents<'buf> {
             self.header_slice(
                 self.additional_copy_info_end(),
                 self.additional_copy_info_end() + Self::PREVIOUS_PES_PACKET_CRC_SIZE,
-            ).map(|s| u16::from(s[0]) << 8 | u16::from(s[1]))
+            )
+            .map(|s| u16::from(s[0]) << 8 | u16::from(s[1]))
         } else {
             Err(PesError::FieldNotPresent)
         }
     }
     fn pes_crc_end(&self) -> usize {
-        self.additional_copy_info_end() + if self.pes_crc_flag() {
-            Self::PREVIOUS_PES_PACKET_CRC_SIZE
-        } else {
-            0
-        }
+        self.additional_copy_info_end()
+            + if self.pes_crc_flag() {
+                Self::PREVIOUS_PES_PACKET_CRC_SIZE
+            } else {
+                0
+            }
     }
     /// Returns the PES extension structure if present, or `Err(PesError::FieldNotPresent)` if not.
     pub fn pes_extension(&self) -> Result<PesExtension<'buf>, PesError> {
@@ -678,7 +685,8 @@ impl<'buf> PesParsedContents<'buf> {
             self.header_slice(
                 self.pes_crc_end(),
                 self.pes_header_data_len() + Self::FIXED_HEADER_SIZE,
-            ).map(|s| PesExtension { buf: s })
+            )
+            .map(|s| PesExtension { buf: s })
         } else {
             Err(PesError::FieldNotPresent)
         }
@@ -873,16 +881,16 @@ pub enum OriginalOrCopy {
 
 #[cfg(test)]
 mod test {
-    use bitstream_io::{BitWriter, BE};
     use crate::demultiplex;
     use crate::demultiplex::PacketFilter;
     use crate::packet;
     use crate::pes;
+    use bitstream_io::{BitWriter, BE};
     use data_encoding::base16;
     use std;
     use std::io;
 
-    packet_filter_switch!{
+    packet_filter_switch! {
         NullFilterSwitch<NullDemuxContext> {
             Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
         }
