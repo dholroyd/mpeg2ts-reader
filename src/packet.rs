@@ -157,7 +157,7 @@ impl<'buf> AdaptationField<'buf> {
     ///
     /// Panics if the slice is empty.
     pub fn new(buf: &'buf [u8]) -> AdaptationField<'buf> {
-        assert!(buf.len() > 0);
+        assert!(!buf.is_empty());
         AdaptationField { buf }
     }
 
