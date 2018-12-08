@@ -34,22 +34,6 @@
 #![forbid(unsafe_code)]
 #![deny(rust_2018_idioms, future_incompatible, missing_docs)]
 
-extern crate hex_slice;
-#[cfg(test)]
-#[macro_use]
-extern crate hex_literal;
-#[cfg(test)]
-extern crate data_encoding;
-#[cfg(test)]
-#[macro_use]
-extern crate matches;
-#[cfg(test)]
-extern crate bitstream_io;
-extern crate encoding;
-extern crate fixedbitset;
-#[macro_use]
-extern crate log;
-
 pub mod packet;
 #[macro_use]
 pub mod demultiplex;

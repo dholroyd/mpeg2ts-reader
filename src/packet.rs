@@ -1,6 +1,7 @@
 //! A [`Packet`](./struct.Packet.html) struct and associated infrastructure to read an MPEG Transport Stream packet
 
 use crate::pes;
+use log::warn;
 use std::fmt;
 
 /// the different values indicating whether a `Packet`'s `adaptation_field()` and `payload()`

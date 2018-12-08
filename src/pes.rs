@@ -14,6 +14,7 @@
 use crate::demultiplex;
 use crate::packet;
 use crate::packet::ClockRef;
+use log::warn;
 use std::marker;
 use std::{fmt, num};
 
@@ -887,6 +888,7 @@ mod test {
     use crate::pes;
     use bitstream_io::{BitWriter, BE};
     use data_encoding::base16;
+    use matches::assert_matches;
     use std;
     use std::io;
 

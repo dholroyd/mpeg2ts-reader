@@ -21,6 +21,7 @@ use crate::psi::pmt::PmtSection;
 use crate::psi::pmt::StreamInfo;
 use crate::StreamType;
 use fixedbitset;
+use log::warn;
 use std;
 use std::marker;
 

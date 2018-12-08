@@ -1,6 +1,7 @@
 //! Types related to the _Program Association Table_
 
 use crate::packet;
+use log::warn;
 
 /// Identifiers related to a specific program within the Transport Stream
 #[derive(Clone, Debug)]

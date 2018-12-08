@@ -23,6 +23,7 @@ pub mod pmt;
 
 use crate::mpegts_crc;
 use crate::packet;
+use log::warn;
 
 /// Trait for types which process the data within a PSI section following the 12-byte
 /// `section_length` field (which is one of the items available in the `SectionCommonHeader` that
@@ -573,6 +574,7 @@ mod test {
     use super::*;
     use crate::demultiplex;
     use crate::packet::Packet;
+    use hex_literal::*;
     use std::cell::RefCell;
     use std::rc::Rc;
 

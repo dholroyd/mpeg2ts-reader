@@ -4,6 +4,7 @@ use crate::demultiplex::DemuxError;
 use crate::descriptor;
 use crate::packet;
 use crate::StreamType;
+use log::warn;
 use std::fmt;
 
 /// Sections of the _Program Map Table_ give details of the streams within a particular program
