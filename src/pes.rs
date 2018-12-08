@@ -193,7 +193,7 @@ impl<'buf> PesHeader<'buf> {
             u32::from(buf[0]) << 16 | u32::from(buf[1]) << 8 | u32::from(buf[2]);
         if packet_start_code_prefix != 1 {
             warn!(
-                "invalid packet_start_code_prefix {:#x}, expected 0x000001",
+                "invalid packet_start_code_prefix 0x{:06x}, expected 0x000001",
                 packet_start_code_prefix
             );
             return None;
