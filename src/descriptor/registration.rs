@@ -7,7 +7,8 @@ use std::fmt;
 
 /// Indicates which kind of syntax any 'private data' within the transport stream will be following
 pub struct RegistrationDescriptor<'buf> {
-    buf: &'buf [u8],
+    /// the registration data bytes
+    pub buf: &'buf [u8],
 }
 impl<'buf> RegistrationDescriptor<'buf> {
     /// The descriptor tag value which identifies the descriptor as a `RegistrationDescriptor`.
