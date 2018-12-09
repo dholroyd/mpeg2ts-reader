@@ -292,6 +292,7 @@ impl<F: PacketFilter> std::iter::IntoIterator for FilterChangeset<F> {
 
 /// Request that may be submitted to a
 /// [`StreamConstructor`](trait.StreamConstructor.html) implementation.
+#[derive(Debug)]
 pub enum FilterRequest<'a, 'buf: 'a> {
     /// requests a filter implementation for handling a PID contained in the transport stream that
     /// was not announced via other means (PAT/PMT).
