@@ -662,33 +662,31 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
             }
             let mut pk_buf = &buf[i..end];
             if packet::Packet::is_sync_byte(pk_buf[0]) {
-                {
-                    let mut pk = packet::Packet::new(pk_buf);
-                    let this_pid = pk.pid();
-                    if !self.processor_by_pid.contains(this_pid) {
-                        let filter = ctx
-                            .filter_constructor()
-                            .construct(FilterRequest::ByPid(this_pid));
-                        self.processor_by_pid.insert(this_pid, filter);
-                    };
-                    let this_proc = self.processor_by_pid.get(this_pid).unwrap();
-                    while ctx.filter_changeset().is_empty() {
-                        this_proc.consume(ctx, &pk);
-                        i += packet::Packet::SIZE;
-                        let end = i + packet::Packet::SIZE;
-                        if end > buf.len() {
-                            break;
-                        }
-                        pk_buf = &buf[i..end];
-                        if !packet::Packet::is_sync_byte(pk_buf[0]) {
-                            // TODO: attempt to resynchronise
-                            return;
-                        }
-                        pk = packet::Packet::new(pk_buf);
-                        if pk.pid() != this_pid {
-                            i -= packet::Packet::SIZE;
-                            break;
-                        }
+                let mut pk = packet::Packet::new(pk_buf);
+                let this_pid = pk.pid();
+                if !self.processor_by_pid.contains(this_pid) {
+                    let filter = ctx
+                        .filter_constructor()
+                        .construct(FilterRequest::ByPid(this_pid));
+                    self.processor_by_pid.insert(this_pid, filter);
+                };
+                let this_proc = self.processor_by_pid.get(this_pid).unwrap();
+                while ctx.filter_changeset().is_empty() {
+                    this_proc.consume(ctx, &pk);
+                    i += packet::Packet::SIZE;
+                    let end = i + packet::Packet::SIZE;
+                    if end > buf.len() {
+                        break;
+                    }
+                    pk_buf = &buf[i..end];
+                    if !packet::Packet::is_sync_byte(pk_buf[0]) {
+                        // TODO: attempt to resynchronise
+                        return;
+                    }
+                    pk = packet::Packet::new(pk_buf);
+                    if pk.pid() != this_pid {
+                        i -= packet::Packet::SIZE;
+                        break;
                     }
                 }
                 if !ctx.filter_changeset().is_empty() {
