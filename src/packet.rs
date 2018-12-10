@@ -501,6 +501,18 @@ impl<'buf> Packet<'buf> {
         Packet { buf }
     }
 
+    /// Like `new()`, but returns `None` if the sync-byte has incorrect value (still panics if the
+    /// buffer size is not 188 bytes).
+    #[inline(always)]
+    pub fn try_new(buf: &'buf [u8]) -> Option<Packet<'buf>> {
+        assert_eq!(buf.len(), Self::SIZE);
+        if Packet::is_sync_byte(buf[0]) {
+            Some(Packet { buf })
+        } else {
+            None
+        }
+    }
+
     /// *May* have been set if some previous processing of this TS data detected at least
     /// 1 uncorrectable bit error in this TS packet.
     pub fn transport_error_indicator(&self) -> bool {

@@ -652,53 +652,51 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
     /// `DemuxContent` object
     pub fn push(&mut self, ctx: &mut Ctx, buf: &[u8]) {
         // TODO: simplify
-        // (maybe once chunks_exact() is stable; right now an iterator-based version of the
-        // following always comes out performing slower, when I try.)
-        let mut i = 0;
-        loop {
-            let end = i + packet::Packet::SIZE;
-            if end > buf.len() {
-                break;
-            }
-            let mut pk_buf = &buf[i..end];
-            if packet::Packet::is_sync_byte(pk_buf[0]) {
-                let mut pk = packet::Packet::new(pk_buf);
-                let this_pid = pk.pid();
-                if !self.processor_by_pid.contains(this_pid) {
-                    let filter = ctx
-                        .filter_constructor()
-                        .construct(FilterRequest::ByPid(this_pid));
-                    self.processor_by_pid.insert(this_pid, filter);
-                };
-                let this_proc = self.processor_by_pid.get(this_pid).unwrap();
-                while ctx.filter_changeset().is_empty() {
-                    this_proc.consume(ctx, &pk);
-                    i += packet::Packet::SIZE;
-                    let end = i + packet::Packet::SIZE;
-                    if end > buf.len() {
-                        break;
-                    }
-                    pk_buf = &buf[i..end];
-                    if !packet::Packet::is_sync_byte(pk_buf[0]) {
-                        // TODO: attempt to resynchronise
-                        return;
-                    }
-                    pk = packet::Packet::new(pk_buf);
-                    if pk.pid() != this_pid {
-                        i -= packet::Packet::SIZE;
-                        break;
-                    }
-                }
+        let mut itr = buf
+            .chunks_exact(packet::Packet::SIZE)
+            .map(packet::Packet::try_new);
+        let mut pk = if let Some(Some(p)) = itr.next() {
+            p
+        } else {
+            return;
+        };
+        'outer: loop {
+            let this_pid = pk.pid();
+            if !self.processor_by_pid.contains(this_pid) {
+                self.add_pid_filter(ctx, this_pid);
+            };
+            let this_proc = self.processor_by_pid.get(this_pid).unwrap();
+            'inner: loop {
+                this_proc.consume(ctx, &pk);
                 if !ctx.filter_changeset().is_empty() {
-                    ctx.filter_changeset().apply(&mut self.processor_by_pid);
+                    break 'inner;
                 }
-                debug_assert!(ctx.filter_changeset().is_empty());
-            } else {
-                // TODO: attempt to resynchronise
-                return;
+                pk = if let Some(Some(p)) = itr.next() {
+                    p
+                } else {
+                    break 'outer;
+                };
+                if pk.pid() != this_pid {
+                    continue 'outer;
+                }
             }
-            i += packet::Packet::SIZE;
+            if !ctx.filter_changeset().is_empty() {
+                ctx.filter_changeset().apply(&mut self.processor_by_pid);
+            }
+            debug_assert!(ctx.filter_changeset().is_empty());
+            pk = if let Some(Some(p)) = itr.next() {
+                p
+            } else {
+                break 'outer;
+            };
         }
+    }
+
+    fn add_pid_filter(&mut self, ctx: &mut Ctx, this_pid: packet::Pid) {
+        let filter = ctx
+            .filter_constructor()
+            .construct(FilterRequest::ByPid(this_pid));
+        self.processor_by_pid.insert(this_pid, filter);
     }
 }
 
