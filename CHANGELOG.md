@@ -2,14 +2,17 @@
 
 ## Unreleased
 ### Fixed
- - Avoid panics due to 0-length `adaptation_field`
+ - Avoid panics due to 0-length `adaptation_field`, larger-than-expected `program_info_length` and too small
+   `section_length`.  All found through fuzz testing.
 
 ### Changed
  - All public API members now have at least minimal documentation
  - Removed the `demultiplex::UnhandledPid` type to try and simplify the API slightly.
- - Removed `PesPacketConsumer`.  The types `PesPacketFilter` and `PesPacketConsumer` seem in hindsight to be redundant (the first just being a thin
-   wrapper for the second).  `PesPacketFilter` now implements the complete functionality.
+ - Removed `PesPacketConsumer`.  The types `PesPacketFilter` and `PesPacketConsumer` seem in hindsight to be redundant
+   (the first just being a thin wrapper for the second).  `PesPacketFilter` now implements the complete functionality.
  - Removed `PmtSection::program_info_length()` and `StreamInfo::es_info_length()` from public API.
+ - Changed `PmtSection::pcr_pid()` to return a `Pid` (got missed when others changed from `u16` to `Pid`) in version
+   0.7.0.
 
 ## 0.7.0
 ### Fixed
