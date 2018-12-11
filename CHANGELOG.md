@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+### Changed
+ - Removed single usage of `hex-slice` crate; resulting Debug impl is not quite so nice, but now there's one less
+   dependency.
+
 ## 0.8.0
 ### Fixed
  - Avoid panics due to 0-length `adaptation_field`, larger-than-expected `program_info_length` and too small

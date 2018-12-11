@@ -2,7 +2,6 @@
 //! stream will be following
 
 use super::DescriptorError;
-use hex_slice::AsHex;
 use std::fmt;
 
 /// Indicates which kind of syntax any 'private data' within the transport stream will be following
@@ -47,7 +46,7 @@ impl<'buf> fmt::Debug for RegistrationDescriptor<'buf> {
             .field("format_identifier", &self.format_identifier())
             .field(
                 "additional_identification_info",
-                &format!("{:x}", self.additional_identification_info().as_hex()),
+                &format!("{:x?}", self.additional_identification_info()),
             )
             .finish()
     }
