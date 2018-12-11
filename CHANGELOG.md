@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 ### Fixed
  - Avoid panics due to 0-length `adaptation_field`, larger-than-expected `program_info_length` and too small
    `section_length`.  All found through fuzz testing.
