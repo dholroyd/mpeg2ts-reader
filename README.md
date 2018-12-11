@@ -205,19 +205,7 @@ fn main() {
 }
 ```
 
-# Performance
-
-On my laptop (which can read sequentially from main memory at around 16GiByte/s), a microbenchmark that parses TS
-structure, but ignores the audio and video contained within, can process at a rate of **10 GiBytes/s** (80 Gibits/s).
-
-Real usage that actually processes the contents of the stream will of course be slower!
-
-The conditions of the test are,
- * the data is already in memory (no network/disk access)
- * test dataset is larger than CPU cache
- * processing is happening on a single core (no multiprocessing of the stream).
-
-## Perf shoot-out
+# Performance shoot-out
 
 Comparing this crate to a couple of others which you might use to read a Transport Stream --
 [mpeg2ts](https://crates.io/crates/mpeg2ts) and [ffmpg-sys](https://crates.io/crates/ffmpeg-sys):
@@ -226,6 +214,11 @@ Comparing this crate to a couple of others which you might use to read a Transpo
 
 The benchmarks producing the above chart data are in the [`shootout`](shootout) folder.  (If the benchmarks are giving
 an unfair representation of relative performance, that's a mistake -- please raise a bug!)
+
+The conditions of the test are,
+ * the data is already in memory (no network/disk access)
+ * test dataset is larger than CPU cache
+ * processing is happening on a single core (no multiprocessing of the stream).
 
 # Supported Transport Stream features
 
