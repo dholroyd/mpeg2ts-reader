@@ -710,6 +710,7 @@ mod test {
     use crate::packet;
     use crate::psi;
     use crate::psi::WholeSectionSyntaxPayloadParser;
+    use bitstream_io::BigEndian;
 
     packet_filter_switch! {
         NullFilterSwitch<NullDemuxContext> {
@@ -829,11 +830,12 @@ mod test {
 
     fn make_test_data<F>(builder: F) -> Vec<u8>
     where
-        F: Fn(BitWriter<'_, BE>) -> Result<(), io::Error>,
+        F: Fn(&mut BitWriter<Vec<u8>, BE>) -> Result<(), io::Error>,
     {
-        let mut data: Vec<u8> = Vec::new();
-        builder(BitWriter::<BE>::new(&mut data)).unwrap();
-        data
+        let data: Vec<u8> = Vec::new();
+        let mut w = BitWriter::endian(data, BigEndian);
+        builder(&mut w).unwrap();
+        w.into_writer()
     }
 
     #[test]
@@ -842,7 +844,7 @@ mod test {
         let pid = packet::Pid::new(101);
         let program_number = 1001;
         let mut processor = demultiplex::PmtProcessor::new(pid, program_number);
-        let section = make_test_data(|mut w| {
+        let section = make_test_data(|w| {
             // common section header,
             w.write(8, 0x02)?; // table_id
             w.write_bit(true)?; // section_syntax_indicator

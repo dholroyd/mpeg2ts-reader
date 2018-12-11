@@ -886,6 +886,7 @@ mod test {
     use crate::demultiplex::PacketFilter;
     use crate::packet;
     use crate::pes;
+    use bitstream_io::BigEndian;
     use bitstream_io::{BitWriter, BE};
     use hex_literal::*;
     use matches::assert_matches;
@@ -909,15 +910,16 @@ mod test {
 
     fn make_test_data<F>(builder: F) -> Vec<u8>
     where
-        F: Fn(BitWriter<'_, BE>) -> Result<(), io::Error>,
+        F: Fn(&mut BitWriter<Vec<u8>, BE>) -> Result<(), io::Error>,
     {
-        let mut data: Vec<u8> = Vec::new();
-        builder(BitWriter::<BE>::new(&mut data)).unwrap();
-        data
+        let data: Vec<u8> = Vec::new();
+        let mut w = BitWriter::endian(data, BigEndian);
+        builder(&mut w).unwrap();
+        w.into_writer()
     }
 
     /// `ts` is a 33-bit timestamp value
-    fn write_ts(w: &mut BitWriter<'_, BE>, ts: u64, prefix: u8) -> Result<(), io::Error> {
+    fn write_ts(w: &mut BitWriter<Vec<u8>, BE>, ts: u64, prefix: u8) -> Result<(), io::Error> {
         assert!(
             ts < 1u64 << 33,
             "ts value too large {:#x} >= {:#x}",
@@ -933,7 +935,11 @@ mod test {
         w.write(1, 1) // marker_bit
     }
 
-    fn write_escr(w: &mut BitWriter<'_, BE>, base: u64, extension: u16) -> Result<(), io::Error> {
+    fn write_escr(
+        w: &mut BitWriter<Vec<u8>, BE>,
+        base: u64,
+        extension: u16,
+    ) -> Result<(), io::Error> {
         assert!(
             base < 1u64 << 33,
             "base value too large {:#x} >= {:#x}",
@@ -962,7 +968,7 @@ mod test {
         w.write(9, extension)?;
         w.write(1, 1) // marker_bit
     }
-    fn write_es_rate(w: &mut BitWriter<'_, BE>, rate: u32) -> Result<(), io::Error> {
+    fn write_es_rate(w: &mut BitWriter<Vec<u8>, BE>, rate: u32) -> Result<(), io::Error> {
         assert!(
             rate < 1u32 << 22,
             "rate value too large {:#x} >= {:#x}",
