@@ -16,7 +16,6 @@ encoding = "0.2"
 log = "0.4"
 
 [dev-dependencies]
-data-encoding = "1.2.0"
 matches = "0.1.6"
 bitstream-io = "0.6.3"
 criterion = "0.2"

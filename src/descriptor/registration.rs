@@ -56,13 +56,13 @@ impl<'buf> fmt::Debug for RegistrationDescriptor<'buf> {
 mod test {
     use super::super::{CoreDescriptors, Descriptor};
     use super::*;
-    use data_encoding::hex;
+    use hex_literal::*;
     use matches::assert_matches;
 
     #[test]
     fn descriptor() {
-        let data = hex::decode(b"050443554549").unwrap();
-        let desc = CoreDescriptors::from_bytes(&data).unwrap();
+        let data = hex!("050443554549");
+        let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
         assert_matches!(
             desc,
             CoreDescriptors::Registration(RegistrationDescriptor { buf: b"CUEI" })
