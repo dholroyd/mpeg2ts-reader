@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+### Added
+ - Some more descriptor-tag values in `CoreDescriptors` (but not the descriptor definitions themselves yet).
+
 ### Changed
  - Removed single usage of `hex-slice` crate; resulting Debug impl is not quite so nice, but now there's one less
    dependency.
