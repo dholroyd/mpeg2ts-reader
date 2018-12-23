@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+### Fixed
+ - Made the methods of `descriptor::iso_639_language::Language` public (they were private by mistake)
+
 ### Added
  - Some more descriptor-tag values in `CoreDescriptors` (but not the descriptor definitions themselves yet).
 

@@ -55,12 +55,18 @@ impl<'buf> Iterator for LanguageIterator<'buf> {
     }
 }
 
+/// Metadata about the role of the audio elementary stream to which this descriptor is attached.
 #[derive(Debug, PartialEq)]
-enum AudioType {
+pub enum AudioType {
+    /// The audio has no particular role define
     Undefined,
+    /// There is no language-specific content within the audio
     CleanEffects,
+    /// The audio is prepared for the heading impaired
     HearingImpaired,
+    /// The audio is prepared for the visually impaired
     VisualImpairedCommentary,
+    /// Values `0x80` to `0xFF` are reserved for use in future versions of _ISO/IEC 13818-1_
     Reserved(u8),
 }
 impl From<u8> for AudioType {
@@ -83,10 +89,14 @@ impl<'buf> Language<'buf> {
         assert_eq!(buf.len(), 4);
         Language { buf }
     }
-    fn code(&self, trap: DecoderTrap) -> Result<String, Cow<'static, str>> {
+    /// Returns a string containing the ISO-639 language code of the elementary stream to which
+    /// this descriptor is attached.
+    pub fn code(&self, trap: DecoderTrap) -> Result<String, Cow<'static, str>> {
         ISO_8859_1.decode(&self.buf[0..3], trap)
     }
-    fn audio_type(&self) -> AudioType {
+    /// Returns an `AudioType` variant indicating what role this audio track plays within the
+    /// program.
+    pub fn audio_type(&self) -> AudioType {
         AudioType::from(self.buf[3])
     }
 }
