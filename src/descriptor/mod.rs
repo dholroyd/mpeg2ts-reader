@@ -129,8 +129,8 @@ descriptor_enum! {
     /// future release of this crate.
     #[derive(Debug)]
     CoreDescriptors {
-        /// descriptor tag values `0`, `1` and `36` to `63` inclusive are marked as reserved by _ISO/IEC 13818-1_.
-        Reserved 0|1|36..=63 => UnknownDescriptor,
+        /// descriptor tag values `0`, `1` and `57` to `62` inclusive are marked as reserved by _ISO/IEC 13818-1_.
+        Reserved 0|1|57..=62 => UnknownDescriptor,
         /// The `video_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
         VideoStream 2 => UnknownDescriptor,
         /// The `audio_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
@@ -185,6 +185,50 @@ descriptor_enum! {
         FmxBufferSize 34 => UnknownDescriptor,
         /// The `MultiplexBuffer_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MultiplexBuffer 35 => UnknownDescriptor,
+        /// The `content_labeling_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        MontentLabeling 36 => UnknownDescriptor,
+        /// The `metadata_pointer_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        MetadataPointer 37 => UnknownDescriptor,
+        /// The `metadata_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        Metadata 38 => UnknownDescriptor,
+        /// The `metadata_STD_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        MetadataStd 39 => UnknownDescriptor,
+        /// The `AVC_video_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        AvcVideo 40 => UnknownDescriptor,
+        /// The `IPMP_descriptor()` syntax element defined in _ISO/IEC 13818-11_.
+        IPMP 41 => UnknownDescriptor,
+        /// The `AVC_timing_and_HRD_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        AvcTimingAndHrd 42 => UnknownDescriptor,
+        /// The `MPEG-2_AAC_audio_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        Mpeg2AacAudio 43 => UnknownDescriptor,
+        /// The `FlexMuxTiming_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        FlexMuxTiming 44 => UnknownDescriptor,
+        /// The `MPEG-4_text_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        Mpeg4Text 45 => UnknownDescriptor,
+        /// The `MPEG-4_audio_extension_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        Mpeg4AudioExtension 46 => UnknownDescriptor,
+        /// The `Auxiliary_video_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        AuxiliaryVideoStream 47 => UnknownDescriptor,
+        /// The `SVC extension descriptor()` syntax element from _ISO/IEC 13818-1_.
+        SvcExtension 48 => UnknownDescriptor,
+        /// The `MVC extension descriptor()` syntax element from _ISO/IEC 13818-1_.
+        MvcExtension 49 => UnknownDescriptor,
+        /// The `J2K video descriptor()` syntax element from _ISO/IEC 13818-1_.
+        J2kVideo 50 => UnknownDescriptor,
+        /// The `MVC operation point descriptor()` syntax element from _ISO/IEC 13818-1_.
+        MvcOperationPoint 51 => UnknownDescriptor,
+        /// The `MPEG2_stereoscopic_video_format_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        Mpeg2StereoscopicVideoFormat 52 => UnknownDescriptor,
+        /// The `Stereoscopic_program_info_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        StereoscopicProgramInfo 53 => UnknownDescriptor,
+        /// The `Stereoscopic_video_info_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        StereoscopicVideoInfo 54 => UnknownDescriptor,
+        /// The `Transport_profile_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        TransportProfile 55 => UnknownDescriptor,
+        /// The `HEVC video descriptor()` syntax element from _ISO/IEC 13818-1_.
+        HevcVideo 56 => UnknownDescriptor,
+        /// The `Extension_descriptor()` syntax element from _ISO/IEC 13818-1_.
+        Extension 63 => UnknownDescriptor,
         /// descriptor tag values `64` to `255` inclusive are marked for 'use private' use by _ISO/IEC 13818-1_.
         UserPrivate 64..=255 => UnknownDescriptor,
     }
