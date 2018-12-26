@@ -50,6 +50,11 @@ impl<'buf> PmtSection<'buf> {
         }
     }
 
+    /// Borrow a reference to the buffer containing the underlying PMT section data
+    pub fn buffer(&self) -> &[u8] {
+        self.data
+    }
+
     const HEADER_SIZE: usize = 4;
 
     /// Returns the Pid of packets that will contain the Program Clock Reference for this program
