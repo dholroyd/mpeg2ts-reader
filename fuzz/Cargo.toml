@@ -8,10 +8,9 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
-[dependencies.mpeg2ts-reader]
-path = ".."
-[dependencies.libfuzzer-sys]
-git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
+[dependencies]
+mpeg2ts-reader = { path = ".." }
+libfuzzer-sys = { git = "https://github.com/rust-fuzz/libfuzzer-sys.git" }
 
 # Prevent this from interfering with workspaces
 [workspace]
