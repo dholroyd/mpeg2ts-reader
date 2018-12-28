@@ -24,6 +24,7 @@ pub mod pmt;
 use crate::mpegts_crc;
 use crate::packet;
 use log::warn;
+use std::fmt;
 
 /// Trait for types which process the data within a PSI section following the 12-byte
 /// `section_length` field (which is one of the items available in the `SectionCommonHeader` that
@@ -81,7 +82,6 @@ impl CurrentNext {
     }
 }
 
-#[derive(Debug)]
 /// Represents the fields that appear within table sections that use the common 'section syntax'.
 ///
 /// This will only be used for a table section if the
@@ -137,6 +137,17 @@ impl<'buf> TableSyntaxHeader<'buf> {
     /// need be used if the table needs to carry a large number of entries.
     pub fn last_section_number(&self) -> u8 {
         self.buf[4]
+    }
+}
+impl<'buf> fmt::Debug for TableSyntaxHeader<'buf> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        f.debug_struct("TableSyntaxHeader")
+            .field("id", &self.id())
+            .field("version", &self.version())
+            .field("current_next_indicator", &self.current_next_indicator())
+            .field("section_number", &self.section_number())
+            .field("last_section_number", &self.last_section_number())
+            .finish()
     }
 }
 
