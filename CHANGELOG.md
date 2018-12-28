@@ -3,6 +3,8 @@
 ## Unreleased
 ### Fixed
  - Made the methods of `descriptor::iso_639_language::Language` public (they were private by mistake)
+ - Drop TS packets that have `transport_error_indicator` flag set, rather than passing known-bad data to the
+   application.
 
 ### Added
  - Some more descriptor-tag values in `CoreDescriptors` (but not the descriptor definitions themselves yet).

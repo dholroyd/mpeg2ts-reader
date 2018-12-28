@@ -667,9 +667,15 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
             };
             let this_proc = self.processor_by_pid.get(this_pid).unwrap();
             'inner: loop {
-                this_proc.consume(ctx, &pk);
-                if !ctx.filter_changeset().is_empty() {
-                    break 'inner;
+                if pk.transport_error_indicator() {
+                    // drop packets that have transport_error_indicator set, on the assumption that
+                    // the contents are nonsense
+                    warn!("{:?} transport_error_indicator", pk.pid());
+                } else {
+                    this_proc.consume(ctx, &pk);
+                    if !ctx.filter_changeset().is_empty() {
+                        break 'inner;
+                    }
                 }
                 pk = if let Some(Some(p)) = itr.next() {
                     p
