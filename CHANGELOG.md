@@ -8,6 +8,7 @@
  - Some more descriptor-tag values in `CoreDescriptors` (but not the descriptor definitions themselves yet).
 
 ### Changed
+ - Added a `StreamId` enum to replace the `u8` previously used as the return value for `PesHeader::stream_id()`
  - Removed single usage of `hex-slice` crate; resulting Debug impl is not quite so nice, but now there's one less
    dependency.
 

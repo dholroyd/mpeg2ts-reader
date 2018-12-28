@@ -158,6 +158,104 @@ pub enum PesLength {
     Bounded(num::NonZeroU16),
 }
 
+/// Values which may be returned by
+/// [`PesHeader::stream_id()`](struct.PesHeader.html#method.stream_id) to identify the kind of
+/// content within the Packetized Elementary Stream.
+#[derive(Debug, PartialEq)]
+pub enum StreamId {
+    /// `program_stream_map`
+    ProgramStreamMap,
+    /// `private_stream_1`
+    PrivateStream1,
+    /// `padding_stream`
+    PaddingStream,
+    /// `private_stream_2`
+    PrivateStream2,
+    /// ISO/IEC 13818-3 or ISO/IEC 11172-3 or ISO/IEC 13818-7 or ISO/IEC 14496-3 audio stream
+    Audio(u8),
+    /// Rec. ITU-T H.262 | ISO/IEC 13818-2, ISO/IEC 11172-2, ISO/IEC 14496-2, Rec. ITU-T H.264 |
+    /// ISO/IEC 14496-10 or Rec. ITU-T H.265 | ISO/IEC 23008-2 video stream
+    Video(u8),
+    /// `ECM_stream`
+    EcmStream,
+    /// `EMM_stream`
+    EmmStream,
+    /// Rec. ITU-T H.222.0 | ISO/IEC 13818-1 Annex B or ISO/IEC 13818-6_DSMCC_stream
+    DsmCc,
+    /// ISO/IEC_13522_stream
+    Iso13522Stream,
+    /// Rec. ITU-T H.222.1 type A
+    H2221TypeA,
+    /// Rec. ITU-T H.222.1 type B
+    H2221TypeB,
+    /// Rec. ITU-T H.222.1 type C
+    H2221TypeC,
+    /// Rec. ITU-T H.222.1 type D
+    H2221TypeD,
+    /// Rec. ITU-T H.222.1 type E
+    H2221TypeE,
+    /// `ancillary_stream`
+    AncillaryStream,
+    /// ISO/IEC 14496-1_SL-packetized_stream
+    SlPacketizedStream,
+    /// ISO/IEC 14496-1_FlexMux_stream
+    FlexMuxStream,
+    /// metadata stream
+    MetadataStream,
+    /// `extended_stream_id`
+    ExtendedStreamId,
+    /// reserved data stream
+    ReservedDataStream,
+    /// `program_stream_directory`
+    ProgramStreamDirectory,
+    /// Encapsulates a stream_id value not specified in _ISO/IEC 13818-1_
+    Unknown(u8),
+}
+impl StreamId {
+    fn is_parsed(&self) -> bool {
+        match self {
+            StreamId::ProgramStreamMap
+            | StreamId::PaddingStream
+            | StreamId::PrivateStream2
+            | StreamId::EcmStream
+            | StreamId::EmmStream
+            | StreamId::ProgramStreamDirectory
+            | StreamId::DsmCc
+            | StreamId::H2221TypeE => false,
+            _ => true,
+        }
+    }
+}
+impl From<u8> for StreamId {
+    fn from(v: u8) -> Self {
+        match v {
+            0b1011_1100 => StreamId::ProgramStreamMap,
+            0b1011_1101 => StreamId::PrivateStream1,
+            0b1011_1110 => StreamId::PaddingStream,
+            0b1011_1111 => StreamId::PrivateStream2,
+            0b1100_0000..=0b1101_1111 => StreamId::Audio(v & 0b0001_1111),
+            0b1110_0000..=0b1110_1111 => StreamId::Video(v & 0b0000_1111),
+            0b1111_0000 => StreamId::EcmStream,
+            0b1111_0001 => StreamId::EmmStream,
+            0b1111_0010 => StreamId::DsmCc,
+            0b1111_0011 => StreamId::Iso13522Stream,
+            0b1111_0100 => StreamId::H2221TypeA,
+            0b1111_0101 => StreamId::H2221TypeB,
+            0b1111_0110 => StreamId::H2221TypeC,
+            0b1111_0111 => StreamId::H2221TypeD,
+            0b1111_1000 => StreamId::H2221TypeE,
+            0b1111_1001 => StreamId::AncillaryStream,
+            0b1111_1010 => StreamId::SlPacketizedStream,
+            0b1111_1011 => StreamId::FlexMuxStream,
+            0b1111_1100 => StreamId::MetadataStream,
+            0b1111_1101 => StreamId::ExtendedStreamId,
+            0b1111_1110 => StreamId::ReservedDataStream,
+            0b1111_1111 => StreamId::ProgramStreamDirectory,
+            _ => StreamId::Unknown(v),
+        }
+    }
+}
+
 /// Header at the start of every PES packet.
 ///
 /// The header identifies,
@@ -202,9 +300,8 @@ impl<'buf> PesHeader<'buf> {
     }
 
     /// Indicator of the type of stream per _ISO/IEC 13818-1_, _Table 2-18_.
-    pub fn stream_id(&self) -> u8 {
-        // TODO: refine an enum for these values
-        self.buf[3]
+    pub fn stream_id(&self) -> StreamId {
+        self.buf[3].into()
     }
 
     /// The overall length of the PES packet, once all pieces from the transport stream have
@@ -224,19 +321,11 @@ impl<'buf> PesHeader<'buf> {
     pub fn contents(&self) -> PesContents<'buf> {
         let header_len = 6;
         let rest = &self.buf[header_len..];
-        if is_parsed(self.stream_id()) {
+        if self.stream_id().is_parsed() {
             PesContents::Parsed(PesParsedContents::from_bytes(rest))
         } else {
             PesContents::Payload(rest)
         }
-    }
-}
-
-fn is_parsed(stream_id: u8) -> bool {
-    match stream_id {
-        0b1011_1100 | 0b1011_1111 | 0b1111_0000 | 0b1111_0001 | 0b1111_1111 | 0b1111_0010
-        | 0b1111_1000 => false,
-        _ => true,
     }
 }
 
@@ -1023,7 +1112,7 @@ mod test {
             w.write(16, 54321) // previous_PES_packet_CRC
         });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
-        assert_eq!(7, header.stream_id());
+        assert_eq!(pes::StreamId::Unknown(7), header.stream_id());
         //assert_eq!(8, header.pes_packet_length());
 
         match header.contents() {
