@@ -91,10 +91,7 @@ impl From<ClockRef> for u64 {
 
 impl fmt::Debug for ClockRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.debug_struct("PCR")
-            .field("base", &self.base)
-            .field("extension", &self.extension)
-            .finish()
+        write!(f, "PCR{{{:08x}:{:04x}}}", self.base, self.extension)
     }
 }
 impl ClockRef {
