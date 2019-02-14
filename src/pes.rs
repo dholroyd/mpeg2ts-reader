@@ -987,12 +987,9 @@ mod test {
             Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
         }
     }
-    demux_context!(NullDemuxContext, NullStreamConstructor);
-    pub struct NullStreamConstructor;
-    impl demultiplex::StreamConstructor for NullStreamConstructor {
-        type F = NullFilterSwitch;
-
-        fn construct(&mut self, _: demultiplex::FilterRequest<'_, '_>) -> Self::F {
+    demux_context!(NullDemuxContext, NullFilterSwitch);
+    impl NullDemuxContext {
+        fn do_construct(&mut self, _req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
             NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
         }
     }
@@ -1309,7 +1306,7 @@ mod test {
         let mut pes_filter = pes::PesPacketFilter::new(mock);
         let buf = hex!("4741F510000001E0000084C00A355DDD11B1155DDBF5910000000109100000000167640029AD843FFFC21FFFE10FFFF087FFF843FFFC21FFFE10FFFFFFFFFFFFFFFF087FFFFFFFFFFFFFFF2CC501E0113F780A1010101F00000303E80000C350940000000168FF3CB0000001060001C006018401103A0408D2BA80000050204E95D400000302040AB500314454473141FEFF53040000C815540DF04F77FFFFFFFFFFFFFFFFFFFF80000000016588800005DB001008673FC365F48EAE");
         let pk = packet::Packet::new(&buf[..]);
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         pes_filter.consume(&mut ctx, &pk);
         {
             let state = state.borrow();

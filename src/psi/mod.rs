@@ -596,12 +596,9 @@ mod test {
             Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
         }
     }
-    demux_context!(NullDemuxContext, NullStreamConstructor);
-    pub struct NullStreamConstructor;
-    impl demultiplex::StreamConstructor for NullStreamConstructor {
-        type F = NullFilterSwitch;
-
-        fn construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> Self::F {
+    demux_context!(NullDemuxContext, NullFilterSwitch);
+    impl NullDemuxContext {
+        fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
             match req {
                 demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
                     NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
@@ -644,7 +641,7 @@ mod test {
         buf[3] |= 0b00010000; // PayloadOnly
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         psi_buf.consume(&mut ctx, &pk);
     }
 
@@ -657,7 +654,7 @@ mod test {
         buf[7] = 3; // section_length
         let pk = Packet::new(&buf[..]);
         let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         psi_buf.consume(&mut ctx, &pk);
     }
 

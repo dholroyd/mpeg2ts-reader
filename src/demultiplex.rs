@@ -5,13 +5,11 @@
 //!
 //! Users of this crate are expected to provide their own implementations of,
 //!
-//!  - [`StreamConstructor`](trail.StreamConstructor.html) - to create specific `PacketFilter` instances
-//!    for each type of sub-stream found within the Transport Stream data.
 //!  - [`PacketFilter`](trait.PacketFilter.html) - for defining per-stream-type handling, possibly
 //!    by using the [`packet_filter_switch!()`](../macro.packet_filter_switch.html) macro to create
 //!    an enum implementing this trait.
-//!  - [`DemuxContext`](trait.DemuxContext.html) - to specify the specific `StreamConstructor` and
-//!    `DemuxContext` types to actually be used. possibly by using the
+//!  - [`DemuxContext`](trait.DemuxContext.html) - to create specific `PacketFilter` instances
+//!    for each type of sub-stream found within the Transport Stream data. possibly by using the
 //!    [`demux_context!()`](../macro.demux_context.html) macro.
 
 use crate::packet;
@@ -70,66 +68,61 @@ impl<Ctx: DemuxContext> PacketFilter for NullPacketFilter<Ctx> {
 /// 2. provides an implementation of `default()` for that struct
 /// 3. provides an implementation of `DemuxContext`
 ///
+/// **NB** The implementation of `DemuxContext` will assume that your own implementation of the
+/// type will provide a `do_construct()` method, to which its implementation of
+/// [`DemuxContext::construct()`](DemuxContext::construct) will delegate.
+///
 /// # Example
 ///
 /// ```
 /// # #[macro_use]
 /// # extern crate mpeg2ts_reader;
-/// # use mpeg2ts_reader::demultiplex::StreamConstructor;
-/// # use mpeg2ts_reader::demultiplex::FilterRequest;
+/// use mpeg2ts_reader::demultiplex;
 /// # fn main() {
 /// // Create an enum that implements PacketFilter as required by your application.
 /// packet_filter_switch!{
 ///     MyFilterSwitch<MyDemuxContext> {
-///         Pat: mpeg2ts_reader::demultiplex::PatPacketFilter<MyDemuxContext>,
-///         Pmt: mpeg2ts_reader::demultiplex::PmtPacketFilter<MyDemuxContext>,
-///         Nul: mpeg2ts_reader::demultiplex::NullPacketFilter<MyDemuxContext>,
+///         Pat: demultiplex::PatPacketFilter<MyDemuxContext>,
+///         Pmt: demultiplex::PmtPacketFilter<MyDemuxContext>,
+///         Nul: demultiplex::NullPacketFilter<MyDemuxContext>,
 ///     }
 /// };
 ///
 /// // Create an implementation of the DemuxContext trait for the PacketFilter implementation
 /// // created above.
-/// demux_context!(MyDemuxContext, MyStreamConstructor);
-///
-/// pub struct MyStreamConstructor;
-/// impl StreamConstructor for MyStreamConstructor {
-///     /// ...
-/// #    type F = MyFilterSwitch;
-/// #    fn construct(&mut self, req: FilterRequest) -> Self::F {
-/// #        unimplemented!();
-/// #    }
+/// demux_context!(MyDemuxContext, MyFilterSwitch);
+/// impl MyDemuxContext {
+///     fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> MyFilterSwitch {
+///         // ...inspect 'req', construct appropriate 'MyFilterSwitch' variant
+/// #        unimplemented!()
+///     }
 /// }
 ///
-/// let mut ctx = MyDemuxContext::new(MyStreamConstructor);
+/// let mut ctx = MyDemuxContext::new();
 /// // .. use the ctx value while demultiplexing some data ..
 /// # }
 /// ```
 #[macro_export]
 macro_rules! demux_context {
-    ($name:ident, $ctor:ty) => {
+    ($name:ident, $filter:ty) => {
         pub struct $name {
-            changeset: $crate::demultiplex::FilterChangeset<
-                <$ctor as $crate::demultiplex::StreamConstructor>::F,
-            >,
-            constructor: $ctor,
+            changeset: $crate::demultiplex::FilterChangeset<$filter>,
         }
         impl $name {
-            pub fn new(constructor: $ctor) -> Self {
+            pub fn new() -> Self {
                 $name {
                     changeset: $crate::demultiplex::FilterChangeset::default(),
-                    constructor,
                 }
             }
         }
         impl $crate::demultiplex::DemuxContext for $name {
-            type F = <$ctor as $crate::demultiplex::StreamConstructor>::F;
-            type Ctor = $ctor;
+            type F = $filter;
 
             fn filter_changeset(&mut self) -> &mut $crate::demultiplex::FilterChangeset<Self::F> {
                 &mut self.changeset
             }
-            fn filter_constructor(&mut self) -> &mut $ctor {
-                &mut self.constructor
+            fn construct(&mut self, req: $crate::demultiplex::FilterRequest<'_, '_>) -> Self::F {
+                self.do_construct(req)
             }
         }
     };
@@ -291,7 +284,7 @@ impl<F: PacketFilter> std::iter::IntoIterator for FilterChangeset<F> {
 }
 
 /// Request that may be submitted to a
-/// [`StreamConstructor`](trait.StreamConstructor.html) implementation.
+/// [`DemuxContext::construct()`](trait.DemuxContext.html) implementation.
 #[derive(Debug)]
 pub enum FilterRequest<'a, 'buf: 'a> {
     /// requests a filter implementation for handling a PID contained in the transport stream that
@@ -322,15 +315,6 @@ pub enum FilterRequest<'a, 'buf: 'a> {
         /// The `Pid` of the packets which contain the NIT.
         pid: packet::Pid,
     },
-}
-
-/// Trait for type able to construct a `PacketFilter` instance for a given `FilterRequest`.
-pub trait StreamConstructor {
-    /// the `PacketFilter` type which this constructor will create.
-    type F: PacketFilter;
-
-    /// Construct a `PacketFilter` implementation based on the requested spec.
-    fn construct(&mut self, req: FilterRequest<'_, '_>) -> Self::F;
 }
 
 struct PmtProcessor<Ctx: DemuxContext> {
@@ -369,7 +353,7 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         // pass the table_id value this far!
         let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT);
         for stream_info in sect.streams() {
-            let pes_packet_consumer = ctx.filter_constructor().construct(FilterRequest::ByStream {
+            let pes_packet_consumer = ctx.construct(FilterRequest::ByStream {
                 program_pid: self.pid,
                 stream_type: stream_info.stream_type(),
                 pmt: &sect,
@@ -436,8 +420,8 @@ pub enum DemuxError {
 /// `PacketFilter` implementation which will insert some other `PacketFilter` into the `Demultiplex`
 /// instance for each sub-stream listed in one of the stream's PMT-sections.
 ///
-/// The particular `PacketFilter` to be inserted is determined by querying the
-/// [`StreamConstructor`](trait.StreamConstructor.html) from the `DemuxContext`, passing a
+/// The particular `PacketFilter` to be inserted is determined by querying
+/// [`DemuxContxt::construct()`](trait.DemuxContext.html), passing a
 /// [`FilterRequest::ByStream`](enum.FilterRequest.html#variant.ByStream) request.
 pub struct PmtPacketFilter<Ctx: DemuxContext + 'static> {
     pmt_section_packet_consumer: psi::SectionPacketConsumer<
@@ -511,13 +495,13 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
                 pat::ProgramDescriptor::Program {
                     program_number,
                     pid,
-                } => ctx.filter_constructor().construct(FilterRequest::Pmt {
+                } => ctx.construct(FilterRequest::Pmt {
                     pid,
                     program_number,
                 }),
-                pat::ProgramDescriptor::Network { pid } => ctx
-                    .filter_constructor()
-                    .construct(FilterRequest::Nit { pid }),
+                pat::ProgramDescriptor::Network { pid } => {
+                    ctx.construct(FilterRequest::Nit { pid })
+                }
             };
             ctx.filter_changeset().insert(desc.pid(), filter);
             pids_seen.insert(usize::from(desc.pid()));
@@ -561,26 +545,30 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
 
 // ---- demux ----
 
-/// Context data shared between the `Dumultiplex` object and the `PacketFilter` implementations
+/// Context shared between the `Dumultiplex` object and the `PacketFilter` instances
 /// which customise its behavior.
+///
+/// This trait defines behaviour that the process of demultiplexing requires from the context
+/// object, but an application has the opportunity to add further state to the type implementing
+/// this trait, if desired.
 pub trait DemuxContext: Sized {
     /// the type of `PacketFilter` which the `Demultiplex` object needs to use
     type F: PacketFilter<Ctx = Self>;
-    /// the type of `StreamCOnstructor` which the `Demultiplex` object uses to create new
-    /// `PacketFilter` instances
-    type Ctor: StreamConstructor<F = Self::F>;
 
     /// mutable reference to the `FilterChangeset` this context holds
     fn filter_changeset(&mut self) -> &mut FilterChangeset<Self::F>;
-    /// mutable reference to the `StreamConstructor` this context holds
-    fn filter_constructor(&mut self) -> &mut Self::Ctor;
+
+    /// The application using this crate should provide an implementation of this method that
+    /// returns an instance of `PacketFilter` implementing the application's desired handling for
+    /// the given content.
+    fn construct(&mut self, req: FilterRequest<'_, '_>) -> Self::F;
 }
 
 /// `PacketFilter` implementation which will insert some other `PacketFilter` into the `Demultiplex`
 /// instance for each program listed in the stream's PAT-section.
 ///
-/// The particular `PacketFilter` to be inserted is determined by querying the
-/// [`StreamConstructor`](trait.StreamConstructor.html) from the `DemuxContext`, passing a
+/// The particular `PacketFilter` to be inserted is determined by querying
+/// [`DemuxContext::construct()`](trait.DemuxContext.html), passing a
 /// [`FilterRequest::Pmt`](enum.FilterRequest.html#variant.Pmt) request.
 pub struct PatPacketFilter<Ctx: DemuxContext> {
     pat_section_packet_consumer: psi::SectionPacketConsumer<
@@ -617,7 +605,7 @@ impl<Ctx: DemuxContext> PacketFilter for PatPacketFilter<Ctx> {
 
 /// Transport Stream demultiplexer.
 ///
-/// Uses the `StreamConstructor` of the `DemuxContext` passed to `new()` to create Filters for
+/// Uses the `DemuxContext` passed to `new()` to create Filters for
 /// processing the payloads of each packet discovered in the TransportStream.
 ///
 /// # Incremental parsing
@@ -631,9 +619,8 @@ pub struct Demultiplex<Ctx: DemuxContext> {
 }
 impl<Ctx: DemuxContext> Demultiplex<Ctx> {
     /// Create a `Dumultiplex` instance, and populate it with an initial `PacketFilter` for
-    /// handling PAT packets (which is created by the `StreamConstructor` from the given
-    /// `DemuxContext` object).  The returned value does not retain any reference to the given
-    /// `DemuxContext` reference.
+    /// handling PAT packets (which is created by the given `DemuxContext` object).
+    /// The returned value does not retain any reference to the given `DemuxContext` reference.
     pub fn new(ctx: &mut Ctx) -> Demultiplex<Ctx> {
         let mut result = Demultiplex {
             processor_by_pid: Filters::default(),
@@ -641,8 +628,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
 
         result.processor_by_pid.insert(
             packet::Pid::PAT,
-            ctx.filter_constructor()
-                .construct(FilterRequest::ByPid(packet::Pid::PAT)),
+            ctx.construct(FilterRequest::ByPid(packet::Pid::PAT)),
         );
 
         result
@@ -699,9 +685,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
     }
 
     fn add_pid_filter(&mut self, ctx: &mut Ctx, this_pid: packet::Pid) {
-        let filter = ctx
-            .filter_constructor()
-            .construct(FilterRequest::ByPid(this_pid));
+        let filter = ctx.construct(FilterRequest::ByPid(this_pid));
         self.processor_by_pid.insert(this_pid, filter);
     }
 }
@@ -725,13 +709,9 @@ mod test {
             Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
         }
     }
-    demux_context!(NullDemuxContext, NullStreamConstructor);
-
-    pub struct NullStreamConstructor;
-    impl demultiplex::StreamConstructor for NullStreamConstructor {
-        type F = NullFilterSwitch;
-
-        fn construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> Self::F {
+    demux_context!(NullDemuxContext, NullFilterSwitch);
+    impl NullDemuxContext {
+        fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
             match req {
                 demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
                     NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
@@ -755,7 +735,7 @@ mod test {
 
     #[test]
     fn demux_empty() {
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
         deplex.push(&mut ctx, &[0x0; 0][..]);
     }
@@ -764,7 +744,7 @@ mod test {
     fn pat() {
         // TODO: better
         let buf = hex!("474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
         deplex.push(&mut ctx, &buf[..]);
     }
@@ -783,7 +763,7 @@ mod test {
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
         let table_syntax_header =
             psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
         let mut changes = ctx.changeset.updates.into_iter();
         if let Some(demultiplex::FilterChange::Insert(pid, _)) = changes.next() {
@@ -795,7 +775,7 @@ mod test {
 
     #[test]
     fn pat_remove_existing_program() {
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         let mut processor = demultiplex::PatProcessor::default();
         {
             let section = vec![
@@ -893,7 +873,7 @@ mod test {
         let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
         let table_syntax_header =
             psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
-        let mut ctx = NullDemuxContext::new(NullStreamConstructor);
+        let mut ctx = NullDemuxContext::new();
         processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
         let mut changes = ctx.changeset.updates.into_iter();
         if let Some(demultiplex::FilterChange::Insert(pid, _)) = changes.next() {

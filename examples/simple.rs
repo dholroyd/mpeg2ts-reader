@@ -34,16 +34,13 @@ packet_filter_switch! {
 
 // This macro invocation creates a type called DumpDemuxContext, which is our application-specific
 // implementation of the DemuxContext trait.
-demux_context!(DumpDemuxContext, DumpStreamConstructor);
+demux_context!(DumpDemuxContext, DumpFilterSwitch);
 
 // When the de-multiplexing process needs to create a PacketFilter instance to handle a particular
 // kind of data discovered within the Transport Stream being processed, it will send a
-// FilterRequest to our application-specific implementation of the StreamConstructor trait
-pub struct DumpStreamConstructor;
-impl demultiplex::StreamConstructor for DumpStreamConstructor {
-    type F = DumpFilterSwitch;
-
-    fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+// FilterRequest to our application-specific implementation of the do_construct() method
+impl DumpDemuxContext {
+    fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> DumpFilterSwitch {
         match req {
             // The 'Program Association Table' is is always on PID 0.  We just use the standard
             // handling here, but an application could insert its own logic if required,
@@ -167,7 +164,7 @@ fn main() {
 
     // create the context object that stores the state of the transport stream demultiplexing
     // process
-    let mut ctx = DumpDemuxContext::new(DumpStreamConstructor);
+    let mut ctx = DumpDemuxContext::new();
 
     // create the demultiplexer, which will use the ctx to create a filter for pid 0 (PAT)
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);

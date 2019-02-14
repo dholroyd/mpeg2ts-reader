@@ -10,6 +10,9 @@
  - Some more descriptor-tag values in `CoreDescriptors` (but not the descriptor definitions themselves yet).
 
 ### Changed
+ - Removed the `StreamConstructor` trait, and merged its previous responsibilities into `DemuxContext`.  This makes it
+   much simpler for client code to gain access to any relevant `DemuxContext` state when the demuxer requests a handler
+   for a newly discovered stream within the TS.
  - Added a `StreamId` enum to replace the `u8` previously used as the return value for `PesHeader::stream_id()`
  - Removed single usage of `hex-slice` crate; resulting Debug impl is not quite so nice, but now there's one less
    dependency.

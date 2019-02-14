@@ -21,13 +21,9 @@ packet_filter_switch! {
         Pcr: PcrPacketFilter<PcrDumpDemuxContext>,
     }
 }
-demux_context!(PcrDumpDemuxContext, PcrDumpStreamConstructor);
-
-pub struct PcrDumpStreamConstructor;
-impl demultiplex::StreamConstructor for PcrDumpStreamConstructor {
-    type F = PcrDumpFilterSwitch;
-
-    fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+demux_context!(PcrDumpDemuxContext, PcrDumpFilterSwitch);
+impl PcrDumpDemuxContext {
+    fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> PcrDumpFilterSwitch {
         match req {
             demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
                 PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
@@ -85,7 +81,7 @@ fn main() {
 
     // create the context object that stores the state of the transport stream demultiplexing
     // process
-    let mut ctx = PcrDumpDemuxContext::new(PcrDumpStreamConstructor);
+    let mut ctx = PcrDumpDemuxContext::new();
 
     // create the demultiplexer, which will use the ctx to create a filter for pid 0 (PAT)
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);
