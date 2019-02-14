@@ -415,7 +415,7 @@ impl ContinuityCounter {
 /// PID values identify a particular sub-stream within the overall Transport Stream.
 ///
 /// As returned by the [`Packet::pid`](struct.Packet.html#method.pid) method for example.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Pid(u16);
 impl Pid {
     /// The largest possible PID value, `0x1fff`.
