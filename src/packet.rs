@@ -72,6 +72,7 @@ impl TransportScramblingControl {
 /// Together these can be viewed as a 42-bit, 27MHz quantity (e.g. `let full_value = pcr as u64`).
 /// Since the clock reference is limited to 33-bits, at a rate of 90kHz a continuously increasing
 /// clock value will wrap-around approximately every 26.5 hours.
+#[derive(Copy, Clone)]
 pub struct ClockRef {
     base: u64,
     extension: u16,
