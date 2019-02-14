@@ -515,6 +515,7 @@ impl<'buf> Packet<'buf> {
 
     /// *May* have been set if some previous processing of this TS data detected at least
     /// 1 uncorrectable bit error in this TS packet.
+    #[inline]
     pub fn transport_error_indicator(&self) -> bool {
         self.buf[1] & 0b1000_0000 != 0
     }
