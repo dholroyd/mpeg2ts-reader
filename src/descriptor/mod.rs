@@ -56,6 +56,44 @@ pub trait Descriptor<'buf>: Sized {
     fn from_bytes(buf: &'buf [u8]) -> Result<Self, DescriptorError>;
 }
 
+/// Builds an enum to encapsulate all possible implementations of
+/// [`Descriptor`](descriptor/trait.Descriptor.html) that you want to be able to handle in your
+/// application.
+///
+/// The list of variants is supplied in the macro body together with the 'tag' values of each
+/// option.  The macro will generate an implementation of `descriptor::Descriptor` whose
+/// `from_bytes()` function will return the variant for the tag value found within the input
+/// buffer.
+///
+/// ```
+/// # use mpeg2ts_reader::*;
+/// use mpeg2ts_reader::descriptor::*;
+///
+/// struct MySpecialDescriptor<'buf> {
+/// #    buf: &'buf [u8],
+///     // ...
+/// };
+/// impl<'buf> MySpecialDescriptor<'buf> {
+///     pub fn new(tag: u8, payload: &'buf [u8]) -> Result<Self, DescriptorError> {
+/// #       Ok(MySpecialDescriptor { buf: payload })
+///         // ...
+///     }
+/// }
+///
+/// descriptor_enum! {
+///     // you could #[derive(Debug)] here if you wanted
+///     MyOwnDescriptors {
+///         /// descriptor tag values `0`, `1` and `57` to `62` inclusive are marked as reserved
+///         /// by _ISO/IEC 13818-1_.  If any of these tag values are found,
+///         /// MyOwnDescriptors::from_bytes() will return MyOwnDescriptors::Reserved.
+///         Reserved 0|1|57..=62 => UnknownDescriptor,
+///         /// When MyOwnDescriptors::from_bytes() finds the value 255, it will return the
+///         /// MyOwnDescriptors::MySpecialPrivate variant, which will in turn wrap an instance
+///         /// of MySpecialDescriptor.
+///         MySpecialPrivate 255 => MySpecialDescriptor,
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! descriptor_enum {
     (
