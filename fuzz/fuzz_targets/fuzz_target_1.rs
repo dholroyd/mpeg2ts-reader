@@ -24,13 +24,9 @@ packet_filter_switch!{
         Null: demultiplex::NullPacketFilter<FuzzDemuxContext>,
     }
 }
-demux_context!(FuzzDemuxContext, FuzzStreamConstructor);
-
-pub struct FuzzStreamConstructor;
-impl demultiplex::StreamConstructor for FuzzStreamConstructor {
-    type F = FuzzFilterSwitch;
-
-    fn construct(&mut self, req: demultiplex::FilterRequest) -> Self::F {
+demux_context!(FuzzDemuxContext, FuzzFilterSwitch);
+impl FuzzDemuxContext {
+    fn do_construct(&mut self, req: demultiplex::FilterRequest) -> FuzzFilterSwitch {
         match req {
             demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
@@ -41,7 +37,7 @@ impl demultiplex::StreamConstructor for FuzzStreamConstructor {
     }
 }
 fuzz_target!(|data: &[u8]| {
-    let mut ctx = FuzzDemuxContext::new(FuzzStreamConstructor);
+    let mut ctx = FuzzDemuxContext::new();
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);
     let res = demux.push(&mut ctx, data);
 });
