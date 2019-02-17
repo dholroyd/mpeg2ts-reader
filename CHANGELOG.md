@@ -16,6 +16,8 @@
  - Added a `StreamId` enum to replace the `u8` previously used as the return value for `PesHeader::stream_id()`
  - Removed single usage of `hex-slice` crate; resulting Debug impl is not quite so nice, but now there's one less
    dependency.
+ - Avoid calling `start_stream()` on `ElementaryStreamConsumer` after parsing errors.  It was only intended to be
+   called when the substream was first encountered in the multiplex.
 
 ## 0.8.0
 ### Fixed

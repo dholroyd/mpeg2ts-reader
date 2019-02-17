@@ -119,8 +119,13 @@ where
             if self.state == PesState::Started {
                 self.stream_consumer.end_packet();
             } else {
+                // we might be in PesState::IgnoreRest, in which case we don't want to signal
+                // a stream_start() to the consumer, which has already received stream_start()
+                // and has presumably just been sent continuity_error() too,
+                if self.state == PesState::Begin {
+                    self.stream_consumer.start_stream();
+                }
                 self.state = PesState::Started;
-                self.stream_consumer.start_stream();
             }
             if let Some(payload) = packet.payload() {
                 if let Some(header) = PesHeader::from_bytes(payload) {
@@ -138,7 +143,6 @@ where
                 }
                 PesState::Begin => {
                     warn!("{:?}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
-                    self.state = PesState::IgnoreRest;
                 }
                 PesState::IgnoreRest => (),
             }
