@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
+### Added
+ - `StreamType::is_pes()` util function to identify those StreamType values that the spec expects to carry PES content.
+
+## 0.9.0
 ### Fixed
  - Made the methods of `descriptor::iso_639_language::Language` public (they were private by mistake)
  - Drop TS packets that have `transport_error_indicator` flag set, rather than passing known-bad data to the

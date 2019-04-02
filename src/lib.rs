@@ -128,6 +128,51 @@ pub enum StreamType {
     /// Reserved for use in future standards
     Reserved(u8),
 }
+impl StreamType {
+    /// `true` if packets of a stream with this `stream_type` will carry data in Packetized
+    /// Elementary Stream format.
+    pub fn is_pes(&self) -> bool {
+        match self {
+            StreamType::Iso11172Video
+            | StreamType::H262
+            | StreamType::Iso11172Audio
+            | StreamType::Iso138183Audio
+            | StreamType::H2220PesPrivateData
+            | StreamType::Mheg
+            | StreamType::H2220DsmCc
+            | StreamType::H2221
+            | StreamType::Iso138186MultiprotocolEncapsulation
+            | StreamType::DsmccUnMessages
+            | StreamType::DsmccStreamDescriptors
+            | StreamType::DsmccSections
+            | StreamType::H2220Auxiliary
+            | StreamType::Adts
+            | StreamType::Iso144962Visual
+            | StreamType::Latm
+            | StreamType::FlexMuxPes
+            | StreamType::FlexMuxIso14496Sections
+            | StreamType::SynchronizedDownloadProtocol
+            | StreamType::MetadataInPes
+            | StreamType::MetadataInMetadataSections
+            | StreamType::DsmccDataCarouselMetadata
+            | StreamType::DsmccObjectCarouselMetadata
+            | StreamType::SynchronizedDownloadProtocolMetadata
+            | StreamType::Ipmp
+            | StreamType::H264
+            | StreamType::AudioWithoutTransportSyntax
+            | StreamType::Iso1449617text
+            | StreamType::H265
+            | StreamType::ChineseVideoStandard
+            | StreamType::AtscDolbyDigitalAudio
+            | StreamType::AtscDsmccNetworkResourcesTable
+            | StreamType::AtscDsmccSynchronousData => true,
+
+            StreamType::H2220PrivateSections | StreamType::Reserved(_) | StreamType::Private(_) => {
+                false
+            }
+        }
+    }
+}
 impl From<u8> for StreamType {
     fn from(val: u8) -> Self {
         match val {
@@ -215,6 +260,18 @@ impl From<StreamType> for u8 {
             StreamType::AtscDsmccSynchronousData => 0xc2,
             StreamType::Reserved(val) => val,
             StreamType::Private(val) => val,
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::StreamType;
+
+    #[test]
+    fn mappings() {
+        for st in 0..=255 {
+            assert_eq!(st, StreamType::from(st).into())
         }
     }
 }
