@@ -1,3 +1,4 @@
+//! MPEG _Cyclic Redundancy Check_ calculation
 #[allow(clippy::unreadable_literal)]
 const CRC_TABLE: [u32; 256] = [
     0x00000000, 0x04c11db7, 0x09823b6e, 0x0d4326d9, 0x130476dc, 0x17c56b6b, 0x1a864db2, 0x1e475005,
@@ -34,6 +35,8 @@ const CRC_TABLE: [u32; 256] = [
     0xafb010b1, 0xab710d06, 0xa6322bdf, 0xa2f33668, 0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4,
 ];
 
+/// Calculate the 32-bit _Cyclic Redundancy Check_ of the data, according to the CRC scheme from
+/// _ISO/IEC 13818-1, Annex A_.
 pub fn sum32(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xffff_ffff;
 

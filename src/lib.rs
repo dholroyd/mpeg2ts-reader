@@ -38,7 +38,7 @@ pub mod packet;
 #[macro_use]
 pub mod demultiplex;
 pub mod descriptor;
-mod mpegts_crc;
+pub mod mpegts_crc;
 pub mod pes;
 pub mod psi;
 
