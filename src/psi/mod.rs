@@ -7,9 +7,12 @@
 //!   own table types.
 //! * A PSI *Table* can split into *Sections*
 //! * A Section can be split across a small number of individual transport stream *Packets*
-//! * A Section may use a syntax common across a number of the standard table types, or may be an
-//!   opaque bag of bytes within the transport stream whose interpretation is defined within a
-//!   derived standard (and therefore not in this library).
+//! * The payload of a section may use *section-syntax* or *compact-syntax*, as indicated by the
+//!   [`section_syntax_indicator`](struct.SectionCommonHeader.html#structfield.section_syntax_indicator)
+//!   attribute
+//!   * *Section-syntax* sections have additional header data, represented by the
+//!     `TableSyntaxHeader` type
+//!   * *Compact-syntax* sections lack this extra header data
 //!
 //! # Core types
 //!
@@ -25,6 +28,9 @@ use crate::mpegts_crc;
 use crate::packet;
 use log::warn;
 use std::fmt;
+
+// TODO: there is quite some duplication between XxxSectionSyntaxYyy and XxxCompactSyntaxYyy types
+//       refactor to reduce the repeated code.
 
 /// Trait for types which process the data within a PSI section following the 12-byte
 /// `section_length` field (which is one of the items available in the `SectionCommonHeader` that
@@ -223,6 +229,19 @@ pub trait WholeSectionSyntaxPayloadParser {
     );
 }
 
+/// Trait for types that parse fully reconstructed PSI table sections.
+///
+/// This requires the caller to have buffered section data if it spanned multiple TS packets,
+/// and the `BufferCompactSyntaxParser` type is available to perform such buffering.
+pub trait WholeCompactSyntaxPayloadParser {
+    /// Type of the context object that will be passed to all methods.
+    type Context;
+
+    /// Method that will receive a complete PSI table section, where the `data` parameter will
+    /// be `header.section_length` bytes long
+    fn section<'a>(&mut self, _: &mut Self::Context, header: &SectionCommonHeader, data: &'a [u8]);
+}
+
 enum BufferSectionState {
     Buffering(usize),
     Complete,
@@ -304,6 +323,87 @@ where
                         TableSyntaxHeader::new(&self.buf[SectionCommonHeader::SIZE..]);
                     self.parser
                         .section(ctx, &header, &table_syntax_header, &self.buf[..]);
+                } else {
+                    self.buf.extend_from_slice(data);
+                    self.state = BufferSectionState::Buffering(new_remaining);
+                }
+            }
+        }
+    }
+    fn reset(&mut self) {
+        self.buf.clear();
+        self.state = BufferSectionState::Complete;
+    }
+}
+
+/// Implements `CompactSyntaxPayloadParser` so that any sections that cross TS-packet boundaries
+/// are collected into a single byte-buffer for easier parsing.  In the common case that the
+/// section fits entirely in a single TS packet, the implementation is zero-copy.
+pub struct BufferCompactSyntaxParser<P>
+where
+    P: WholeCompactSyntaxPayloadParser,
+{
+    buf: Vec<u8>,
+    state: BufferSectionState,
+    parser: P,
+}
+impl<P> BufferCompactSyntaxParser<P>
+where
+    P: WholeCompactSyntaxPayloadParser,
+{
+    /// wraps the given `WholeSectionSyntaxPayloadParser` instance in a new
+    /// `BufferSectionSyntaxParser`.
+    pub fn new(parser: P) -> BufferCompactSyntaxParser<P> {
+        BufferCompactSyntaxParser {
+            buf: vec![],
+            state: BufferSectionState::Complete,
+            parser,
+        }
+    }
+}
+impl<P> CompactSyntaxPayloadParser for BufferCompactSyntaxParser<P>
+where
+    P: WholeCompactSyntaxPayloadParser,
+{
+    type Context = P::Context;
+
+    fn start_compact_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        data: &'a [u8],
+    ) {
+        let section_length_with_header = header.section_length + SectionCommonHeader::SIZE;
+        if section_length_with_header <= data.len() {
+            // section data is entirely within this packet,
+            self.state = BufferSectionState::Complete;
+            self.parser
+                .section(ctx, header, &data[..section_length_with_header])
+        } else {
+            // we will need to wait for continuation packets before we have the whole section,
+            self.buf.clear();
+            self.buf.extend_from_slice(data);
+            let to_read = section_length_with_header - data.len();
+            self.state = BufferSectionState::Buffering(to_read);
+        }
+    }
+
+    fn continue_compact_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+        match self.state {
+            BufferSectionState::Complete => {
+                warn!("attempt to add extra data when section already complete");
+            }
+            BufferSectionState::Buffering(remaining) => {
+                let new_remaining = if data.len() > remaining {
+                    0
+                } else {
+                    remaining - data.len()
+                };
+                if new_remaining == 0 {
+                    self.buf.extend_from_slice(&data[..remaining]);
+                    self.state = BufferSectionState::Complete;
+                    let header = SectionCommonHeader::new(&self.buf[..SectionCommonHeader::SIZE]);
+                    self.parser.section(ctx, &header, &self.buf[..]);
                 } else {
                     self.buf.extend_from_slice(data);
                     self.state = BufferSectionState::Buffering(new_remaining);
@@ -405,6 +505,104 @@ pub trait SectionSyntaxPayloadParser {
     /// called if there is a problem in the transport stream that means any in-progress section
     /// data should be discarded.
     fn reset(&mut self);
+}
+
+/// Trait for types that will handle MPEGTS PSI table sections with 'compact syntax'.
+pub trait CompactSyntaxPayloadParser {
+    /// The type of the context object passed to all methods
+    type Context;
+
+    /// NB the `data` buffer passed to _will_ include the bytes which are represented by `header`
+    /// (in order that the called code can check any CRC that covers the
+    /// whole section).
+    fn start_compact_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        data: &'a [u8],
+    );
+
+    /// may be called to pass the implementation additional slices of section data, if the
+    /// complete section was not already passed.
+    fn continue_compact_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]);
+
+    /// called if there is a problem in the transport stream that means any in-progress section
+    /// data should be discarded.
+    fn reset(&mut self);
+}
+
+/// An implementation of `SectionProcessor` to be used for sections that implement 'compact syntax'
+/// (rather than 'section syntax').
+///
+/// Delegates handling to the `CompactSyntaxPayloadParser` instance given at construction time.
+pub struct CompactSyntaxSectionProcessor<SP>
+where
+    SP: CompactSyntaxPayloadParser,
+{
+    payload_parser: SP,
+    ignore_rest: bool,
+}
+impl<SP> CompactSyntaxSectionProcessor<SP>
+where
+    SP: CompactSyntaxPayloadParser,
+{
+    const SECTION_LIMIT: usize = 1021;
+
+    /// Wraps the given `CompactSyntaxPayloadParser` instance in a new
+    /// `CompactSyntaxSectionProcessor`.
+    pub fn new(payload_parser: SP) -> CompactSyntaxSectionProcessor<SP> {
+        CompactSyntaxSectionProcessor {
+            payload_parser,
+            ignore_rest: false,
+        }
+    }
+}
+impl<SP> SectionProcessor for CompactSyntaxSectionProcessor<SP>
+where
+    SP: CompactSyntaxPayloadParser,
+{
+    type Context = SP::Context;
+
+    fn start_section<'a>(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &SectionCommonHeader,
+        data: &'a [u8],
+    ) {
+        if header.section_syntax_indicator {
+            // Maybe this should actually be allowed in some cases?
+            warn!(
+                "CompactSyntaxSectionProcessor requires that section_syntax_indicator NOT be set in the section header"
+            );
+            self.ignore_rest = true;
+            return;
+        }
+        if data.len() < SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE {
+            warn!("SectionSyntaxSectionProcessor data {} too short for header {} (TODO: implement buffering)", data.len(), SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE);
+            self.ignore_rest = true;
+            return;
+        }
+        if header.section_length > Self::SECTION_LIMIT {
+            warn!(
+                "SectionSyntaxSectionProcessor section_length={} is too large (limit {})",
+                header.section_length,
+                Self::SECTION_LIMIT
+            );
+            self.ignore_rest = true;
+            return;
+        }
+        self.ignore_rest = false;
+        self.payload_parser.start_compact_section(ctx, header, data)
+    }
+
+    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+        if !self.ignore_rest {
+            self.payload_parser.continue_compact_section(ctx, data)
+        }
+    }
+    fn reset(&mut self) {
+        self.payload_parser.reset()
+    }
 }
 
 /// An implementation of `SectionProcessor` to be used for sections that implement 'section syntax'
