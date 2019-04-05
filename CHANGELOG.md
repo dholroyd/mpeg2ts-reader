@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.0
+### Added
+ - Made `mpegts_crc::sum_32()` public.
+ - Added types to `psi` module for handling 'compact syntax' sections (mirroring existing types for handling 'section
+   syntax' sections).
+
 ## 0.10.0
 ### Added
  - `StreamType::is_pes()` util function to identify those StreamType values that the spec expects to carry PES content.
