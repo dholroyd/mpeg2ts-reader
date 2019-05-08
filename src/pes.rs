@@ -40,7 +40,7 @@ pub trait ElementaryStreamConsumer {
     fn end_packet(&mut self);
 
     /// called when gap is seen in _continuity counter_ values for this stream, indicating that
-    /// some data in the original Transpport Stream did not reach the parser.
+    /// some data in the original Transport Stream did not reach the parser.
     fn continuity_error(&mut self);
 
     // TODO: end_stream() for symmetry?
