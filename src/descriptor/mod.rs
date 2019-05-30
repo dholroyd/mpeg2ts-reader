@@ -32,9 +32,11 @@
 //! }
 //! ```
 
+pub mod avcvideo;
 pub mod iso_639_language;
 pub mod registration;
 
+use self::avcvideo::AvcVideoDescriptor;
 use self::iso_639_language::Iso639LanguageDescriptor;
 use self::registration::RegistrationDescriptor;
 use std::fmt;
@@ -232,7 +234,7 @@ descriptor_enum! {
         /// The `metadata_STD_descriptor()` syntax element from _ISO/IEC 13818-1_.
         MetadataStd 39 => UnknownDescriptor,
         /// The `AVC_video_descriptor()` syntax element from _ISO/IEC 13818-1_.
-        AvcVideo 40 => UnknownDescriptor,
+        AvcVideo 40 => AvcVideoDescriptor,
         /// The `IPMP_descriptor()` syntax element defined in _ISO/IEC 13818-11_.
         IPMP 41 => UnknownDescriptor,
         /// The `AVC_timing_and_HRD_descriptor()` syntax element from _ISO/IEC 13818-1_.

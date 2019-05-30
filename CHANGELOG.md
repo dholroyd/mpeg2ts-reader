@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+### Added
+ - `AVC_video_descriptor()` parsing.
+
 ## 0.11.0
 ### Added
  - Made `mpegts_crc::sum_32()` public.

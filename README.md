@@ -271,3 +271,4 @@ and what's yet to come:
   - [ ] muxcode_descriptor
   - [ ] fmxbuffersize_descriptor
   - [ ] multiplexbuffer_descriptor
+  - [x] AVC_video_descriptor
