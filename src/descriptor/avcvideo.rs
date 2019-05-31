@@ -9,7 +9,7 @@ pub struct AvcVideoDescriptor<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> AvcVideoDescriptor<'buf> {
-    /// The descriptor tag value which identifies the descriptor as an `Iso639LanguageDescriptor`.
+    /// The descriptor tag value which identifies the descriptor as a `AvcVideoDescriptor`.
     pub const TAG: u8 = 40;
     /// Construct a `AvcVideoDescriptor` instance that will parse the data from the given
     /// slice.
