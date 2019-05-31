@@ -257,7 +257,7 @@ and what's yet to come:
   - [ ] system_clock_descriptor
   - [ ] multiplex_buffer_utilization_descriptor
   - [ ] copyright_descriptor
-  - [ ] maximum_bitrate_descriptor
+  - [x] maximum_bitrate_descriptor
   - [ ] private_data_indicator_descriptor
   - [ ] smoothing_buffer_descriptor
   - [ ] std_descriptor

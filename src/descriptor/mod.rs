@@ -34,10 +34,12 @@
 
 pub mod avcvideo;
 pub mod iso_639_language;
+pub mod max_bitrate;
 pub mod registration;
 
 use self::avcvideo::AvcVideoDescriptor;
 use self::iso_639_language::Iso639LanguageDescriptor;
+use self::max_bitrate::MaximumBitrateDescriptor;
 use self::registration::RegistrationDescriptor;
 use std::fmt;
 use std::marker;
@@ -196,7 +198,7 @@ descriptor_enum! {
         /// The `copyright_descriptor()` syntax element from _ISO/IEC 13818-1_.
         Copyright 13 => UnknownDescriptor,
         /// The `maximum_bitrate_descriptor()` syntax element from _ISO/IEC 13818-1_.
-        MaximumBitrate 14 => UnknownDescriptor,
+        MaximumBitrate 14 => MaximumBitrateDescriptor,
         /// The `private_data_indicator_descriptor()` syntax element from _ISO/IEC 13818-1_.
         PrivateDataIndicator 15 => UnknownDescriptor,
         /// The `smoothing_buffer_descriptor()` syntax element from _ISO/IEC 13818-1_.
