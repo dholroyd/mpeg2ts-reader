@@ -94,3 +94,26 @@ impl fmt::Debug for AvcVideoDescriptor<'_> {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::super::{CoreDescriptors, Descriptor};
+    use super::*;
+    use hex_literal::*;
+    use matches::assert_matches;
+
+    #[test]
+    fn descriptor() {
+        let data = hex!("280442c01e3f");
+        let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
+        if let CoreDescriptors::AvcVideo(avc_video) = desc {
+            assert_eq!(avc_video.level_idc(), 30);
+            assert_eq!(avc_video.profile_idc(), 66);
+            assert_eq!(avc_video.avc_still_present(), false);
+            assert_eq!(avc_video.avc_24_hour_picture_flag(), false);
+            assert_eq!(avc_video.frame_packing_sei_not_present_flag(), true);
+        } else {
+            panic!("unexpected {:?}", desc);
+        }
+    }
+}
