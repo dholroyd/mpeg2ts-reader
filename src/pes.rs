@@ -857,6 +857,9 @@ pub struct Timestamp {
     val: u64,
 }
 impl Timestamp {
+    /// The largest representable timestamp value before the timestamp wraps back around to zero.
+    pub const MAX: Timestamp = Timestamp { val: 1 << 33 - 1 };
+
     /// Parse a Presentation Time Stamp value from the 5 bytes at the start of the given slice
     ///
     /// Panics if fewer than 5 bytes given
@@ -915,6 +918,14 @@ impl Timestamp {
     /// produces the timestamp's value (only the low 33 bits are used)
     pub fn value(self) -> u64 {
         self.val
+    }
+
+    /// returns true if timestamps are likely to have wrapped around since `other`, given a curent
+    /// timestamp of `self`, and given the two timestamp values were taken no more than about
+    /// _13.3 hours_ apart (i.e. no more than half the 26.5-ish hours it takes for the wrap around
+    /// to occur).
+    pub fn likely_wrapped_since(&self, other: Self) -> bool {
+        other.val > self.val && other.val - self.val > Self::MAX.val / 2
     }
 }
 

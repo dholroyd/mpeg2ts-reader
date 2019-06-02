@@ -4,6 +4,7 @@
 ### Added
  - `AVC_video_descriptor()` parsing.
  - `maximum_bitrate_descriptor()` parsing.
+ - `Timestamp::likely_wrapped_since()` utility for detecting wraparound, and supporting `Timestamp::MAX` constant.
 
 ## 0.11.0
 ### Added
