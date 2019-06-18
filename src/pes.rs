@@ -858,7 +858,7 @@ pub struct Timestamp {
 }
 impl Timestamp {
     /// The largest representable timestamp value before the timestamp wraps back around to zero.
-    pub const MAX: Timestamp = Timestamp { val: 1 << 33 - 1 };
+    pub const MAX: Timestamp = Timestamp { val: (1 << 33) - 1 };
 
     /// Parse a Presentation Time Stamp value from the 5 bytes at the start of the given slice
     ///
