@@ -286,7 +286,7 @@ impl<F: PacketFilter> std::iter::IntoIterator for FilterChangeset<F> {
 /// Request that may be submitted to a
 /// [`DemuxContext::construct()`](trait.DemuxContext.html) implementation.
 #[derive(Debug)]
-pub enum FilterRequest<'a, 'buf: 'a> {
+pub enum FilterRequest<'a, 'buf> {
     /// requests a filter implementation for handling a PID contained in the transport stream that
     /// was not announced via other means (PAT/PMT).
     ByPid(packet::Pid),
