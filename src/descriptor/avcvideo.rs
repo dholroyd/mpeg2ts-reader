@@ -98,9 +98,7 @@ impl fmt::Debug for AvcVideoDescriptor<'_> {
 #[cfg(test)]
 mod test {
     use super::super::{CoreDescriptors, Descriptor};
-    use super::*;
     use hex_literal::*;
-    use matches::assert_matches;
 
     #[test]
     fn descriptor() {
