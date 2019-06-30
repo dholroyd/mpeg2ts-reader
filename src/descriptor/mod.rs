@@ -91,6 +91,7 @@ pub trait Descriptor<'buf>: Sized {
 ///         /// by _ISO/IEC 13818-1_.  If any of these tag values are found,
 ///         /// MyOwnDescriptors::from_bytes() will return MyOwnDescriptors::Reserved.
 ///         Reserved 0|1|57..=62 => UnknownDescriptor,
+///         Other 2..=56|63..=254 => UnknownDescriptor,
 ///         /// When MyOwnDescriptors::from_bytes() finds the value 255, it will return the
 ///         /// MyOwnDescriptors::MySpecialPrivate variant, which will in turn wrap an instance
 ///         /// of MySpecialDescriptor.
@@ -130,7 +131,6 @@ macro_rules! descriptor_enum {
                 let payload = &buf[2..tag_end];
                 match tag {
                     $( $( $tags )|* => Ok($name::$case_name($t::new(tag, payload)?)), )*
-                    _ => Err($crate::descriptor::DescriptorError::UnhandledTagValue(tag)),
                 }
             }
         }
