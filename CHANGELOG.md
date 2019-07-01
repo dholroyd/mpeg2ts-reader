@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0
 ### Changed
  - The `descriptor_enum!{}` macro no longer provides a default case (which used to produce `Error`), so callers which don't define
    mappings for all possible descriptor tag values (`0`-`255`) will now get a compiler error.
