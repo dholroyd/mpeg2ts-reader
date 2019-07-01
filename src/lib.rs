@@ -131,7 +131,7 @@ pub enum StreamType {
 impl StreamType {
     /// `true` if packets of a stream with this `stream_type` will carry data in Packetized
     /// Elementary Stream format.
-    pub fn is_pes(&self) -> bool {
+    pub fn is_pes(self) -> bool {
         match self {
             StreamType::Iso11172Video
             | StreamType::H262

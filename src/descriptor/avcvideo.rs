@@ -28,31 +28,31 @@ impl<'buf> AvcVideoDescriptor<'buf> {
     }
     /// Value of the same flag from this AVC stream's _Sequence Parameter Set_
     pub fn constraint_set0_flag(&self) -> bool {
-        self.buf[1] & 0b10000000 != 0
+        self.buf[1] & 0b1000_0000 != 0
     }
     /// Value of the same flag from this AVC stream's _Sequence Parameter Set_
     pub fn constraint_set1_flag(&self) -> bool {
-        self.buf[1] & 0b01000000 != 0
+        self.buf[1] & 0b0100_0000 != 0
     }
     /// Value of the same flag from this AVC stream's _Sequence Parameter Set_
     pub fn constraint_set2_flag(&self) -> bool {
-        self.buf[1] & 0b00100000 != 0
+        self.buf[1] & 0b0010_0000 != 0
     }
     /// Value of the same flag from this AVC stream's _Sequence Parameter Set_
     pub fn constraint_set3_flag(&self) -> bool {
-        self.buf[1] & 0b00010000 != 0
+        self.buf[1] & 0b0001_0000 != 0
     }
     /// Value of the same flag from this AVC stream's _Sequence Parameter Set_
     pub fn constraint_set4_flag(&self) -> bool {
-        self.buf[1] & 0b00001000 != 0
+        self.buf[1] & 0b0000_1000 != 0
     }
     /// Value of the same flag from this AVC stream's _Sequence Parameter Set_
     pub fn constraint_set5_flag(&self) -> bool {
-        self.buf[1] & 0b00000100 != 0
+        self.buf[1] & 0b0000_0100 != 0
     }
     /// Value of the same flags from this AVC stream's _Sequence Parameter Set_
     pub fn avc_compatible_flags(&self) -> u8 {
-        self.buf[1] & 0b00000011
+        self.buf[1] & 0b0000_0011
     }
     /// The AVC _level_ used in this stream will be equal to, or lower than, this value
     pub fn level_idc(&self) -> u8 {
@@ -60,16 +60,16 @@ impl<'buf> AvcVideoDescriptor<'buf> {
     }
     /// Stream may include AVC still pictures
     pub fn avc_still_present(&self) -> bool {
-        self.buf[3] & 0b10000000 != 0
+        self.buf[3] & 0b1000_0000 != 0
     }
     /// Stream may contain AVC 24-hour pictures
     pub fn avc_24_hour_picture_flag(&self) -> bool {
-        self.buf[3] & 0b01000000 != 0
+        self.buf[3] & 0b0100_0000 != 0
     }
     /// If false, _frame packing arrangement_ or _stereo video information_ SEI message should be
     /// present
     pub fn frame_packing_sei_not_present_flag(&self) -> bool {
-        self.buf[3] & 0b00100000 != 0
+        self.buf[3] & 0b0010_0000 != 0
     }
 }
 

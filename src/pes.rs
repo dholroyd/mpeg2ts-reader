@@ -927,7 +927,7 @@ impl Timestamp {
     /// timestamp of `self`, and given the two timestamp values were taken no more than about
     /// _13.3 hours_ apart (i.e. no more than half the 26.5-ish hours it takes for the wrap around
     /// to occur).
-    pub fn likely_wrapped_since(&self, other: Self) -> bool {
+    pub fn likely_wrapped_since(self, other: Self) -> bool {
         other.val > self.val && other.val - self.val > Self::MAX.val / 2
     }
 }
