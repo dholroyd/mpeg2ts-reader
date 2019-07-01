@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+### Changed
+ - The `descriptor_enum!{}` macro no longer provides a default case (which used to produce `Error`), so callers which don't define
+   mappings for all possible descriptor tag values (`0`-`255`) will now get a compiler error.
+### Fixed
+ - Fixed incorrect value of `Timestamp::MAX`.
+### Added
+ - Added `Timestamp::TIMEBASE` constant.
+
+## 0.12.00
 ### Added
  - `AVC_video_descriptor()` parsing.
  - `maximum_bitrate_descriptor()` parsing.
