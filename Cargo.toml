@@ -18,7 +18,7 @@ log = "0.4"
 [dev-dependencies]
 matches = "0.1.6"
 bitstream-io = "0.8"
-criterion = "0.2"
+criterion = "0.3"
 hex-literal = "0.2.1"
 hex-slice = "0.1.4"
 
