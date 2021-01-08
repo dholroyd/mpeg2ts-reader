@@ -24,24 +24,24 @@ use std::{fmt, num};
 /// Instances of this type are registered with a
 /// [`PesPacketConsumer`](struct.PesPacketConsumer.html), which itself is responsible for
 /// extracting elementary stream data from transport stream packets.
-pub trait ElementaryStreamConsumer {
+pub trait ElementaryStreamConsumer<Ctx> {
     /// called before the first call to `begin_packet()`
-    fn start_stream(&mut self);
+    fn start_stream(&mut self, ctx: &mut Ctx);
 
     /// called with the header at the start of the PES packet, which may not contain the complete
     /// PES payload
-    fn begin_packet(&mut self, header: PesHeader<'_>);
+    fn begin_packet(&mut self, ctx: &mut Ctx, header: PesHeader<'_>);
 
     /// called after an earlier call to `begin_packet()` when another part of the packet's payload
     /// data is found in the Transport Stream.
-    fn continue_packet(&mut self, data: &[u8]);
+    fn continue_packet(&mut self, ctx: &mut Ctx, data: &[u8]);
 
     /// called when a PES packet ends, prior to the next call to `begin_packet()` (if any).
-    fn end_packet(&mut self);
+    fn end_packet(&mut self, ctx: &mut Ctx);
 
     /// called when gap is seen in _continuity counter_ values for this stream, indicating that
     /// some data in the original Transport Stream did not reach the parser.
-    fn continuity_error(&mut self);
+    fn continuity_error(&mut self, ctx: &mut Ctx);
 
     // TODO: end_stream() for symmetry?
 }
@@ -61,7 +61,7 @@ enum PesState {
 pub struct PesPacketFilter<Ctx, E>
 where
     Ctx: demultiplex::DemuxContext,
-    E: ElementaryStreamConsumer,
+    E: ElementaryStreamConsumer<Ctx>,
 {
     stream_consumer: E,
     ccounter: Option<packet::ContinuityCounter>,
@@ -71,7 +71,7 @@ where
 impl<Ctx, E> PesPacketFilter<Ctx, E>
 where
     Ctx: demultiplex::DemuxContext,
-    E: ElementaryStreamConsumer,
+    E: ElementaryStreamConsumer<Ctx>,
 {
     /// Construct a new `PesPacketFIlter` that will pass pieces of PES data to the given
     /// `ElementaryStreamConsumer`
@@ -104,32 +104,32 @@ where
 impl<Ctx, E> demultiplex::PacketFilter for PesPacketFilter<Ctx, E>
 where
     Ctx: demultiplex::DemuxContext,
-    E: ElementaryStreamConsumer,
+    E: ElementaryStreamConsumer<Ctx>,
 {
     type Ctx = Ctx;
 
     #[inline(always)]
-    fn consume(&mut self, _ctx: &mut Self::Ctx, packet: &packet::Packet<'_>) {
+    fn consume(&mut self, ctx: &mut Self::Ctx, packet: &packet::Packet<'_>) {
         if !self.is_continuous(&packet) {
-            self.stream_consumer.continuity_error();
+            self.stream_consumer.continuity_error(ctx);
             self.state = PesState::IgnoreRest;
         }
         self.ccounter = Some(packet.continuity_counter());
         if packet.payload_unit_start_indicator() {
             if self.state == PesState::Started {
-                self.stream_consumer.end_packet();
+                self.stream_consumer.end_packet(ctx);
             } else {
                 // we might be in PesState::IgnoreRest, in which case we don't want to signal
                 // a stream_start() to the consumer, which has already received stream_start()
                 // and has presumably just been sent continuity_error() too,
                 if self.state == PesState::Begin {
-                    self.stream_consumer.start_stream();
+                    self.stream_consumer.start_stream(ctx);
                 }
                 self.state = PesState::Started;
             }
             if let Some(payload) = packet.payload() {
                 if let Some(header) = PesHeader::from_bytes(payload) {
-                    self.stream_consumer.begin_packet(header);
+                    self.stream_consumer.begin_packet(ctx, header);
                 }
             }
         } else {
@@ -137,7 +137,7 @@ where
                 PesState::Started => {
                     if let Some(payload) = packet.payload() {
                         if !payload.is_empty() {
-                            self.stream_consumer.continue_packet(payload);
+                            self.stream_consumer.continue_packet(ctx, payload);
                         }
                     }
                 }
@@ -1303,16 +1303,16 @@ mod test {
             MockElementaryStreamConsumer { state }
         }
     }
-    impl pes::ElementaryStreamConsumer for MockElementaryStreamConsumer {
-        fn start_stream(&mut self) {
+    impl pes::ElementaryStreamConsumer<NullDemuxContext> for MockElementaryStreamConsumer {
+        fn start_stream(&mut self, _ctx: &mut NullDemuxContext) {
             self.state.borrow_mut().start_stream_called = true;
         }
-        fn begin_packet(&mut self, _header: pes::PesHeader<'_>) {
+        fn begin_packet(&mut self, _ctx: &mut NullDemuxContext, _header: pes::PesHeader<'_>) {
             self.state.borrow_mut().begin_packet_called = true;
         }
-        fn continue_packet(&mut self, _data: &[u8]) {}
-        fn end_packet(&mut self) {}
-        fn continuity_error(&mut self) {
+        fn continue_packet(&mut self, _ctx: &mut NullDemuxContext, _data: &[u8]) {}
+        fn end_packet(&mut self, _ctx: &mut NullDemuxContext) {}
+        fn continuity_error(&mut self, _ctx: &mut NullDemuxContext) {
             self.state.borrow_mut().continuity_error_called = true;
         }
     }
