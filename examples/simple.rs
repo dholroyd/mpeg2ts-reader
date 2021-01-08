@@ -105,9 +105,9 @@ impl PtsDumpElementaryStreamConsumer {
         DumpFilterSwitch::Pes(filter)
     }
 }
-impl pes::ElementaryStreamConsumer for PtsDumpElementaryStreamConsumer {
-    fn start_stream(&mut self) {}
-    fn begin_packet(&mut self, header: pes::PesHeader) {
+impl pes::ElementaryStreamConsumer<DumpDemuxContext> for PtsDumpElementaryStreamConsumer {
+    fn start_stream(&mut self, _ctx: &mut DumpDemuxContext) {}
+    fn begin_packet(&mut self, _ctx: &mut DumpDemuxContext, header: pes::PesHeader) {
         match header.contents() {
             pes::PesContents::Parsed(Some(parsed)) => {
                 match parsed.pts_dts() {
@@ -143,7 +143,7 @@ impl pes::ElementaryStreamConsumer for PtsDumpElementaryStreamConsumer {
             }
         }
     }
-    fn continue_packet(&mut self, data: &[u8]) {
+    fn continue_packet(&mut self, _ctx: &mut DumpDemuxContext, data: &[u8]) {
         println!(
             "{:?}:                     continues {:02x}",
             self.pid,
@@ -151,10 +151,10 @@ impl pes::ElementaryStreamConsumer for PtsDumpElementaryStreamConsumer {
         );
         self.len = self.len.map(|l| l + data.len());
     }
-    fn end_packet(&mut self) {
+    fn end_packet(&mut self, _ctx: &mut DumpDemuxContext) {
         println!("{:?}: end of packet length={:?}", self.pid, self.len);
     }
-    fn continuity_error(&mut self) {}
+    fn continuity_error(&mut self, _ctx: &mut DumpDemuxContext) {}
 }
 
 fn main() {
