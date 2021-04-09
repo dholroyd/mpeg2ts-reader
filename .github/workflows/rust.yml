@@ -19,7 +19,7 @@ jobs:
       run: cargo test --verbose
 
   coverage:
-    name: Rust project
+    name: Rust code coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -34,12 +34,10 @@ jobs:
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          version: '0.15.0'
-          args: '-- --test-threads 1'
-          out-type: Lcov
+          args: '--ignore-tests --out Lcov'
 
-      - name: Coveralls Finished
+      - name: upload to Coveralls
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          parallel-finished: true
+          path-to-lcov: './lcov.info'
