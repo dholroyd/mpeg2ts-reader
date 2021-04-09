@@ -11,7 +11,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-fixedbitset = "0.3.0"
+fixedbitset = "0.4.0"
 encoding = "0.2"
 log = "0.4"
 smptera-format-identifiers-rust = "0.3.0"
