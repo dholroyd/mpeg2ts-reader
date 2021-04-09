@@ -5,7 +5,6 @@ extern crate mpeg2ts_reader;
 
 use criterion::{Benchmark, Criterion, Throughput};
 use mpeg2ts_reader::demultiplex;
-use mpeg2ts_reader::packet;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::psi;
 use std::fs::File;
@@ -54,9 +53,9 @@ impl NullElementaryStreamConsumer {
         NullFilterSwitch::NullPes(filter)
     }
 }
-impl pes::ElementaryStreamConsumer for NullElementaryStreamConsumer {
-    fn start_stream(&mut self) {}
-    fn begin_packet(&mut self, header: pes::PesHeader) {
+impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
+    fn start_stream(&mut self, _ctx: &mut Ctx) {}
+    fn begin_packet(&mut self, _ctx: &mut Ctx, header: pes::PesHeader) {
         if let pes::PesContents::Parsed(Some(content)) = header.contents() {
             match content.pts_dts() {
                 Ok(pes::PtsDts::PtsOnly(Ok(ts))) => {
@@ -69,9 +68,9 @@ impl pes::ElementaryStreamConsumer for NullElementaryStreamConsumer {
             };
         }
     }
-    fn continue_packet(&mut self, _data: &[u8]) {}
-    fn end_packet(&mut self) {}
-    fn continuity_error(&mut self) {}
+    fn continue_packet(&mut self, _ctx: &mut Ctx, _data: &[u8]) {}
+    fn end_packet(&mut self, _ctx: &mut Ctx) {}
+    fn continuity_error(&mut self, _ctx: &mut Ctx) {}
 }
 
 fn mpeg2ts_reader(c: &mut Criterion) {
@@ -89,7 +88,7 @@ fn mpeg2ts_reader(c: &mut Criterion) {
                 demux.push(&mut ctx, &buf[..]);
             });
         })
-        .throughput(Throughput::Bytes(size as u32)),
+        .throughput(Throughput::Bytes(size as u64)),
     );
 }
 
