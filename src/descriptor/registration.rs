@@ -2,12 +2,13 @@
 //! stream will be following
 
 use super::DescriptorError;
+use smptera_format_identifiers_rust::FormatIdentifier;
 use std::fmt;
 
 /// Indicates which kind of syntax any 'private data' within the transport stream will be following
 pub struct RegistrationDescriptor<'buf> {
     /// the registration data bytes
-    pub buf: &'buf [u8],
+    buf: &'buf [u8],
 }
 impl<'buf> RegistrationDescriptor<'buf> {
     /// The descriptor tag value which identifies the descriptor as a `RegistrationDescriptor`.
@@ -27,15 +28,30 @@ impl<'buf> RegistrationDescriptor<'buf> {
     }
 
     /// Format identifier value assigned by a _Registration Authority_.
-    pub fn format_identifier(&self) -> u32 {
-        u32::from(self.buf[0]) << 24
-            | u32::from(self.buf[1]) << 16
-            | u32::from(self.buf[2]) << 8
-            | u32::from(self.buf[3])
+    ///
+    /// Note that the `FormatIdentifier` type defines numerous constants for identifiers registered
+    /// with the SMPTE RA, which you can use in tests like so:
+    ///
+    /// ```rust
+    /// # use mpeg2ts_reader::descriptor::registration::RegistrationDescriptor;
+    /// use smptera_format_identifiers_rust::FormatIdentifier;
+    /// # let descriptor = RegistrationDescriptor::new(RegistrationDescriptor::TAG, b"CUEI")
+    /// #   .unwrap();
+    /// if descriptor.format_identifier() == FormatIdentifier::CUEI {
+    ///     // perform some interesting action
+    /// }
+    /// ```
+    pub fn format_identifier(&self) -> FormatIdentifier {
+        FormatIdentifier::from(&self.buf[0..4])
+    }
+
+    /// Returns true if the given identifier is equal to the value returned by `format_identifier()`
+    pub fn is_format(&self, id: FormatIdentifier) -> bool {
+        self.format_identifier() == id
     }
 
     /// borrows a slice of additional_identification_info bytes, whose meaning is defined by
-    /// the identifier returned by `format_idenfifier()`.
+    /// the identifier returned by `format_identifier()`.
     pub fn additional_identification_info(&self) -> &[u8] {
         &self.buf[4..]
     }

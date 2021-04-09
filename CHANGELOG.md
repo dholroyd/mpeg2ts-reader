@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+### Changed
+ - `RegistrationDescriptor::format_identifier()` return type changed from u32 to a value of the `FormatIdentifier` enum
+   from the [smptera-format-identifiers-rust](https://crates.io/crates/smptera-format-identifiers-rust) crate.  Also
+   `RegistrationDescriptor` fields are no longer public.
+
 ## 0.13.0
 ### Changed
  - The `descriptor_enum!{}` macro no longer provides a default case (which used to produce `Error`), so callers which don't define

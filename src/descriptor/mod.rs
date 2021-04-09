@@ -27,7 +27,7 @@
 //! // type parameter to descriptors() is inferred from the use of CoreDescriptors below
 //! for d in pmt.descriptors() {
 //!     if let Ok(CoreDescriptors::Registration(reg)) = d {
-//!         println!("registration_descriptor {:#x}", reg.format_identifier());
+//!         println!("registration_descriptor {:?}", reg.format_identifier());
 //!     }
 //! }
 //! ```
