@@ -36,14 +36,10 @@ jobs:
         with:
           version: '0.15.0'
           args: '-- --test-threads 1'
+          out-type: Lcov
 
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1.0.2
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@master
         with:
-          token: ${{secrets.CODECOV_TOKEN}}
-
-      - name: Archive code coverage results
-        uses: actions/upload-artifact@v1
-        with:
-          name: code-coverage-report
-          path: cobertura.xml
+          github-token: ${{ secrets.COVERALLS_TOKEN }}
+          parallel-finished: true
