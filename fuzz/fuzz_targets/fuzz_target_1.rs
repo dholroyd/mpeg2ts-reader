@@ -8,12 +8,12 @@ extern crate mpeg2ts_reader;
 use mpeg2ts_reader::{demultiplex, pes, packet};
 
 pub struct FuzzElementaryStreamConsumer;
-impl pes::ElementaryStreamConsumer for FuzzElementaryStreamConsumer {
-    fn start_stream(&mut self) {}
-    fn begin_packet(&mut self, header: pes::PesHeader) {}
-    fn continue_packet(&mut self, data: &[u8]) {}
-    fn end_packet(&mut self) {}
-    fn continuity_error(&mut self) {}
+impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for FuzzElementaryStreamConsumer {
+    fn start_stream(&mut self, _ctx: &mut Ctx) {}
+    fn begin_packet(&mut self, _ctx: &mut Ctx, _header: pes::PesHeader) {}
+    fn continue_packet(&mut self, _ctx: &mut Ctx, _data: &[u8]) {}
+    fn end_packet(&mut self, _ctx: &mut Ctx) {}
+    fn continuity_error(&mut self, _ctx: &mut Ctx) {}
 }
 
 packet_filter_switch!{
