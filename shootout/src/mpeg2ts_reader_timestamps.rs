@@ -53,9 +53,9 @@ impl TimeCheckElementaryStreamConsumer {
         NullFilterSwitch::NullPes(filter)
     }
 }
-impl pes::ElementaryStreamConsumer for TimeCheckElementaryStreamConsumer {
-    fn start_stream(&mut self) {  }
-    fn begin_packet(&mut self, header: pes::PesHeader) {
+impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for TimeCheckElementaryStreamConsumer {
+    fn start_stream(&mut self, _ctx: &mut Ctx) {  }
+    fn begin_packet(&mut self, _ctx: &mut Ctx, header: pes::PesHeader) {
         if let pes::PesContents::Parsed(Some(content)) = header.contents() {
             let this_ts = match content.pts_dts() {
                 Ok(pes::PtsDts::PtsOnly(Ok(ts))) => Some(ts.value()),
@@ -72,7 +72,7 @@ impl pes::ElementaryStreamConsumer for TimeCheckElementaryStreamConsumer {
             }
         }
     }
-    fn continue_packet(&mut self, _data: &[u8]) { }
-    fn end_packet(&mut self) { }
-    fn continuity_error(&mut self) { }
+    fn continue_packet(&mut self, _ctx: &mut Ctx, _data: &[u8]) { }
+    fn end_packet(&mut self, _ctx: &mut Ctx) { }
+    fn continuity_error(&mut self, _ctx: &mut Ctx) { }
 }

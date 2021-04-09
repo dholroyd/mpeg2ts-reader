@@ -6,7 +6,7 @@ publish = false
 [dependencies]
 mpeg2ts = "0.1.1"
 mpeg2ts-reader = { path = ".." }
-ffmpeg-sys = "3.4.1"
+ffmpeg-sys = { git = "https://github.com/EgorDm/rust-ffmpeg-sys" }
 
 [dev-dependencies]
 criterion = "0.2"
