@@ -2,6 +2,7 @@
 
 use crate::pes;
 use log::warn;
+use std::convert::TryFrom;
 use std::fmt;
 
 /// the different values indicating whether a `Packet`'s `adaptation_field()` and `payload()`
@@ -425,23 +426,28 @@ impl Pid {
     /// The total number of distinct PID values, `0x2000` (equal to `MAX_VALUE` + 1)
     pub const PID_COUNT: usize = (Self::MAX_VALUE + 1) as usize;
 
-    /// The identifier of TS Packets containing Program Association Table sections, with value `0`.
-    pub const PAT: Pid = Pid(0);
-    /// The identifier of TS Packets containing 'stuffing' data, with value `0x1fff`
-    pub const STUFFING: Pid = Pid(0x1fff);
+    #[doc(hidden)]
+    /// Use mpeg2ts_reader::psi::pat::PAT_PID instead of this
+    pub const PAT: Pid = Pid::new(0);
+    #[doc(hidden)]
+    /// Use mpeg2ts_reader::STUFFING_PID instead of this
+    pub const STUFFING: Pid = Pid::new(0x1fff);
 
     /// Panics if the given value is greater than `Pid::MAX_VALUE`.
-    #[inline]
-    pub fn new(pid: u16) -> Pid {
-        // Ideally, this would be a const fn, so that other code could define Pid constants too,
-        // however const fn's can't assert that the argument is valid, in current Rust.
-        assert!(
-            pid <= Self::MAX_VALUE,
-            "{} greater than pid max {}",
-            pid,
-            Self::MAX_VALUE
-        );
+    pub const fn new(pid: u16) -> Pid {
+        const_assert!(pid <= 0x1fff);
         Pid(pid)
+    }
+}
+impl TryFrom<u16> for Pid {
+    type Error = ();
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        if value <= Pid::MAX_VALUE {
+            Ok(Pid(value))
+        } else {
+            Err(())
+        }
     }
 }
 impl From<Pid> for u16 {
@@ -655,6 +661,11 @@ impl<'buf> Packet<'buf> {
 mod test {
     use crate::packet::*;
     use crate::pes;
+
+    #[test]
+    fn pid() {
+        assert!(Pid::try_from(0x2000).is_err());
+    }
 
     #[test]
     #[should_panic]

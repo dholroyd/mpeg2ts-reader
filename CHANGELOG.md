@@ -5,6 +5,12 @@
  - `RegistrationDescriptor::format_identifier()` return type changed from u32 to a value of the `FormatIdentifier` enum
    from the [smptera-format-identifiers-rust](https://crates.io/crates/smptera-format-identifiers-rust) crate.  Also
    `RegistrationDescriptor` fields are no longer public.
+ - `Pid::new()` is now a `const` function.  Other crates can now define `Pid` constants.
+ - Definitions of constants for 'PAT' and 'stuffing' PIDs have been relocated, now that don't have to be in the same
+   module as the `Pid` type.
+
+### Added
+ - Implementation of `TryFrom<u16>` for `Pid`
 
 ## 0.13.0
 ### Changed

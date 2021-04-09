@@ -3,6 +3,9 @@
 use crate::packet;
 use log::warn;
 
+/// The identifier of TS Packets containing Program Association Table sections, with value `0`.
+pub const PAT_PID: packet::Pid = packet::Pid::new(0);
+
 /// Identifiers related to a specific program within the Transport Stream
 #[derive(Clone, Debug)]
 pub enum ProgramDescriptor {

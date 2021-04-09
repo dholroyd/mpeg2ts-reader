@@ -44,12 +44,12 @@ impl DumpDemuxContext {
         match req {
             // The 'Program Association Table' is is always on PID 0.  We just use the standard
             // handling here, but an application could insert its own logic if required,
-            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
+            demultiplex::FilterRequest::ByPid(psi::pat::PAT_PID) => {
                 DumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
             }
             // 'Stuffing' data on PID 0x1fff may be used to pad-out parts of the transport stream
             // so that it has constant overall bitrate.  This causes it to be ignored if present.
-            demultiplex::FilterRequest::ByPid(packet::Pid::STUFFING) => {
+            demultiplex::FilterRequest::ByPid(mpeg2ts_reader::STUFFING_PID) => {
                 DumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
             }
             // Some Transport Streams will contain data on 'well known' PIDs, which are not

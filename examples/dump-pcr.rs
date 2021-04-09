@@ -25,7 +25,7 @@ demux_context!(PcrDumpDemuxContext, PcrDumpFilterSwitch);
 impl PcrDumpDemuxContext {
     fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> PcrDumpFilterSwitch {
         match req {
-            demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
+            demultiplex::FilterRequest::ByPid(psi::pat::PAT_PID) => {
                 PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
             }
             demultiplex::FilterRequest::Pmt {

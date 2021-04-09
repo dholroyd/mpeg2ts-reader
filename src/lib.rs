@@ -34,6 +34,17 @@
 #![forbid(unsafe_code)]
 #![deny(rust_2018_idioms, future_incompatible, missing_docs)]
 
+// until we have https://github.com/rust-lang/rust/issues/51999 I think
+macro_rules! const_assert {
+    ($x:expr $(,)?) => {
+        #[allow(unknown_lints, eq_op)]
+        {
+            const ASSERT: [(); 1] = [()];
+            let _ = ASSERT[!($x) as usize];
+        }
+    };
+}
+
 pub mod packet;
 #[macro_use]
 pub mod demultiplex;
@@ -263,6 +274,9 @@ impl From<StreamType> for u8 {
         }
     }
 }
+
+/// The identifier of TS Packets containing 'stuffing' data, with value `0x1fff`
+pub const STUFFING_PID: packet::Pid = packet::Pid::new(0x1fff);
 
 #[cfg(test)]
 mod test {

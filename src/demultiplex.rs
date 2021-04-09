@@ -627,8 +627,8 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
         };
 
         result.processor_by_pid.insert(
-            packet::Pid::PAT,
-            ctx.construct(FilterRequest::ByPid(packet::Pid::PAT)),
+            psi::pat::PAT_PID,
+            ctx.construct(FilterRequest::ByPid(psi::pat::PAT_PID)),
         );
 
         result
@@ -713,7 +713,7 @@ mod test {
     impl NullDemuxContext {
         fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
             match req {
-                demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => {
+                demultiplex::FilterRequest::ByPid(psi::pat::PAT_PID) => {
                     NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
                 }
                 demultiplex::FilterRequest::ByPid(_) => {
