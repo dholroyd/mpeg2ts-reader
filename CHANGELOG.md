@@ -2,6 +2,8 @@
 
 ## Unreleased
 ### Changed
+ - The `pes::ElementaryStreamConsumer` type and its methods are now parameterised to gain access to the context object
+   you provided to the demultiplexer.
  - `RegistrationDescriptor::format_identifier()` return type changed from u32 to a value of the `FormatIdentifier` enum
    from the [smptera-format-identifiers-rust](https://crates.io/crates/smptera-format-identifiers-rust) crate.  Also
    `RegistrationDescriptor` fields are no longer public.
