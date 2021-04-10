@@ -2,6 +2,7 @@
 //! stream will be following
 
 use super::DescriptorError;
+use crate::descriptor::descriptor_len;
 use smptera_format_identifiers_rust::FormatIdentifier;
 use std::fmt;
 
@@ -15,16 +16,9 @@ impl<'buf> RegistrationDescriptor<'buf> {
     pub const TAG: u8 = 5;
     /// Construct a `RegistrationDescriptor` instance that will parse the data from the given
     /// slice.
-    pub fn new(_tag: u8, buf: &'buf [u8]) -> Result<RegistrationDescriptor<'buf>, DescriptorError> {
-        if buf.len() < 4 {
-            Err(DescriptorError::NotEnoughData {
-                tag: Self::TAG,
-                actual: buf.len(),
-                expected: 4,
-            })
-        } else {
-            Ok(RegistrationDescriptor { buf })
-        }
+    pub fn new(tag: u8, buf: &'buf [u8]) -> Result<RegistrationDescriptor<'buf>, DescriptorError> {
+        descriptor_len(buf, tag, 4)?;
+        Ok(RegistrationDescriptor { buf })
     }
 
     /// Format identifier value assigned by a _Registration Authority_.
@@ -71,17 +65,18 @@ impl<'buf> fmt::Debug for RegistrationDescriptor<'buf> {
 #[cfg(test)]
 mod test {
     use super::super::{CoreDescriptors, Descriptor};
-    use super::*;
+    use assert_matches::assert_matches;
     use hex_literal::*;
-    use matches::assert_matches;
 
     #[test]
     fn descriptor() {
         let data = hex!("050443554549");
         let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
-        assert_matches!(
-            desc,
-            CoreDescriptors::Registration(RegistrationDescriptor { buf: b"CUEI" })
-        );
+        assert_matches!(desc, CoreDescriptors::Registration(reg) => {
+            let expected = smptera_format_identifiers_rust::FormatIdentifier::from(&b"CUEI"[..]);
+            assert_eq!(reg.format_identifier(), expected);
+            assert!(reg.is_format(expected));
+            assert!(!format!("{:?}", reg).is_empty())
+        });
     }
 }

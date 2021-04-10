@@ -2,6 +2,7 @@
 //! usage of certain AVC stream features.
 
 use super::DescriptorError;
+use crate::descriptor::descriptor_len;
 use std::fmt;
 
 /// Descriptor holding copies of properties from the AVC metadata such as AVC 'profile' and 'level'.
@@ -15,11 +16,8 @@ impl<'buf> AvcVideoDescriptor<'buf> {
     /// slice.
     pub fn new(tag: u8, buf: &'buf [u8]) -> Result<AvcVideoDescriptor<'buf>, DescriptorError> {
         assert_eq!(tag, Self::TAG);
-        if buf.len() < 4 {
-            Err(DescriptorError::BufferTooShort { buflen: buf.len() })
-        } else {
-            Ok(AvcVideoDescriptor { buf })
-        }
+        descriptor_len(buf, tag, 4)?;
+        Ok(AvcVideoDescriptor { buf })
     }
 
     /// The AVC _profile_ used in this stream will be equal to, or lower than, this value
@@ -98,20 +96,34 @@ impl fmt::Debug for AvcVideoDescriptor<'_> {
 #[cfg(test)]
 mod test {
     use super::super::{CoreDescriptors, Descriptor};
+    use assert_matches::assert_matches;
     use hex_literal::*;
 
     #[test]
     fn descriptor() {
         let data = hex!("280442c01e3f");
         let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
-        if let CoreDescriptors::AvcVideo(avc_video) = desc {
+        assert_matches!(desc, CoreDescriptors::AvcVideo(avc_video) => {
             assert_eq!(avc_video.level_idc(), 30);
+            assert_eq!(avc_video.constraint_set0_flag(), true);
+            assert_eq!(avc_video.constraint_set1_flag(), true);
+            assert_eq!(avc_video.constraint_set3_flag(), false);
+            assert_eq!(avc_video.constraint_set4_flag(), false);
+            assert_eq!(avc_video.constraint_set5_flag(), false);
+            assert_eq!(avc_video.avc_compatible_flags(), 0);
             assert_eq!(avc_video.profile_idc(), 66);
             assert_eq!(avc_video.avc_still_present(), false);
             assert_eq!(avc_video.avc_24_hour_picture_flag(), false);
             assert_eq!(avc_video.frame_packing_sei_not_present_flag(), true);
-        } else {
-            panic!("unexpected {:?}", desc);
-        }
+        })
+    }
+
+    #[test]
+    fn debug() {
+        let data = hex!("280442c01e3f");
+        let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
+        assert_matches!(desc, CoreDescriptors::AvcVideo(avc_video) => {
+            assert!(!format!("{:?}", avc_video).is_empty());
+        });
     }
 }

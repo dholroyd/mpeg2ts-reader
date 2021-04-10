@@ -127,22 +127,42 @@ impl<'buf> fmt::Debug for Iso639LanguageDescriptor<'buf> {
 mod test {
     use super::super::{CoreDescriptors, Descriptor};
     use super::*;
+    use assert_matches::assert_matches;
     use encoding;
     use hex_literal::*;
-    use matches::assert_matches;
 
     #[test]
     fn descriptor() {
         let data = hex!("0a04656e6700");
         let desc = CoreDescriptors::from_bytes(&data).unwrap();
-        if let CoreDescriptors::ISO639Language(iso_639_language) = desc {
+        assert_matches!(desc, CoreDescriptors::ISO639Language(iso_639_language) => {
             let mut langs = iso_639_language.languages();
             let first = langs.next().unwrap();
             assert_eq!("eng", first.code(encoding::DecoderTrap::Strict).unwrap());
             assert_eq!(AudioType::Undefined, first.audio_type());
             assert_matches!(langs.next(), None);
-        } else {
-            panic!("wrong descriptor type {:?}", desc);
+        });
+    }
+
+    #[test]
+    fn debug() {
+        let data = hex!("0a04656e6700");
+        let desc = CoreDescriptors::from_bytes(&data).unwrap();
+        assert_matches!(desc, CoreDescriptors::ISO639Language(iso_639_language) => {
+            assert!(!format!("{:?}", iso_639_language).is_empty());
+        });
+    }
+
+    /*
+    TODO: we need to adjust the iterator to return Result<Language,?>
+    #[test]
+    fn too_short() {
+        let data = hex!("0a03656e67");
+        let desc = CoreDescriptors::from_bytes(&data).unwrap();
+        if let CoreDescriptors::ISO639Language(iso_639_language) = desc {
+            let mut langs = iso_639_language.languages();
+            langs.next();
         }
     }
+    */
 }

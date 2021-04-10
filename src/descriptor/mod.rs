@@ -353,3 +353,46 @@ pub enum DescriptorError {
     /// There is no mapping defined of the given descriptor tag value to a `Descriptor` value.
     UnhandledTagValue(u8),
 }
+
+pub(crate) fn descriptor_len(buf: &[u8], tag: u8, len: usize) -> Result<(), DescriptorError> {
+    if buf.len() < len {
+        Err(DescriptorError::NotEnoughData {
+            tag,
+            actual: buf.len(),
+            expected: len,
+        })
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::descriptor::{descriptor_len, CoreDescriptors, DescriptorError, DescriptorIter};
+    use assert_matches::assert_matches;
+    use hex_literal::*;
+
+    #[test]
+    fn core() {
+        let data = hex!("000100");
+        let mut iter = DescriptorIter::<CoreDescriptors<'_>>::new(&data);
+        let desc = iter.next().unwrap();
+        assert!(!format!("{:?}", desc).is_empty());
+        assert_matches!(desc, Ok(CoreDescriptors::Reserved(d)) => {
+            assert_eq!(d.tag, 0);
+            assert_eq!(d.payload, &[0]);
+        });
+    }
+
+    #[test]
+    fn not_enough_data() {
+        assert_matches!(
+            descriptor_len(b"", 0, 1),
+            Err(DescriptorError::NotEnoughData {
+                tag: 0,
+                actual: 0,
+                expected: 1,
+            })
+        );
+    }
+}

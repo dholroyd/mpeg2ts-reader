@@ -4,6 +4,7 @@
 //! May be attached an an elementary stream, indicating the max bitrate of that elementary stream,
 //! or to the program as a whole.  In both cases it appears in the PMT.
 
+use super::descriptor_len;
 use super::DescriptorError;
 use std::fmt;
 
@@ -20,13 +21,9 @@ impl<'buf> MaximumBitrateDescriptor<'buf> {
         tag: u8,
         buf: &'buf [u8],
     ) -> Result<MaximumBitrateDescriptor<'buf>, DescriptorError> {
-        println!("{:x?}", buf);
         assert_eq!(tag, Self::TAG);
-        if buf.len() < 3 {
-            Err(DescriptorError::BufferTooShort { buflen: buf.len() })
-        } else {
-            Ok(MaximumBitrateDescriptor { buf })
-        }
+        descriptor_len(buf, tag, 3)?;
+        Ok(MaximumBitrateDescriptor { buf })
     }
 
     /// The maximum bitrate expressed in units of 50 bytes per second
@@ -54,17 +51,17 @@ impl fmt::Debug for MaximumBitrateDescriptor<'_> {
 #[cfg(test)]
 mod test {
     use super::super::{CoreDescriptors, Descriptor};
+    use assert_matches::assert_matches;
     use hex_literal::*;
 
     #[test]
     fn descriptor() {
         let data = hex!("0e03c00184");
         let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
-        if let CoreDescriptors::MaximumBitrate(max_bitrate) = desc {
+        assert_matches!(desc, CoreDescriptors::MaximumBitrate(max_bitrate) => {
             assert_eq!(max_bitrate.maximum_bitrate(), 388);
             assert_eq!(max_bitrate.maximum_bits_per_second(), 155200);
-        } else {
-            panic!("unexpected {:?}", desc);
-        }
+            assert!(!format!("{:?}", max_bitrate).is_empty());
+        });
     }
 }

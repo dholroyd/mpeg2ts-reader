@@ -993,10 +993,10 @@ mod test {
     use crate::demultiplex::PacketFilter;
     use crate::packet;
     use crate::pes;
+    use assert_matches::assert_matches;
     use bitstream_io::BigEndian;
     use bitstream_io::{BitWriter, BE};
     use hex_literal::*;
-    use matches::assert_matches;
     use std;
     use std::io;
 
