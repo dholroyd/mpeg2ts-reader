@@ -2,15 +2,13 @@
 extern crate mpeg2ts_reader;
 
 use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::demultiplex::DemuxContext;
+use mpeg2ts_reader::demultiplex::PacketFilter;
+use mpeg2ts_reader::packet::Packet;
 use mpeg2ts_reader::psi;
 use std::env;
 use std::fs::File;
 use std::io::Read;
-
-use mpeg2ts_reader::demultiplex::DemuxContext;
-use mpeg2ts_reader::demultiplex::PacketFilter;
-use mpeg2ts_reader::packet;
-use mpeg2ts_reader::packet::Packet;
 use std::marker;
 
 packet_filter_switch! {
@@ -77,7 +75,7 @@ impl<Ctx: DemuxContext> PacketFilter for PcrPacketFilter<Ctx> {
 fn main() {
     // open input file named on command line,
     let name = env::args().nth(1).unwrap();
-    let mut f = File::open(&name).expect(&format!("file not found: {}", &name));
+    let mut f = File::open(&name).unwrap_or_else(|_| panic!("file not found: {}", &name));
 
     // create the context object that stores the state of the transport stream demultiplexing
     // process

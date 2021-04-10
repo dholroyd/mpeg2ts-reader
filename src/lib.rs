@@ -37,7 +37,7 @@
 // until we have https://github.com/rust-lang/rust/issues/51999 I think
 macro_rules! const_assert {
     ($x:expr $(,)?) => {
-        #[allow(unknown_lints, eq_op)]
+        #[allow(unknown_lints, clippy::eq_op)]
         {
             const ASSERT: [(); 1] = [()];
             let _ = ASSERT[!($x) as usize];

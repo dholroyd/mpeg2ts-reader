@@ -128,7 +128,6 @@ mod test {
     use super::super::{CoreDescriptors, Descriptor};
     use super::*;
     use assert_matches::assert_matches;
-    use encoding;
     use hex_literal::*;
 
     #[test]

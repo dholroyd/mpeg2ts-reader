@@ -28,7 +28,7 @@ impl<'buf> MaximumBitrateDescriptor<'buf> {
 
     /// The maximum bitrate expressed in units of 50 bytes per second
     pub fn maximum_bitrate(&self) -> u32 {
-        u32::from(self.buf[0] & 0b001_11111) << 16
+        u32::from(self.buf[0] & 0b0011_1111) << 16
             | u32::from(self.buf[1]) << 8
             | u32::from(self.buf[2])
     }

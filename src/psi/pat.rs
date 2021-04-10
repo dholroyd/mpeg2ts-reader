@@ -66,9 +66,7 @@ impl<'buf> PatSection<'buf> {
     }
     /// Returns an iterator over the entries in this program association table section.
     pub fn programs(&self) -> impl Iterator<Item = ProgramDescriptor> + 'buf {
-        ProgramIter {
-            buf: &self.data[..],
-        }
+        ProgramIter { buf: self.data }
     }
 }
 

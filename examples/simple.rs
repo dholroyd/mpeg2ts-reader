@@ -160,7 +160,7 @@ impl pes::ElementaryStreamConsumer<DumpDemuxContext> for PtsDumpElementaryStream
 fn main() {
     // open input file named on command line,
     let name = env::args().nth(1).unwrap();
-    let mut f = File::open(&name).expect(&format!("file not found: {}", &name));
+    let mut f = File::open(&name).unwrap_or_else(|_| panic!("file not found: {}", &name));
 
     // create the context object that stores the state of the transport stream demultiplexing
     // process

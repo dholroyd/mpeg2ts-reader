@@ -18,9 +18,7 @@ use crate::psi::pat;
 use crate::psi::pmt::PmtSection;
 use crate::psi::pmt::StreamInfo;
 use crate::StreamType;
-use fixedbitset;
 use log::warn;
-use std;
 use std::marker;
 
 /// Trait to which `Demultiplex` delegates handling of subsets of Transport Stream packets.

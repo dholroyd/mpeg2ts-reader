@@ -217,17 +217,17 @@ pub enum StreamId {
 }
 impl StreamId {
     fn is_parsed(&self) -> bool {
-        match self {
+        !matches!(
+            self,
             StreamId::ProgramStreamMap
-            | StreamId::PaddingStream
-            | StreamId::PrivateStream2
-            | StreamId::EcmStream
-            | StreamId::EmmStream
-            | StreamId::ProgramStreamDirectory
-            | StreamId::DsmCc
-            | StreamId::H2221TypeE => false,
-            _ => true,
-        }
+                | StreamId::PaddingStream
+                | StreamId::PrivateStream2
+                | StreamId::EcmStream
+                | StreamId::EmmStream
+                | StreamId::ProgramStreamDirectory
+                | StreamId::DsmCc
+                | StreamId::H2221TypeE
+        )
     }
 }
 impl From<u8> for StreamId {
@@ -455,9 +455,9 @@ impl EsRate {
         self.0 * Self::RATE_BYTES_PER_SECOND
     }
 }
-impl Into<u32> for EsRate {
-    fn into(self) -> u32 {
-        self.0
+impl From<EsRate> for u32 {
+    fn from(r: EsRate) -> Self {
+        r.0
     }
 }
 
@@ -997,7 +997,6 @@ mod test {
     use bitstream_io::BigEndian;
     use bitstream_io::{BitWriter, BE};
     use hex_literal::*;
-    use std;
     use std::io;
 
     packet_filter_switch! {
