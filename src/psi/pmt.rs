@@ -46,7 +46,17 @@ impl<'buf> PmtSection<'buf> {
                 actual: data.len(),
             })
         } else {
-            Ok(PmtSection { data })
+            let sect = PmtSection { data };
+            let expected = sect.program_info_length() as usize + Self::HEADER_SIZE;
+            if data.len() < expected {
+                Err(DemuxError::NotEnoughData {
+                    field: "descriptor",
+                    expected,
+                    actual: data.len(),
+                })
+            } else {
+                Ok(sect)
+            }
         }
     }
 
@@ -192,6 +202,7 @@ impl<'buf> fmt::Debug for StreamInfoDescriptorsDebug<'buf> {
 
 #[cfg(test)]
 mod test {
+    use crate::demultiplex::test::make_test_data;
     use crate::demultiplex::DemuxError;
     use crate::psi::pmt::PmtSection;
     use assert_matches::assert_matches;
@@ -216,5 +227,18 @@ mod test {
                 ..
             })
         );
+    }
+
+    #[test]
+    fn descriptors_dont_fit() {
+        let data = make_test_data(|w| {
+            w.write(3, 0)?; // reserved
+            w.write(13, 123)?; // PCR_PID
+            w.write(4, 0)?; // reserved
+            w.write(12, 1) // program_info_length
+        });
+        // program_info_length claimed there is 1 byte of descriptor data, but there is no more
+        // data in the buffer
+        assert!(PmtSection::from_bytes(&data).is_err());
     }
 }

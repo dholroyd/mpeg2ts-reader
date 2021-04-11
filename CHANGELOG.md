@@ -4,6 +4,9 @@
 
 ## Unreleased - FutureDate
 
+### Fixed
+ - Fixed a panic when parsing truncated PMT data
+
 ## 0.14.0 - 2021-04-11
 ### Changed
  - The `pes::ElementaryStreamConsumer` type and its methods are now parameterised to gain access to the context object

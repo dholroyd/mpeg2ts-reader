@@ -689,7 +689,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use bitstream_io::{BitWriter, BE};
     use hex_literal::*;
     use std::io;
@@ -812,7 +812,7 @@ mod test {
         }
     }
 
-    fn make_test_data<F>(builder: F) -> Vec<u8>
+    pub(crate) fn make_test_data<F>(builder: F) -> Vec<u8>
     where
         F: Fn(&mut BitWriter<Vec<u8>, BE>) -> Result<(), io::Error>,
     {
