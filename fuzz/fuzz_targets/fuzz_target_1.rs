@@ -1,11 +1,7 @@
 #![no_main]
 
-#[macro_use]
-extern crate libfuzzer_sys;
-#[macro_use]
-extern crate mpeg2ts_reader;
-
-use mpeg2ts_reader::{demultiplex, pes, packet};
+use libfuzzer_sys::fuzz_target;
+use mpeg2ts_reader::{demultiplex, pes, packet, packet_filter_switch, demux_context};
 
 pub struct FuzzElementaryStreamConsumer;
 impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for FuzzElementaryStreamConsumer {
