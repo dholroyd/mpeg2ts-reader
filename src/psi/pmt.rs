@@ -189,3 +189,32 @@ impl<'buf> fmt::Debug for StreamInfoDescriptorsDebug<'buf> {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::demultiplex::DemuxError;
+    use crate::psi::pmt::PmtSection;
+    use assert_matches::assert_matches;
+    use hex_literal::hex;
+
+    #[test]
+    fn debug_does_not_panic() {
+        let data = hex!("fd4df0001bfd4df00652010b70010411fd4ef01152010c0a04656e67007c025a007f02068211fd52f01252010d0a04656e67037c035880477f02060606fd51f00d5201055908656e671000010001");
+        let section = PmtSection::from_bytes(&data).unwrap();
+        // don't mind what it looks like, but it's embarrassing if it always panics!
+        assert!(!format!("{:?}", section).is_empty());
+    }
+
+    #[test]
+    fn far_too_small() {
+        let data = hex!("fd4df0");
+        assert_matches!(
+            PmtSection::from_bytes(&data),
+            Err(DemuxError::NotEnoughData {
+                expected: 4,
+                actual: 3,
+                ..
+            })
+        );
+    }
+}
