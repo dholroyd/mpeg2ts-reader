@@ -306,21 +306,28 @@ where
         if self.buf.is_empty() {
             return None;
         }
-        let tag = self.buf[0];
-        let len = self.buf[1] as usize;
-        let remaining_size = self.buf.len() - 2;
-        if len > remaining_size {
+        if self.buf.len() < 2 {
+            let buflen = self.buf.len();
             // ensure anther call to next() will yield None,
             self.buf = &self.buf[0..0];
-            Some(Err(DescriptorError::NotEnoughData {
-                tag,
-                actual: remaining_size,
-                expected: len,
-            }))
+            Some(Err(DescriptorError::BufferTooShort { buflen }))
         } else {
-            let (desc, rest) = self.buf.split_at(len + 2);
-            self.buf = rest;
-            Some(Descriptor::from_bytes(desc))
+            let tag = self.buf[0];
+            let len = self.buf[1] as usize;
+            let remaining_size = self.buf.len() - 2;
+            if len > remaining_size {
+                // ensure anther call to next() will yield None,
+                self.buf = &self.buf[0..0];
+                Some(Err(DescriptorError::NotEnoughData {
+                    tag,
+                    actual: remaining_size,
+                    expected: len,
+                }))
+            } else {
+                let (desc, rest) = self.buf.split_at(len + 2);
+                self.buf = rest;
+                Some(Descriptor::from_bytes(desc))
+            }
         }
     }
 }

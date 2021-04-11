@@ -204,6 +204,7 @@ impl<'buf> fmt::Debug for StreamInfoDescriptorsDebug<'buf> {
 mod test {
     use crate::demultiplex::test::make_test_data;
     use crate::demultiplex::DemuxError;
+    use crate::descriptor::CoreDescriptors;
     use crate::psi::pmt::PmtSection;
     use assert_matches::assert_matches;
     use hex_literal::hex;
@@ -240,5 +241,22 @@ mod test {
         // program_info_length claimed there is 1 byte of descriptor data, but there is no more
         // data in the buffer
         assert!(PmtSection::from_bytes(&data).is_err());
+    }
+
+    #[test]
+    fn truncated_descriptor() {
+        let data = make_test_data(|w| {
+            w.write(3, 0)?; // reserved
+            w.write(13, 4)?; // PCR_PID
+            w.write(4, 0)?; // reserved
+            w.write(12, 0x1)?; // program_info_length
+            w.write(8, 0x1) // descriptor_tag
+        });
+        // a descriptor needs to be at least two bytes (descriptor_tag + descriptor_length) but
+        // we only have one (descriptor_length missing)
+        let sect = PmtSection::from_bytes(&data).unwrap();
+        let mut iter = sect.descriptors::<CoreDescriptors<'_>>();
+        assert_matches!(iter.next(), Some(Err(_)));
+        assert_matches!(iter.next(), None);
     }
 }

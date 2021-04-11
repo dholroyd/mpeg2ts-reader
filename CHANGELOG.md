@@ -6,6 +6,7 @@
 
 ### Fixed
  - Fixed a panic when parsing truncated PMT data
+ - Fixed a panic when parsing a truncated descriptor value
 
 ## 0.14.0 - 2021-04-11
 ### Changed
