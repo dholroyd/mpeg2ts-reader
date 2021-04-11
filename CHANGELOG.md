@@ -4,9 +4,13 @@
 
 ## Unreleased - FutureDate
 
+### Changed
+- `Iso639LanguageDescriptor::languages()` now produces `Result<Language>` rather than just `Language`
+
 ### Fixed
  - Fixed a panic when parsing truncated PMT data
  - Fixed a panic when parsing a truncated descriptor value
+ - Fixed a panic when parsing a truncated language code in `iso_639_language_descriptor`
 
 ## 0.14.0 - 2021-04-11
 ### Changed
