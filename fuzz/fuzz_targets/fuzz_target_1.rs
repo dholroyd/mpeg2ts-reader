@@ -6,7 +6,26 @@ use mpeg2ts_reader::{demultiplex, pes, packet, packet_filter_switch, demux_conte
 pub struct FuzzElementaryStreamConsumer;
 impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for FuzzElementaryStreamConsumer {
     fn start_stream(&mut self, _ctx: &mut Ctx) {}
-    fn begin_packet(&mut self, _ctx: &mut Ctx, _header: pes::PesHeader) {}
+    fn begin_packet(&mut self, _ctx: &mut Ctx, header: pes::PesHeader) {
+        header.stream_id();
+        match header.contents() {
+            pes::PesContents::Parsed(Some(content)) => {
+                let _ = content.pes_priority();
+                let _ = content.data_alignment_indicator();
+                let _ = content.copyright();
+                let _ = content.original_or_copy();
+                let _ = content.escr();
+                let _ = content.es_rate();
+                let _ = content.dsm_trick_mode();
+                let _ = content.additional_copy_info();
+                let _ = content.previous_pes_packet_crc();
+                let _ = content.pes_extension();
+                let _ = content.payload();
+            },
+            pes::PesContents::Parsed(None) => {},
+            pes::PesContents::Payload(_data) => {},
+        }
+    }
     fn continue_packet(&mut self, _ctx: &mut Ctx, _data: &[u8]) {}
     fn end_packet(&mut self, _ctx: &mut Ctx) {}
     fn continuity_error(&mut self, _ctx: &mut Ctx) {}
@@ -26,7 +45,13 @@ impl FuzzDemuxContext {
         match req {
             demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
-            demultiplex::FilterRequest::ByStream { .. } => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
+            demultiplex::FilterRequest::ByStream { stream_type, .. } => {
+                if stream_type.is_pes() {
+                    FuzzFilterSwitch::Elem(pes::PesPacketFilter::new(FuzzElementaryStreamConsumer))
+                } else {
+                    FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+                }
+            },
             demultiplex::FilterRequest::Pmt{pid, program_number} => FuzzFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
             demultiplex::FilterRequest::Nit{pid} => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
