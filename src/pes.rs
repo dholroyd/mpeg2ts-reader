@@ -482,7 +482,7 @@ impl<'buf> PesParsedContents<'buf> {
     ///
     /// TODO: return `Result`
     pub fn from_bytes(buf: &'buf [u8]) -> Option<PesParsedContents<'buf>> {
-        if buf.len() < 3 {
+        if buf.len() < Self::FIXED_HEADER_SIZE {
             warn!(
                 "buf not large enough to hold PES parsed header: {} bytes",
                 buf.len()
