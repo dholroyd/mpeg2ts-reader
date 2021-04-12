@@ -277,6 +277,8 @@ pub struct PesHeader<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> PesHeader<'buf> {
+    const FIXED_HEADER_SIZE: usize = 6;
+
     /// Wraps the given slice in a PesHeader, which will then provide method to parse the header
     /// fields within the slice.
     ///
@@ -287,7 +289,7 @@ impl<'buf> PesHeader<'buf> {
     pub fn from_bytes(buf: &'buf [u8]) -> Option<PesHeader<'buf>> {
         // TODO: could the header straddle the boundary between TS packets?
         //       ..In which case we'd need to implement buffering.
-        if buf.len() < 6 {
+        if buf.len() < Self::FIXED_HEADER_SIZE {
             warn!("Buffer size {} too small to hold PES header", buf.len());
             return None;
         }
@@ -323,8 +325,7 @@ impl<'buf> PesHeader<'buf> {
     /// Either `PesContents::Parsed`, or `PesContents::Payload`, depending on the value of
     /// `stream_id()`
     pub fn contents(&self) -> PesContents<'buf> {
-        let header_len = 6;
-        let rest = &self.buf[header_len..];
+        let rest = &self.buf[Self::FIXED_HEADER_SIZE..];
         if self.stream_id().is_parsed() {
             PesContents::Parsed(PesParsedContents::from_bytes(rest))
         } else {
