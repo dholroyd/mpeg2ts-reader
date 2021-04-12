@@ -12,6 +12,7 @@
  - Fixed a panic when parsing a truncated descriptor value
  - Fixed a panic when parsing a truncated language code in `iso_639_language_descriptor`
  - Fixed a panic when reported PES header length does not fit within available space
+ - Fixed a panic due to a bug parsing PES header `ESCR_base` field
 
 ## 0.14.0 - 2021-04-11
 ### Changed

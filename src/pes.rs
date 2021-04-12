@@ -624,7 +624,7 @@ impl<'buf> PesParsedContents<'buf> {
         if self.escr_flag() {
             self.header_slice(self.pts_dts_end(), self.pts_dts_end() + Self::ESCR_SIZE)
                 .map(|s| {
-                    let base = u64::from(s[0] & 0b0011_1000) << 30
+                    let base = u64::from(s[0] & 0b0011_1000) << 27
                         | u64::from(s[0] & 0b0000_0011) << 28
                         | u64::from(s[1]) << 20
                         | u64::from(s[2] & 0b1111_1000) << 12
@@ -1121,7 +1121,7 @@ mod test {
                 + 2; // previous_PES_packet_CRC
             w.write(8, pes_header_length)?; // PES_data_length (size of fields that follow)
             write_ts(&mut w, 123456789, 0b0010)?; // PTS
-            write_escr(&mut w, 123456789, 234)?;
+            write_escr(&mut w, 0b111111111111111111111111111111111, 234)?;
             write_es_rate(&mut w, 1234567)?;
 
             // DSM_trick_mode,
@@ -1162,7 +1162,7 @@ mod test {
                 assert_eq!(p.payload().len(), 0);
                 match p.escr() {
                     Ok(escr) => {
-                        assert_eq!(123456789, escr.base());
+                        assert_eq!(0b111111111111111111111111111111111, escr.base());
                         assert_eq!(234, escr.extension());
                     }
                     e => panic!("expected escr value, got {:?}", e),
