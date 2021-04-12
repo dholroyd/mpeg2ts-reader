@@ -506,6 +506,14 @@ impl<'buf> PesParsedContents<'buf> {
             );
             return None;
         }
+        if contents.pes_crc_end() > (Self::FIXED_HEADER_SIZE + contents.pes_header_data_len()) {
+            warn!(
+                "calculated PES header data length {} does not fit with in recorded PES_header_length {}",
+                contents.pes_crc_end() - Self::FIXED_HEADER_SIZE,
+                contents.pes_header_data_len(),
+            );
+            return None;
+        }
         Some(contents)
     }
 
@@ -1379,6 +1387,37 @@ mod test {
         });
         // the buffer generated is now one byte too short, so attempting to get the PES contents
         // should fail,
+        let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
+        assert!(matches!(header.contents(), pes::PesContents::Parsed(None)));
+    }
+
+    #[test]
+    fn pes_header_data_length_too_short() {
+        let data = make_test_data(|w| {
+            w.write(24, 1)?; // packet_start_code_prefix
+            w.write(8, 7)?; // stream_id
+            w.write(16, 7)?; // PES_packet_length
+
+            w.write(2, 0b10)?; // check-bits
+            w.write(2, 0)?; // PES_scrambling_control
+            w.write(1, 0)?; // pes_priority
+            w.write(1, 1)?; // data_alignment_indicator
+            w.write(1, 0)?; // copyright
+            w.write(1, 0)?; // original_or_copy
+            w.write(2, 0b00)?; // PTS_DTS_flags
+            w.write(1, 0)?; // ESCR_flag
+            w.write(1, 0)?; // ES_rate_flag
+            w.write(1, 0)?; // DSM_trick_mode_flag
+            w.write(1, 0)?; // additional_copy_info_flag
+            w.write(1, 1)?; // PES_CRC_flag
+            w.write(1, 0)?; // PES_extension_flag
+            let pes_header_length = 1; // invalid; we need two bytes for previous_PES_packet_CRC
+            w.write(8, pes_header_length)?; // PES_header_data_length (size of fields that follow)
+
+            // we put the correct number of bytes into the buffer, but the pes_header_length above
+            // doesn't reflect what's actually here
+            w.write(8, 2) // previous_PES_packet_CRC
+        });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
         assert!(matches!(header.contents(), pes::PesContents::Parsed(None)));
     }
