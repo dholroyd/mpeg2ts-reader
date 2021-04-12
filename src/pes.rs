@@ -497,7 +497,16 @@ impl<'buf> PesParsedContents<'buf> {
             );
             return None;
         }
-        Some(PesParsedContents { buf })
+        let contents = PesParsedContents { buf };
+        if (Self::FIXED_HEADER_SIZE + contents.pes_header_data_len()) > buf.len() {
+            warn!(
+                "reported PES header length {} does not fit within remaining buffer length {}",
+                contents.pes_header_data_len(),
+                buf.len() - Self::FIXED_HEADER_SIZE,
+            );
+            return None;
+        }
+        Some(contents)
     }
 
     /// value 1 indicates higher priority and 0 indicates lower priority
@@ -1101,7 +1110,7 @@ mod test {
             w.write(1, 1)?; // ESCR_flag
             w.write(1, 1)?; // ES_rate_flag
             w.write(1, 1)?; // DSM_trick_mode_flag
-            w.write(1, 1)?; // additonal_copy_info_flag
+            w.write(1, 1)?; // additional_copy_info_flag
             w.write(1, 1)?; // PES_CRC_flag
             w.write(1, 0)?; // PES_extension_flag
             let pes_header_length = 5  // PTS
@@ -1340,5 +1349,37 @@ mod test {
             let state = state.borrow();
             assert!(state.continuity_error_called);
         }
+    }
+
+    #[test]
+    fn header_length_doesnt_fit() {
+        let data = make_test_data(|w| {
+            w.write(24, 1)?; // packet_start_code_prefix
+            w.write(8, 7)?; // stream_id
+            w.write(16, 7)?; // PES_packet_length
+
+            w.write(2, 0b10)?; // check-bits
+            w.write(2, 0)?; // PES_scrambling_control
+            w.write(1, 0)?; // pes_priority
+            w.write(1, 1)?; // data_alignment_indicator
+            w.write(1, 0)?; // copyright
+            w.write(1, 0)?; // original_or_copy
+            w.write(2, 0b00)?; // PTS_DTS_flags
+            w.write(1, 0)?; // ESCR_flag
+            w.write(1, 0)?; // ES_rate_flag
+            w.write(1, 0)?; // DSM_trick_mode_flag
+            w.write(1, 0)?; // additional_copy_info_flag
+            w.write(1, 1)?; // PES_CRC_flag
+            w.write(1, 0)?; // PES_extension_flag
+            let pes_header_length = 2; // previous_PES_packet_CRC
+            w.write(8, pes_header_length)?; // PES_data_length (size of fields that follow)
+
+            // deliberately write 1 byte where 2 bytes are expected
+            w.write(8, 1) // INVALID previous_PES_packet_CRC
+        });
+        // the buffer generated is now one byte too short, so attempting to get the PES contents
+        // should fail,
+        let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
+        assert!(matches!(header.contents(), pes::PesContents::Parsed(None)));
     }
 }

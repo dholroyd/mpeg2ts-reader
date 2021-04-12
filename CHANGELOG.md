@@ -11,6 +11,7 @@
  - Fixed a panic when parsing truncated PMT data
  - Fixed a panic when parsing a truncated descriptor value
  - Fixed a panic when parsing a truncated language code in `iso_639_language_descriptor`
+ - Fixed a panic when reported PES header length does not fit within available space
 
 ## 0.14.0 - 2021-04-11
 ### Changed
