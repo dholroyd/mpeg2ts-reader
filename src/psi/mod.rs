@@ -797,24 +797,7 @@ mod test {
     demux_context!(NullDemuxContext, NullFilterSwitch);
     impl NullDemuxContext {
         fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
-            match req {
-                demultiplex::FilterRequest::ByPid(pat::PAT_PID) => {
-                    NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
-                }
-                demultiplex::FilterRequest::ByPid(_) => {
-                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
-                }
-                demultiplex::FilterRequest::ByStream { .. } => {
-                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
-                }
-                demultiplex::FilterRequest::Pmt {
-                    pid,
-                    program_number,
-                } => NullFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
-                demultiplex::FilterRequest::Nit { .. } => {
-                    NullFilterSwitch::Nul(demultiplex::NullPacketFilter::default())
-                }
-            }
+            unimplemented!()
         }
     }
 
