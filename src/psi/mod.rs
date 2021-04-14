@@ -907,4 +907,17 @@ mod test {
 
         assert!(*state.borrow());
     }
+
+    #[test]
+    fn table_syntax() {
+        let sect = hex!("4084e90000");
+        let header = TableSyntaxHeader::new(&sect);
+        assert_eq!(header.current_next_indicator(), CurrentNext::Current);
+        assert_eq!(header.id(), 16516);
+        assert_eq!(header.section_number(), 0);
+        assert_eq!(header.last_section_number(), 0);
+        assert_eq!(header.version(), 20);
+        // smoke test Debug impl (e.g. should not panic!)
+        assert!(!format!("{:?}", header).is_empty());
+    }
 }
