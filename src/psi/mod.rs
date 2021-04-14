@@ -920,4 +920,89 @@ mod test {
         // smoke test Debug impl (e.g. should not panic!)
         assert!(!format!("{:?}", header).is_empty());
     }
+
+    #[test]
+    fn dedup_section() {
+        struct CallCounts {
+            start: usize,
+            cont: usize,
+            reset: usize,
+        }
+        struct Mock {
+            inner: Rc<RefCell<CallCounts>>,
+        }
+        let counts = Rc::new(RefCell::new(CallCounts {
+            start: 0,
+            cont: 0,
+            reset: 0,
+        }));
+        impl SectionSyntaxPayloadParser for Mock {
+            type Context = ();
+
+            fn start_syntax_section<'a>(
+                &mut self,
+                _ctx: &mut Self::Context,
+                header: &SectionCommonHeader,
+                table_syntax_header: &TableSyntaxHeader<'a>,
+                data: &'a [u8],
+            ) {
+                self.inner.borrow_mut().start += 1;
+            }
+
+            fn continue_syntax_section<'a>(&mut self, _ctx: &mut Self::Context, data: &'a [u8]) {
+                self.inner.borrow_mut().cont += 1;
+            }
+
+            fn reset(&mut self) {
+                self.inner.borrow_mut().reset += 1;
+            }
+        }
+        let mut dedup = DedupSectionSyntaxPayloadParser::new(Mock {
+            inner: counts.clone(),
+        });
+
+        let mut sect = hex!("42f130 4084e90000");
+
+        let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
+        let table_header = TableSyntaxHeader::new(&sect[SectionCommonHeader::SIZE..]);
+        assert_eq!(table_header.version(), 20);
+
+        let ctx = &mut ();
+        dedup.start_syntax_section(ctx, &common_header, &table_header, &[]);
+        dedup.continue_syntax_section(ctx, &[]);
+        assert_eq!(counts.borrow().start, 1);
+        assert_eq!(counts.borrow().cont, 1);
+        // now we submit a table header with the same version,
+        dedup.start_syntax_section(ctx, &common_header, &table_header, &[]);
+        dedup.continue_syntax_section(ctx, &[]);
+        // still 1
+        assert_eq!(counts.borrow().start, 1);
+        assert_eq!(counts.borrow().cont, 1);
+
+        // now lets use the same section header as above but with an updated version
+        let sect = hex!("42f131 4084ea0000");
+
+        let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
+        let table_header = TableSyntaxHeader::new(&sect[SectionCommonHeader::SIZE..]);
+        assert_eq!(table_header.version(), 21);
+
+        dedup.start_syntax_section(ctx, &common_header, &table_header, &[]);
+        dedup.continue_syntax_section(ctx, &[]);
+        // now 2
+        assert_eq!(counts.borrow().start, 2);
+        assert_eq!(counts.borrow().cont, 2);
+
+        // if we now reset, then the deduplication should no longer be in effect and the submission
+        // of the same section version again should now be passed through to our callback
+
+        assert_eq!(counts.borrow().reset, 0);
+        dedup.reset();
+        assert_eq!(counts.borrow().reset, 1);
+
+        // now 3
+        dedup.start_syntax_section(ctx, &common_header, &table_header, &[]);
+        dedup.continue_syntax_section(ctx, &[]);
+        assert_eq!(counts.borrow().start, 3);
+        assert_eq!(counts.borrow().cont, 3);
+    }
 }
