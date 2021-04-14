@@ -288,4 +288,15 @@ mod test {
             assert_eq!(st, StreamType::from(st).into())
         }
     }
+
+    #[test]
+    fn pes() {
+        for st in 0..=255 {
+            let ty = StreamType::from(st);
+            match ty {
+                StreamType::H2220PrivateSections | StreamType::Reserved(_) | StreamType::Private(_) => assert!(!ty.is_pes(), "{:?}", ty),
+                _ => assert!(ty.is_pes(), "{:?}", ty),
+            }
+        }
+    }
 }
