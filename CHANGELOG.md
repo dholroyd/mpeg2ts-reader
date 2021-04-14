@@ -14,6 +14,7 @@
  - Fixed a panic when reported PES header length does not fit within available space
  - Fixed a panic due to a bug parsing PES header `ESCR_base` field
  - Fixes a panic when `PES_header_data_length` is not long enough to accommodate all the headers actually present
+ - Fixed so we accept very short but still syntactically valid PSI sections previously rejected in some cases
 
 ## 0.14.0 - 2021-04-11
 ### Changed
