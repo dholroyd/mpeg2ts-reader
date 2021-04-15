@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use mpeg2ts_reader::{demultiplex, pes, packet, packet_filter_switch, demux_context};
+use mpeg2ts_reader::{demultiplex, pes, packet, packet_filter_switch, demux_context, descriptor};
 
 pub struct FuzzElementaryStreamConsumer;
 impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for FuzzElementaryStreamConsumer {
@@ -45,7 +45,15 @@ impl FuzzDemuxContext {
         match req {
             demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
             demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
-            demultiplex::FilterRequest::ByStream { stream_type, .. } => {
+            demultiplex::FilterRequest::ByStream { stream_type, pmt, stream_info, .. } => {
+                // we make redundant calls to pmt.descriptors() for each stream, but this is the
+                // simplest place to hook this call into the fuzz test right now,
+                for desc in pmt.descriptors::<descriptor::CoreDescriptors>() {
+                    format!("{:?}", desc);
+                }
+                for desc in stream_info.descriptors::<descriptor::CoreDescriptors>() {
+                    format!("{:?}", desc);
+                }
                 if stream_type.is_pes() {
                     FuzzFilterSwitch::Elem(pes::PesPacketFilter::new(FuzzElementaryStreamConsumer))
                 } else {
@@ -60,5 +68,5 @@ impl FuzzDemuxContext {
 fuzz_target!(|data: &[u8]| {
     let mut ctx = FuzzDemuxContext::new();
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);
-    let res = demux.push(&mut ctx, data);
+    demux.push(&mut ctx, data);
 });
