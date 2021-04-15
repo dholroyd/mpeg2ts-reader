@@ -33,7 +33,13 @@ impl PcrDumpDemuxContext {
 
             demultiplex::FilterRequest::ByStream {
                 pmt, stream_info, ..
-            } => PcrDumpFilterSwitch::Pcr(PcrPacketFilter::construct(pmt, stream_info)),
+            } => {
+                if stream_info.elementary_pid() == pmt.pcr_pid() {
+                    PcrDumpFilterSwitch::Pcr(PcrPacketFilter::construct(pmt, stream_info))
+                } else {
+                    PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+                }
+            }
 
             demultiplex::FilterRequest::ByPid(_) => {
                 PcrDumpFilterSwitch::Null(demultiplex::NullPacketFilter::default())
