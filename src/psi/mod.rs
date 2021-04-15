@@ -961,7 +961,7 @@ mod test {
             inner: counts.clone(),
         });
 
-        let mut sect = hex!("42f130 4084e90000");
+        let sect = hex!("42f130 4084e90000");
 
         let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
         let table_header = TableSyntaxHeader::new(&sect[SectionCommonHeader::SIZE..]);
