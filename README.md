@@ -229,6 +229,7 @@ and what's yet to come:
 - Transport Stream packet
   - [x] Fixed headers
   - [x] Adaptation field
+  - [ ] TS-level scrambling (values of `transport_scrambling_control` other than `0`) not supported
 - Program Specific Information tables
   - [x] Section syntax
   - [ ] 'Multi-section' tables

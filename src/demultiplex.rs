@@ -13,6 +13,7 @@
 //!    [`demux_context!()`](../macro.demux_context.html) macro.
 
 use crate::packet;
+use crate::packet::TransportScramblingControl;
 use crate::psi;
 use crate::psi::pat;
 use crate::psi::pmt::PmtSection;
@@ -647,6 +648,15 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                     // drop packets that have transport_error_indicator set, on the assumption that
                     // the contents are nonsense
                     warn!("{:?} transport_error_indicator", pk.pid());
+                } else if pk.transport_scrambling_control()
+                    != TransportScramblingControl::NotScrambled
+                {
+                    // TODO: allow descrambler to be plugged in
+                    warn!(
+                        "{:?} dropping scrambled packet {:?}",
+                        pk.pid(),
+                        pk.transport_scrambling_control()
+                    );
                 } else {
                     this_proc.consume(ctx, &pk);
                     if !ctx.filter_changeset().is_empty() {

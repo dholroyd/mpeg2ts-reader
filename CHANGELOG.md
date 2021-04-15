@@ -5,7 +5,9 @@
 ## Unreleased - FutureDate
 
 ### Changed
-- `Iso639LanguageDescriptor::languages()` now produces `Result<Language>` rather than just `Language`
+ - `Iso639LanguageDescriptor::languages()` now produces `Result<Language>` rather than just `Language`
+ - Since we don't support decryption, scrambled TS packets (packets with values of `transport_scrambling_control` other
+   than `0`) are now dropped, to prevent the application being passed bogus data
 
 ### Fixed
  - Fixed a panic when parsing truncated PMT data

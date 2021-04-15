@@ -53,7 +53,7 @@ impl FuzzDemuxContext {
                 }
             },
             demultiplex::FilterRequest::Pmt{pid, program_number} => FuzzFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
-            demultiplex::FilterRequest::Nit{pid} => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
+            demultiplex::FilterRequest::Nit{pid: _} => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
         }
     }
 }
