@@ -318,7 +318,6 @@ pub enum FilterRequest<'a, 'buf> {
 struct PmtProcessor<Ctx: DemuxContext> {
     pid: packet::Pid,
     program_number: u16,
-    current_version: Option<u8>,
     filters_registered: fixedbitset::FixedBitSet,
     phantom: marker::PhantomData<Ctx>,
 }
@@ -328,7 +327,6 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         PmtProcessor {
             pid,
             program_number,
-            current_version: None,
             filters_registered: fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT),
             phantom: marker::PhantomData,
         }
@@ -338,7 +336,7 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         &mut self,
         ctx: &mut Ctx,
         header: &psi::SectionCommonHeader,
-        table_syntax_header: &psi::TableSyntaxHeader<'_>,
+        _table_syntax_header: &psi::TableSyntaxHeader<'_>,
         sect: &PmtSection<'_>,
     ) {
         if 0x02 != header.table_id {
@@ -366,8 +364,6 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
         self.remove_outdated(ctx, pids_seen);
-
-        self.current_version = Some(table_syntax_header.version());
     }
 
     fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: fixedbitset::FixedBitSet) {
@@ -457,7 +453,6 @@ impl<Ctx: DemuxContext> PacketFilter for PmtPacketFilter<Ctx> {
 }
 
 struct PatProcessor<Ctx: DemuxContext> {
-    current_version: Option<u8>,
     filters_registered: fixedbitset::FixedBitSet, // TODO: https://crates.io/crates/typenum_bitset ?
     phantom: marker::PhantomData<Ctx>,
 }
@@ -465,7 +460,6 @@ struct PatProcessor<Ctx: DemuxContext> {
 impl<Ctx: DemuxContext> Default for PatProcessor<Ctx> {
     fn default() -> PatProcessor<Ctx> {
         PatProcessor {
-            current_version: None,
             filters_registered: fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT),
             phantom: marker::PhantomData,
         }
@@ -476,7 +470,7 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
         &mut self,
         ctx: &mut Ctx,
         header: &psi::SectionCommonHeader,
-        table_syntax_header: &psi::TableSyntaxHeader<'_>,
+        _table_syntax_header: &psi::TableSyntaxHeader<'_>,
         sect: &pat::PatSection<'_>,
     ) {
         if 0x00 != header.table_id {
@@ -508,8 +502,6 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
         // remove filters for descriptors we've seen before that are not present in this updated
         // table,
         self.remove_outdated(ctx, pids_seen);
-
-        self.current_version = Some(table_syntax_header.version());
     }
 
     fn remove_outdated(&mut self, ctx: &mut Ctx, pids_seen: fixedbitset::FixedBitSet) {
