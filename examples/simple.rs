@@ -158,6 +158,8 @@ impl pes::ElementaryStreamConsumer<DumpDemuxContext> for PtsDumpElementaryStream
 }
 
 fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+
     // open input file named on command line,
     let name = env::args().nth(1).unwrap();
     let mut f = File::open(&name).unwrap_or_else(|_| panic!("file not found: {}", &name));
