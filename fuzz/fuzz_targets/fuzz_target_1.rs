@@ -7,13 +7,15 @@ pub struct FuzzElementaryStreamConsumer;
 impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for FuzzElementaryStreamConsumer {
     fn start_stream(&mut self, _ctx: &mut Ctx) {}
     fn begin_packet(&mut self, _ctx: &mut Ctx, header: pes::PesHeader) {
-        header.stream_id();
+        let _ = header.stream_id();
+        let _ = header.pes_packet_length();
         match header.contents() {
             pes::PesContents::Parsed(Some(content)) => {
                 let _ = content.pes_priority();
                 let _ = content.data_alignment_indicator();
                 let _ = content.copyright();
                 let _ = content.original_or_copy();
+                let _ = content.pts_dts();
                 let _ = content.escr();
                 let _ = content.es_rate();
                 let _ = content.dsm_trick_mode();
