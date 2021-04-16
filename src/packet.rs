@@ -274,6 +274,27 @@ impl<'buf> AdaptationField<'buf> {
     }
 }
 
+impl<'buf> fmt::Debug for AdaptationField<'buf> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_struct("AdaptationField");
+        d.field("discontinuity_indicator", &self.discontinuity_indicator());
+        d.field("random_access_indicator", &self.random_access_indicator());
+        d.field(
+            "elementary_stream_priority_indicator",
+            &self.elementary_stream_priority_indicator(),
+        );
+        d.field("pcr", &self.pcr());
+        d.field("opcr", &self.opcr());
+        d.field("splice_countdown", &self.splice_countdown());
+        d.field("transport_private_data", &self.transport_private_data());
+        d.field(
+            "adaptation_field_extension",
+            &self.adaptation_field_extension(),
+        );
+        d.finish()
+    }
+}
+
 /// Optional extensions within an [`AdaptationField`](struct.AdaptationField.html).
 ///
 /// As returned by
@@ -354,6 +375,16 @@ impl<'buf> AdaptationFieldExtension<'buf> {
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
+    }
+}
+
+impl<'buf> fmt::Debug for AdaptationFieldExtension<'buf> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_struct("AdaptationFieldExtension");
+        d.field("ltw_offset", &self.ltw_offset());
+        d.field("piecewise_rate", &self.piecewise_rate());
+        d.field("seamless_splice", &self.seamless_splice());
+        d.finish()
     }
 }
 
@@ -728,6 +759,7 @@ mod test {
                 dts_next_au: pes::Timestamp::from_u64(0b1_1111_1111_1111_1111_1111_1111_1111_1111)
             })
         );
+        assert!(!format!("{:?}", pk.adaptation_field()).is_empty())
     }
 
     #[test]
