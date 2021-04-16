@@ -4,9 +4,9 @@ use libfuzzer_sys::fuzz_target;
 use mpeg2ts_reader::{demultiplex, pes, packet, packet_filter_switch, demux_context, descriptor};
 
 pub struct FuzzElementaryStreamConsumer;
-impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for FuzzElementaryStreamConsumer {
-    fn start_stream(&mut self, _ctx: &mut Ctx) {}
-    fn begin_packet(&mut self, _ctx: &mut Ctx, header: pes::PesHeader) {
+impl pes::ElementaryStreamConsumer<FuzzDemuxContext> for FuzzElementaryStreamConsumer {
+    fn start_stream(&mut self, _ctx: &mut FuzzDemuxContext) {}
+    fn begin_packet(&mut self, _ctx: &mut FuzzDemuxContext, header: pes::PesHeader) {
         let _ = header.stream_id();
         let _ = header.pes_packet_length();
         match header.contents() {
@@ -28,9 +28,20 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for FuzzElementaryStreamConsumer {
             pes::PesContents::Payload(_data) => {},
         }
     }
-    fn continue_packet(&mut self, _ctx: &mut Ctx, _data: &[u8]) {}
-    fn end_packet(&mut self, _ctx: &mut Ctx) {}
-    fn continuity_error(&mut self, _ctx: &mut Ctx) {}
+    fn continue_packet(&mut self, _ctx: &mut FuzzDemuxContext, _data: &[u8]) {}
+    fn end_packet(&mut self, _ctx: &mut FuzzDemuxContext) {}
+    fn continuity_error(&mut self, _ctx: &mut FuzzDemuxContext) {}
+}
+
+pub struct FuzzPacketFilter;
+impl demultiplex::PacketFilter for FuzzPacketFilter {
+    type Ctx = FuzzDemuxContext;
+
+    fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
+        if let Some(af) = pk.adaptation_field() {
+            format!("{:?}", af);
+        }
+    }
 }
 
 packet_filter_switch!{
@@ -38,6 +49,7 @@ packet_filter_switch!{
         Pat: demultiplex::PatPacketFilter<FuzzDemuxContext>,
         Pmt: demultiplex::PmtPacketFilter<FuzzDemuxContext>,
         Elem: pes::PesPacketFilter<FuzzDemuxContext,FuzzElementaryStreamConsumer>,
+        Packet: FuzzPacketFilter,
         Null: demultiplex::NullPacketFilter<FuzzDemuxContext>,
     }
 }
@@ -59,7 +71,7 @@ impl FuzzDemuxContext {
                 if stream_type.is_pes() {
                     FuzzFilterSwitch::Elem(pes::PesPacketFilter::new(FuzzElementaryStreamConsumer))
                 } else {
-                    FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default())
+                    FuzzFilterSwitch::Packet(FuzzPacketFilter)
                 }
             },
             demultiplex::FilterRequest::Pmt{pid, program_number} => FuzzFilterSwitch::Pmt(demultiplex::PmtPacketFilter::new(pid, program_number)),
