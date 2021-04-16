@@ -74,7 +74,7 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
 }
 
 fn mpeg2ts_reader(c: &mut Criterion) {
-    let mut f = File::open("big_buck_bunny_1080p_24fps_h264.ts").expect("file not found");
+    let mut f = File::open("resources/big_buck_bunny_1080p_24fps_h264.ts").expect("file not found");
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188 * 200_000);
     let mut buf = vec![0; size];
