@@ -267,9 +267,7 @@ impl<'buf> AdaptationField<'buf> {
         if self.adaptation_field_extension_flag() {
             let off = self.adaptation_field_extension_offset()?;
             let len = self.slice(off, off + 1)?[0] as usize;
-            Ok(AdaptationFieldExtension::new(
-                self.slice(off + 1, off + 1 + len)?,
-            ))
+            AdaptationFieldExtension::new(self.slice(off + 1, off + 1 + len)?)
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
@@ -286,8 +284,12 @@ pub struct AdaptationFieldExtension<'buf> {
 impl<'buf> AdaptationFieldExtension<'buf> {
     /// Create a new structure to parse the adaptation field extension data held within the given
     /// slice.
-    pub fn new(buf: &'buf [u8]) -> AdaptationFieldExtension<'buf> {
-        AdaptationFieldExtension { buf }
+    pub fn new(buf: &'buf [u8]) -> Result<AdaptationFieldExtension<'buf>, AdaptationFieldError> {
+        if buf.is_empty() {
+            Err(AdaptationFieldError::NotEnoughData)
+        } else {
+            Ok(AdaptationFieldExtension { buf })
+        }
     }
 
     fn slice(&self, from: usize, to: usize) -> Result<&'buf [u8], AdaptationFieldError> {
@@ -739,5 +741,10 @@ mod test {
             AdaptationControl::AdaptationFieldAndPayload
         );
         assert!(pk.adaptation_field().is_none());
+    }
+
+    #[test]
+    fn empty_adaptation_field_extension() {
+        assert!(AdaptationFieldExtension::new(b"").is_err());
     }
 }

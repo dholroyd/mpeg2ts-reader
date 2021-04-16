@@ -8,6 +8,7 @@
  - `Iso639LanguageDescriptor::languages()` now produces `Result<Language>` rather than just `Language`
  - Since we don't support decryption, scrambled TS packets (packets with values of `transport_scrambling_control` other
    than `0`) are now dropped, to prevent the application being passed bogus data
+ - `AdaptationFieldExtension::new()`  changed to return `Result`
 
 ### Fixed
  - Fixed a panic when parsing truncated PMT data
@@ -17,6 +18,7 @@
  - Fixed a panic due to a bug parsing PES header `ESCR_base` field
  - Fixes a panic when `PES_header_data_length` is not long enough to accommodate all the headers actually present
  - Fixed so we accept very short but still syntactically valid PSI sections previously rejected in some cases
+ - Fixed a panic on TS packet with `adaptation_field_extension_flag` set, but `adaptation_field_extension_length` is `0`
 
 ## 0.14.0 - 2021-04-11
 ### Changed
