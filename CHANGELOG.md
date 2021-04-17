@@ -4,6 +4,8 @@
 
 ## Unreleased - FutureDate
 
+## 0.15.0 - 2021-04-17
+
 ### Changed
  - `Iso639LanguageDescriptor::languages()` now produces `Result<Language>` rather than just `Language`
  - Since we don't support decryption, scrambled TS packets (packets with values of `transport_scrambling_control` other
