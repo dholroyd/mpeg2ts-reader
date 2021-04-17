@@ -1,6 +1,6 @@
 [package]
 name = "mpeg2ts-reader"
-version = "0.15.0"
+version = "0.15.1-dev"
 authors = ["David Holroyd <dave@badgers-in-foil.co.uk>"]
 description = "Parser for MPEG Transport Stream data"
 repository = "https://github.com/dholroyd/mpeg2ts-reader"
