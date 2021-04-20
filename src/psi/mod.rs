@@ -1078,4 +1078,51 @@ mod test {
         proc.start_section(ctx, &common_header, &sect);
         assert_eq!(1, counts.borrow().start);
     }
+
+    #[test]
+    fn buffer_compact() {
+        const SECT: [u8; 7] = hex!("427003 01020304");
+        struct Mock {
+            section_count: usize,
+        }
+        impl WholeCompactSyntaxPayloadParser for Mock {
+            type Context = ();
+
+            fn section<'a>(
+                &mut self,
+                _: &mut Self::Context,
+                header: &SectionCommonHeader,
+                data: &'a [u8],
+            ) {
+                assert_eq!(0x42, header.table_id);
+                // trim of the last byte which we've deliberately supplied, but which is not
+                // supposed to be part of the section
+                assert_eq!(data, &SECT[0..SECT.len() - 1]);
+                self.section_count += 1;
+            }
+        }
+        let mock = Mock { section_count: 0 };
+        let mut parser = BufferCompactSyntaxParser::new(mock);
+        let ctx = &mut ();
+
+        let common_header = SectionCommonHeader::new(&SECT[..SectionCommonHeader::SIZE]);
+
+        // we supply the inital section data, but then reset the BufferCompactSyntaxParser. this
+        // should nave no ill effect on the second attempt where we supply the complete data,
+        parser.start_compact_section(ctx, &common_header, &SECT[..SECT.len() - 3]);
+        parser.reset();
+        assert_eq!(0, parser.parser.section_count);
+
+        parser.start_compact_section(ctx, &common_header, &SECT[..SECT.len() - 3]);
+        parser.continue_compact_section(ctx, &SECT[SECT.len() - 3..SECT.len() - 2]);
+        // this call will deliver 1 byte more than the 2 specified for our section_length, and
+        // that second byte should be ignored
+        parser.continue_compact_section(ctx, &SECT[SECT.len() - 2..]);
+        assert_eq!(1, parser.parser.section_count);
+
+        // the section is already complete, so BufferCompactSyntaxParser should drop any further
+        // data supplied in error
+        parser.continue_compact_section(ctx, &SECT[SECT.len() - 2..]);
+        assert_eq!(1, parser.parser.section_count);
+    }
 }
