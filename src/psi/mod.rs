@@ -782,18 +782,20 @@ where
 mod test {
     use super::*;
     use crate::demultiplex;
+    use crate::demultiplex::PacketFilter;
     use crate::packet::Packet;
     use hex_literal::*;
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    packet_filter_switch! {
-        NullFilterSwitch<NullDemuxContext> {
-            Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
-            Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,
-            Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
+    pub struct NullFilterSwitch;
+    impl PacketFilter for NullFilterSwitch {
+        type Ctx = NullDemuxContext;
+        fn consume(&mut self, _ctx: &mut Self::Ctx, _pk: &Packet<'_>) {
+            unimplemented!()
         }
     }
+
     demux_context!(NullDemuxContext, NullFilterSwitch);
     impl NullDemuxContext {
         fn do_construct(&mut self, _req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
@@ -1010,8 +1012,6 @@ mod test {
     fn compact_section_syntax() {
         struct CallCounts {
             start: usize,
-            cont: usize,
-            reset: usize,
         }
         struct Mock {
             inner: Rc<RefCell<CallCounts>>,
@@ -1036,11 +1036,7 @@ mod test {
                 todo!()
             }
         }
-        let counts = Rc::new(RefCell::new(CallCounts {
-            start: 0,
-            cont: 0,
-            reset: 0,
-        }));
+        let counts = Rc::new(RefCell::new(CallCounts { start: 0 }));
         let mut proc = CompactSyntaxSectionProcessor::new(Mock {
             inner: counts.clone(),
         });
