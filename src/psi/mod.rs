@@ -796,7 +796,7 @@ mod test {
     }
     demux_context!(NullDemuxContext, NullFilterSwitch);
     impl NullDemuxContext {
-        fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
+        fn do_construct(&mut self, _req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
             unimplemented!()
         }
     }
@@ -942,14 +942,14 @@ mod test {
             fn start_syntax_section<'a>(
                 &mut self,
                 _ctx: &mut Self::Context,
-                header: &SectionCommonHeader,
-                table_syntax_header: &TableSyntaxHeader<'a>,
-                data: &'a [u8],
+                _header: &SectionCommonHeader,
+                _table_syntax_header: &TableSyntaxHeader<'a>,
+                _data: &'a [u8],
             ) {
                 self.inner.borrow_mut().start += 1;
             }
 
-            fn continue_syntax_section<'a>(&mut self, _ctx: &mut Self::Context, data: &'a [u8]) {
+            fn continue_syntax_section<'a>(&mut self, _ctx: &mut Self::Context, _data: &'a [u8]) {
                 self.inner.borrow_mut().cont += 1;
             }
 
@@ -1021,14 +1021,14 @@ mod test {
 
             fn start_compact_section<'a>(
                 &mut self,
-                ctx: &mut Self::Context,
-                header: &SectionCommonHeader,
-                data: &'a [u8],
+                _ctx: &mut Self::Context,
+                _header: &SectionCommonHeader,
+                _data: &'a [u8],
             ) {
                 self.inner.borrow_mut().start += 1;
             }
 
-            fn continue_compact_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+            fn continue_compact_section<'a>(&mut self, _ctx: &mut Self::Context, _data: &'a [u8]) {
                 todo!()
             }
 
