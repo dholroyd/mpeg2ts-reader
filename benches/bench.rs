@@ -3,7 +3,7 @@ extern crate criterion;
 #[macro_use]
 extern crate mpeg2ts_reader;
 
-use criterion::{Benchmark, Criterion, Throughput};
+use criterion::{Criterion, Throughput};
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::psi;
@@ -81,15 +81,12 @@ fn mpeg2ts_reader(c: &mut Criterion) {
     f.read(&mut buf[..]).unwrap();
     let mut ctx = NullDemuxContext::new();
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);
-    c.bench(
-        "parse",
-        Benchmark::new("parse", move |b| {
-            b.iter(|| {
-                demux.push(&mut ctx, &buf[..]);
-            });
-        })
-        .throughput(Throughput::Bytes(size as u64)),
-    );
+    let mut group = c.benchmark_group("parse");
+    group.throughput(Throughput::Bytes(size as _));
+    group.bench_function("parse", move |b| {
+        b.iter(|| demux.push(&mut ctx, &buf[..]));
+    });
+    group.finish();
 }
 
 criterion_group!(benches, mpeg2ts_reader);
