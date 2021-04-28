@@ -1,0 +1,14 @@
+version: 2
+updates:
+- package-ecosystem: cargo
+  directory: "/"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: hex-literal
+    versions:
+    - "> 0.2.1, < 1"
+  - dependency-name: hex-literal
+    versions:
+    - ">= 0.3.a, < 0.4"
