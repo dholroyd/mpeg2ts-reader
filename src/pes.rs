@@ -1012,7 +1012,7 @@ mod test {
     use crate::packet;
     use crate::pes;
     use assert_matches::assert_matches;
-    use bitstream_io::BigEndian;
+    use bitstream_io::{BigEndian, BitWrite};
     use bitstream_io::{BitWriter, BE};
     use hex_literal::*;
     use std::io;
