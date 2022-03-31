@@ -692,7 +692,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use bitstream_io::{BitWriter, BE};
+    use bitstream_io::{BitWrite, BitWriter, BE};
     use hex_literal::*;
     use std::io;
 

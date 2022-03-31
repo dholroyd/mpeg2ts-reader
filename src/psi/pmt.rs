@@ -207,6 +207,7 @@ mod test {
     use crate::descriptor::CoreDescriptors;
     use crate::psi::pmt::PmtSection;
     use assert_matches::assert_matches;
+    use bitstream_io::BitWrite;
     use hex_literal::hex;
 
     #[test]
