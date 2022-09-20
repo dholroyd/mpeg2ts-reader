@@ -518,7 +518,7 @@ impl<'buf> Packet<'buf> {
     /// The fixed 188 byte size of a transport stream packet.
     pub const SIZE: usize = 188;
 
-    /// returns `true` if the given value is a valid synchronisation byte, the value `0x42`, which
+    /// returns `true` if the given value is a valid synchronisation byte, the value `Packet::SYNC_BYTE` (0x47), which
     /// must appear at the start of every transport stream packet.
     #[inline(always)]
     pub fn is_sync_byte(b: u8) -> bool {
