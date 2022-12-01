@@ -106,7 +106,7 @@ macro_rules! descriptor_enum {
         $name:ident {
             $(
                 $(#[$inner:ident $($args:tt)*])*
-                $case_name:ident $($tags:pat)|* => $t:ident
+                $case_name:ident $($tags:pat_param)|* => $t:ident
             ),*,
         }
     ) => {
