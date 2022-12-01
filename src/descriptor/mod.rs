@@ -333,7 +333,7 @@ where
 }
 
 /// An error during parsing of a descriptor
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DescriptorError {
     /// The amount of data available in the buffer is not enough to hold the descriptor's declared
     /// size.

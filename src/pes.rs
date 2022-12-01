@@ -110,7 +110,7 @@ where
 
     #[inline(always)]
     fn consume(&mut self, ctx: &mut Self::Ctx, packet: &packet::Packet<'_>) {
-        if !self.is_continuous(&packet) {
+        if !self.is_continuous(packet) {
             self.stream_consumer.continuity_error(ctx);
             self.state = PesState::IgnoreRest;
         }
@@ -165,7 +165,7 @@ pub enum PesLength {
 /// Values which may be returned by
 /// [`PesHeader::stream_id()`](struct.PesHeader.html#method.stream_id) to identify the kind of
 /// content within the Packetized Elementary Stream.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum StreamId {
     /// `program_stream_map`
     ProgramStreamMap,
@@ -335,7 +335,7 @@ impl<'buf> PesHeader<'buf> {
 }
 
 /// Errors which may be encountered while processing PES data.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PesError {
     /// The value of an optional field was requested, but the field is not actually present in the
     /// given PES data
@@ -850,7 +850,7 @@ impl<'buf> fmt::Debug for PesParsedContents<'buf> {
 
 /// Detail about the formatting problem which prevented a [`Timestamp`](struct.Timestamp.html)
 /// value being parsed.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum TimestampError {
     /// Parsing the timestamp failed because the 'prefix-bit' values within the timestamp did not
     /// have the expected values
@@ -870,7 +870,7 @@ pub enum TimestampError {
 
 /// A 33-bit Elementary Stream timestamp, used to represent PTS and DTS values which may appear in
 /// an Elementary Stream header.
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct Timestamp {
     val: u64,
 }
@@ -954,7 +954,7 @@ impl Timestamp {
 ///
 /// The timestamps will be wrapped in `Result`, in case an error in the stored timestamp syntax
 /// means that it can't be decoded.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum PtsDts {
     /// There are no timestamps present
     None,
@@ -976,7 +976,7 @@ pub enum PtsDts {
 ///
 /// Returned by
 /// [`PesParsedContents.data_alignment_indicator()`](struct.PesParsedContents.html#method.data_alignment_indicator)
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum DataAlignment {
     /// Access Units are aligned to the start of the PES packet payload
     Aligned,
@@ -986,7 +986,7 @@ pub enum DataAlignment {
 /// Indicates the copyright status of the contents of the Elementary Stream packet.
 ///
 /// Returned by [`PesParsedContents.copyright()`](struct.PesParsedContents.html#method.copyright)
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Copyright {
     /// Content of this Elementry Stream is protected by copyright
     Protected,
@@ -997,7 +997,7 @@ pub enum Copyright {
 ///
 /// Returned by
 /// [`PesParsedContents.original_or_copy()`](struct.PesParsedContents.html#method.original_or_copy)
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum OriginalOrCopy {
     /// The Elementary Stream is original content
     Original,
@@ -1128,9 +1128,9 @@ mod test {
                 + 1  // additional_copy_info
                 + 2; // previous_PES_packet_CRC
             w.write(8, pes_header_length)?; // PES_data_length (size of fields that follow)
-            write_ts(&mut w, 123456789, 0b0010)?; // PTS
-            write_escr(&mut w, 0b111111111111111111111111111111111, 234)?;
-            write_es_rate(&mut w, 1234567)?;
+            write_ts(w, 123456789, 0b0010)?; // PTS
+            write_escr(w, 0b111111111111111111111111111111111, 234)?;
+            write_es_rate(w, 1234567)?;
 
             // DSM_trick_mode,
             w.write(3, 0b00)?; // trick_mode_control (== fast_forward)
@@ -1200,7 +1200,7 @@ mod test {
         let pts_prefix = 0b0010;
         let pts = make_test_data(|mut w| {
             write_ts(
-                &mut w,
+                w,
                 0b1_0101_0101_0101_0101_0101_0101_0101_0101,
                 pts_prefix,
             )
@@ -1219,7 +1219,7 @@ mod test {
         let pts_prefix = 0b0001;
         let pts = make_test_data(|mut w| {
             write_ts(
-                &mut w,
+                w,
                 0b0_1010_1010_1010_1010_1010_1010_1010_1010,
                 pts_prefix,
             )
@@ -1238,7 +1238,7 @@ mod test {
         let pts_prefix = 0b0010;
         let pts = make_test_data(|mut w| {
             write_ts(
-                &mut w,
+                w,
                 0b1_1111_1111_1111_1111_1111_1111_1111_1111,
                 pts_prefix,
             )
@@ -1257,7 +1257,7 @@ mod test {
         let pts_prefix = 0b0010;
         let pts = make_test_data(|mut w| {
             write_ts(
-                &mut w,
+                w,
                 0b0_0000_0000_0000_0000_0000_0000_0000_0000,
                 pts_prefix,
             )
@@ -1274,7 +1274,7 @@ mod test {
     #[test]
     fn timestamp_bad_prefix() {
         let pts_prefix = 0b0010;
-        let mut pts = make_test_data(|mut w| write_ts(&mut w, 1234, pts_prefix));
+        let mut pts = make_test_data(|mut w| write_ts(w, 1234, pts_prefix));
         // make the prefix bits invalid by flipping a 0 to a 1,
         pts[0] |= 0b10000000;
         assert_matches!(
@@ -1289,7 +1289,7 @@ mod test {
     #[test]
     fn timestamp_bad_marker() {
         let pts_prefix = 0b0010;
-        let mut pts = make_test_data(|mut w| write_ts(&mut w, 1234, pts_prefix));
+        let mut pts = make_test_data(|mut w| write_ts(w, 1234, pts_prefix));
         // make the first maker_bit (at index 7) invalid, by flipping a 1 to a 0,
         pts[0] &= 0b11111110;
         assert_matches!(

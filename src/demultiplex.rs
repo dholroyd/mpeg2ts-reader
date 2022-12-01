@@ -353,7 +353,7 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
             let pes_packet_consumer = ctx.construct(FilterRequest::ByStream {
                 program_pid: self.pid,
                 stream_type: stream_info.stream_type(),
-                pmt: &sect,
+                pmt: sect,
                 stream_info: &stream_info,
             });
             ctx.filter_changeset()

@@ -70,7 +70,7 @@ pub enum LangError {
 }
 
 /// Metadata about the role of the audio elementary stream to which this descriptor is attached.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AudioType {
     /// The audio has no particular role define
     Undefined,
