@@ -465,7 +465,7 @@ impl From<EsRate> for u32 {
 /// TODO: not yet implemented
 #[derive(Debug)] // TODO manual Debug
 pub struct PesExtension<'buf> {
-    buf: &'buf [u8],
+    _buf: &'buf [u8],
 }
 
 /// Extra data which may optionally be present in the `PesHeader`, potentially including
@@ -798,7 +798,7 @@ impl<'buf> PesParsedContents<'buf> {
                 self.pes_crc_end(),
                 self.pes_header_data_len() + Self::FIXED_HEADER_SIZE,
             )
-            .map(|s| PesExtension { buf: s })
+            .map(|s| PesExtension { _buf: s })
         } else {
             Err(PesError::FieldNotPresent)
         }
