@@ -8,7 +8,7 @@ license = "MIT/Apache-2.0"
 categories = [ "multimedia::video", "parser-implementations" ]
 keywords = [ "mpegts", "ISO-13818-1", "H-222-0" ]
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 fixedbitset = "0.4.0"
