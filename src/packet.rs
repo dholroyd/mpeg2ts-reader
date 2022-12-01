@@ -2,6 +2,7 @@
 
 use crate::pes;
 use log::warn;
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -237,7 +238,7 @@ impl<'buf> AdaptationField<'buf> {
         }
     }
     fn transport_private_data_offset(&self) -> usize {
-        self.splice_countdown_offset() + if self.splicing_point_flag() { 1 } else { 0 }
+        self.splice_countdown_offset() + usize::from(self.splicing_point_flag())
     }
     /// Borrow a slice of the underlying buffer containing private data,
     /// or `AdaptationFieldError::FieldNotPresent` if absent
@@ -659,17 +660,20 @@ impl<'buf> Packet<'buf> {
     #[inline]
     fn mk_payload(&self) -> Option<&'buf [u8]> {
         let offset = self.content_offset();
-        if offset == self.buf.len() {
-            warn!("no payload data present");
-            None
-        } else if offset > self.buf.len() {
-            warn!(
-                "adaptation_field_length {} too large",
-                self.adaptation_field_length()
-            );
-            None
-        } else {
-            Some(&self.buf[offset..])
+        let len = self.buf.len();
+        match offset.cmp(&len) {
+            Ordering::Equal => {
+                warn!("no payload data present");
+                None
+            }
+            Ordering::Greater => {
+                warn!(
+                    "adaptation_field_length {} too large",
+                    self.adaptation_field_length()
+                );
+                None
+            }
+            Ordering::Less => Some(&self.buf[offset..]),
         }
     }
 
