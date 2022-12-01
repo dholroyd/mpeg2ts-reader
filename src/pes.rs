@@ -1199,11 +1199,7 @@ mod test {
     fn pts() {
         let pts_prefix = 0b0010;
         let pts = make_test_data(|mut w| {
-            write_ts(
-                w,
-                0b1_0101_0101_0101_0101_0101_0101_0101_0101,
-                pts_prefix,
-            )
+            write_ts(w, 0b1_0101_0101_0101_0101_0101_0101_0101_0101, pts_prefix)
         });
         let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
         let b = 0b1_0101_0101_0101_0101_0101_0101_0101_0101;
@@ -1218,11 +1214,7 @@ mod test {
     fn dts() {
         let pts_prefix = 0b0001;
         let pts = make_test_data(|mut w| {
-            write_ts(
-                w,
-                0b0_1010_1010_1010_1010_1010_1010_1010_1010,
-                pts_prefix,
-            )
+            write_ts(w, 0b0_1010_1010_1010_1010_1010_1010_1010_1010, pts_prefix)
         });
         let a = pes::Timestamp::from_dts_bytes(&pts[..]).unwrap().value();
         let b = 0b0_1010_1010_1010_1010_1010_1010_1010_1010;
@@ -1237,11 +1229,7 @@ mod test {
     fn timestamp_ones() {
         let pts_prefix = 0b0010;
         let pts = make_test_data(|mut w| {
-            write_ts(
-                w,
-                0b1_1111_1111_1111_1111_1111_1111_1111_1111,
-                pts_prefix,
-            )
+            write_ts(w, 0b1_1111_1111_1111_1111_1111_1111_1111_1111, pts_prefix)
         });
         let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
         let b = 0b1_1111_1111_1111_1111_1111_1111_1111_1111;
@@ -1256,11 +1244,7 @@ mod test {
     fn timestamp_zeros() {
         let pts_prefix = 0b0010;
         let pts = make_test_data(|mut w| {
-            write_ts(
-                w,
-                0b0_0000_0000_0000_0000_0000_0000_0000_0000,
-                pts_prefix,
-            )
+            write_ts(w, 0b0_0000_0000_0000_0000_0000_0000_0000_0000, pts_prefix)
         });
         let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
         let b = 0b0_0000_0000_0000_0000_0000_0000_0000_0000;
