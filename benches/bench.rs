@@ -74,7 +74,8 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
 }
 
 fn mpeg2ts_reader(c: &mut Criterion) {
-    let mut f = File::open("resources/big_buck_bunny_1080p_24fps_h264.ts").expect("file not found");
+    let mut f = File::open("resources/testsrc.ts")
+        .expect("Test file missing.  To create, run: mkdir -p resources && ffmpeg -f lavfi -i testsrc=duration=20:size=640x360:rate=30,noise=alls=20:allf=t+u -f lavfi -i sine=duration=20:frequency=1:beep_factor=480:sample_rate=48000 -c:v libx264 -b:v 20M -map 0:v -c:a aac -b:a 128k -map 1:a -vf format=yuv420p -f mpegts resources/testsrc.ts");
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188 * 200_000);
     let mut buf = vec![0; size];
