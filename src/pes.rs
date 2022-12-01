@@ -1103,7 +1103,7 @@ mod test {
 
     #[test]
     fn parse_header() {
-        let data = make_test_data(|mut w| {
+        let data = make_test_data(|w| {
             w.write(24, 1)?; // packet_start_code_prefix
             w.write(8, 7)?; // stream_id
             w.write(16, 7)?; // PES_packet_length
@@ -1198,7 +1198,7 @@ mod test {
     #[test]
     fn pts() {
         let pts_prefix = 0b0010;
-        let pts = make_test_data(|mut w| {
+        let pts = make_test_data(|w| {
             write_ts(w, 0b1_0101_0101_0101_0101_0101_0101_0101_0101, pts_prefix)
         });
         let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
@@ -1213,7 +1213,7 @@ mod test {
     #[test]
     fn dts() {
         let pts_prefix = 0b0001;
-        let pts = make_test_data(|mut w| {
+        let pts = make_test_data(|w| {
             write_ts(w, 0b0_1010_1010_1010_1010_1010_1010_1010_1010, pts_prefix)
         });
         let a = pes::Timestamp::from_dts_bytes(&pts[..]).unwrap().value();
@@ -1228,7 +1228,7 @@ mod test {
     #[test]
     fn timestamp_ones() {
         let pts_prefix = 0b0010;
-        let pts = make_test_data(|mut w| {
+        let pts = make_test_data(|w| {
             write_ts(w, 0b1_1111_1111_1111_1111_1111_1111_1111_1111, pts_prefix)
         });
         let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
@@ -1243,7 +1243,7 @@ mod test {
     #[test]
     fn timestamp_zeros() {
         let pts_prefix = 0b0010;
-        let pts = make_test_data(|mut w| {
+        let pts = make_test_data(|w| {
             write_ts(w, 0b0_0000_0000_0000_0000_0000_0000_0000_0000, pts_prefix)
         });
         let a = pes::Timestamp::from_pts_bytes(&pts[..]).unwrap().value();
@@ -1258,7 +1258,7 @@ mod test {
     #[test]
     fn timestamp_bad_prefix() {
         let pts_prefix = 0b0010;
-        let mut pts = make_test_data(|mut w| write_ts(w, 1234, pts_prefix));
+        let mut pts = make_test_data(|w| write_ts(w, 1234, pts_prefix));
         // make the prefix bits invalid by flipping a 0 to a 1,
         pts[0] |= 0b10000000;
         assert_matches!(
@@ -1273,7 +1273,7 @@ mod test {
     #[test]
     fn timestamp_bad_marker() {
         let pts_prefix = 0b0010;
-        let mut pts = make_test_data(|mut w| write_ts(w, 1234, pts_prefix));
+        let mut pts = make_test_data(|w| write_ts(w, 1234, pts_prefix));
         // make the first maker_bit (at index 7) invalid, by flipping a 1 to a 0,
         pts[0] &= 0b11111110;
         assert_matches!(
