@@ -412,6 +412,14 @@ pub enum DemuxError {
     },
 }
 
+type PacketFilterConsumer<Proc> = psi::SectionPacketConsumer<
+    psi::SectionSyntaxSectionProcessor<
+        psi::DedupSectionSyntaxPayloadParser<
+            psi::BufferSectionSyntaxParser<psi::CrcCheckWholeSectionSyntaxPayloadParser<Proc>>,
+        >,
+    >,
+>;
+
 /// `PacketFilter` implementation which will insert some other `PacketFilter` into the `Demultiplex`
 /// instance for each sub-stream listed in one of the stream's PMT-sections.
 ///
@@ -419,15 +427,7 @@ pub enum DemuxError {
 /// [`DemuxContxt::construct()`](trait.DemuxContext.html), passing a
 /// [`FilterRequest::ByStream`](enum.FilterRequest.html#variant.ByStream) request.
 pub struct PmtPacketFilter<Ctx: DemuxContext + 'static> {
-    pmt_section_packet_consumer: psi::SectionPacketConsumer<
-        psi::SectionSyntaxSectionProcessor<
-            psi::DedupSectionSyntaxPayloadParser<
-                psi::BufferSectionSyntaxParser<
-                    psi::CrcCheckWholeSectionSyntaxPayloadParser<PmtProcessor<Ctx>>,
-                >,
-            >,
-        >,
-    >,
+    pmt_section_packet_consumer: PacketFilterConsumer<PmtProcessor<Ctx>>,
 }
 impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
     /// creates a new `PmtPacketFilter` for PMT sections in packets with the given `Pid`, and for
@@ -562,15 +562,7 @@ pub trait DemuxContext: Sized {
 /// [`DemuxContext::construct()`](trait.DemuxContext.html), passing a
 /// [`FilterRequest::Pmt`](enum.FilterRequest.html#variant.Pmt) request.
 pub struct PatPacketFilter<Ctx: DemuxContext> {
-    pat_section_packet_consumer: psi::SectionPacketConsumer<
-        psi::SectionSyntaxSectionProcessor<
-            psi::DedupSectionSyntaxPayloadParser<
-                psi::BufferSectionSyntaxParser<
-                    psi::CrcCheckWholeSectionSyntaxPayloadParser<PatProcessor<Ctx>>,
-                >,
-            >,
-        >,
-    >,
+    pat_section_packet_consumer: PacketFilterConsumer<PatProcessor<Ctx>>,
 }
 impl<Ctx: DemuxContext> Default for PatPacketFilter<Ctx> {
     fn default() -> PatPacketFilter<Ctx> {
