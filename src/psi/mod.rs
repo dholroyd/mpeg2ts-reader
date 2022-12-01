@@ -70,7 +70,7 @@ pub trait SectionProcessor {
 }
 
 /// Represents the value of the Transport Stream `current_next_indicator` field.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CurrentNext {
     /// The section version number applies to the currently applicable section data
     Current,

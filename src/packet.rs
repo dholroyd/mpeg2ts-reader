@@ -129,7 +129,7 @@ impl ClockRef {
 }
 
 /// Some error encountered while parsing adaptation field syntax
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AdaptationFieldError {
     /// The an optional field's value was requested, but the field is not actually present
     FieldNotPresent,
@@ -391,7 +391,7 @@ impl<'buf> fmt::Debug for AdaptationFieldExtension<'buf> {
 /// Value of the _seamless_splice_ field, as returned by
 /// [`AdaptationFieldExtension::seamless_splice()`](struct.AdaptationFieldExtension.html#method.seamless_splice)
 /// method
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SeamlessSplice {
     /// see _ISO/IEC 13818-1 : 2000_, Table 2-7 through Table 2-16
     pub splice_type: u8,
@@ -404,7 +404,7 @@ pub struct SeamlessSplice {
 /// `adaptation_control` indicates that a payload should be present.
 ///
 /// See [`Packet.continuity_counter()`](struct.Packet.html#method.continuity_counter)
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct ContinuityCounter {
     val: u8,
 }
