@@ -12,3 +12,8 @@ updates:
   - dependency-name: hex-literal
     versions:
     - ">= 0.3.a, < 0.4"
+
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: monthly
