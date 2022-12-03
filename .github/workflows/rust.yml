@@ -21,7 +21,7 @@ jobs:
       run: cargo build --verbose --all-targets
 
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --all-targets
 
 
   coverage:
