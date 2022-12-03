@@ -469,7 +469,7 @@ impl Pid {
 
     /// Panics if the given value is greater than `Pid::MAX_VALUE`.
     pub const fn new(pid: u16) -> Pid {
-        const_assert!(pid <= 0x1fff);
+        assert!(pid <= 0x1fff);
         Pid(pid)
     }
 }

@@ -34,17 +34,6 @@
 #![forbid(unsafe_code)]
 #![deny(rust_2018_idioms, future_incompatible, missing_docs)]
 
-// until we have https://github.com/rust-lang/rust/issues/51999 I think
-macro_rules! const_assert {
-    ($x:expr $(,)?) => {
-        #[allow(unknown_lints, clippy::eq_op)]
-        {
-            const ASSERT: [(); 1] = [()];
-            let _ = ASSERT[!($x) as usize];
-        }
-    };
-}
-
 pub mod packet;
 #[macro_use]
 pub mod demultiplex;
