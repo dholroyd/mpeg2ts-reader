@@ -58,6 +58,6 @@ jobs:
 
       - name: Run clippy
         # TODO: Use a tag once available
-        uses: actions-rs-plus/clippy-check@017a9863761ab793c6ed7b7ce9adb38cdf67694c
+        uses: actions-rs-plus/clippy-check@32004911fcacd394ed72cd4484850858b3797976
         with:
           args: --all-features
