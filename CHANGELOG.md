@@ -3,6 +3,8 @@
 <!-- next-header -->
 
 ## Unreleased - FutureDate
+### Changed
+ - Updated to Rust 2021 edition
 
 ## 0.15.0 - 2021-04-17
 
