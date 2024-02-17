@@ -33,6 +33,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@1.76.0
 
       - name: Generate code coverage
         run: |
@@ -52,7 +54,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Install toolchain
-        uses: dtolnay/rust-toolchain@1.62.0
+        uses: dtolnay/rust-toolchain@1.76.0
         with:
           components: clippy
 
