@@ -23,9 +23,14 @@ criterion = "0.5.1"
 hex-literal = "0.2.1"
 hex-slice = "0.1.4"
 env_logger = "0.10.0"
+iai = "0.1"
 
 [[bench]]
 name = "bench"
+harness = false
+
+[[bench]]
+name = "ci_bench"
 harness = false
 
 [profile.bench]
