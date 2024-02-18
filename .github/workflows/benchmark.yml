@@ -22,9 +22,8 @@ jobs:
         
       - run: |
           cargo bench --bench ci_bench > perf.txt
-      - run: which bencher
       - run: |
-          bencher run "cargo bench ci_bench" \
+          bencher run \
           --branch "$GITHUB_REF_NAME" \
           --err \
           --adapter rust_iai \
