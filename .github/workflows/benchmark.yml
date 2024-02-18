@@ -22,7 +22,7 @@ jobs:
       - run: sudo apt-get install valgrind
       - run: cargo install --version 0.10.2 iai-callgrind-runner
       - run: |
-          cargo bench --bench ci_bench > perf.txt
+          IAI_CALLGRIND_COLOR=never cargo bench --bench ci_bench > perf.txt
       - run: |
           bencher run \
           --branch "$GITHUB_REF_NAME" \
