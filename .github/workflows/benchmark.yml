@@ -19,7 +19,7 @@ jobs:
 
       - name: Download test mpegts asset
         run: wget --quiet -c "http://www.badgers-in-foil.co.uk/4d0660bd-5755-4917-9592-2e3d85736592.ts"
-        
+      - run: sudo apt-get install valgrind
       - run: |
           cargo bench --bench ci_bench > perf.txt
       - run: |
