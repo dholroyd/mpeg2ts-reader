@@ -21,7 +21,9 @@ jobs:
       run: cargo build --verbose --all-targets
 
     - name: Run tests
-      run: cargo test --verbose --all-targets
+      # avoid running the bench_ci, for which there is a seperate github
+      # workflow
+      run: cargo test --verbose --examples --tests --bench bench
 
 
   coverage:
