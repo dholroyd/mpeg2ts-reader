@@ -1,0 +1,25 @@
+name: Benchmark
+on:
+  push:
+    branches: main
+jobs:
+  benchmark_with_bencher:
+    name: Benchmark with Bencher
+    runs-on: ubuntu-22.04
+    env:
+      BENCHER_PROJECT: mpeg2ts-reader
+      BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@1.76.0
+
+      - uses: bencherdev/bencher@main
+      - run: wget -c "http://www.badgers-in-foil.co.uk/4d0660bd-5755-4917-9592-2e3d85736592.ts"
+      - run: |
+          bencher run "cargo bench ci_bench" \
+          --branch "$GITHUB_REF_NAME" \
+          --err \
+          --adapter rust_iai \
+          "cargo bench --bench ci_bench"
