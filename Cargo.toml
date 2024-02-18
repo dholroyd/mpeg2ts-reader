@@ -23,7 +23,7 @@ criterion = "0.5.1"
 hex-literal = "0.2.1"
 hex-slice = "0.1.4"
 env_logger = "0.10.0"
-iai = "0.1"
+iai-callgrind = "0.10.2"
 
 [[bench]]
 name = "bench"

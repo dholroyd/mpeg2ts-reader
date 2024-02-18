@@ -1,3 +1,4 @@
+use iai_callgrind::{main, library_benchmark_group, library_benchmark};
 use mpeg2ts_reader::packet_filter_switch;
 use mpeg2ts_reader::demux_context;
 use mpeg2ts_reader::demultiplex;
@@ -69,7 +70,8 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
     fn continuity_error(&mut self, _ctx: &mut Ctx) {}
 }
 
-fn mpeg2ts_reader() {
+#[library_benchmark]
+fn reader() {
     let mut f = File::open("586000000.ts")
         .expect("Test file missing");
     let l = f.metadata().unwrap().len() as usize;
@@ -82,6 +84,9 @@ fn mpeg2ts_reader() {
     demux.push(&mut ctx, &buf[..]);
 }
 
-iai::main!(
-    mpeg2ts_reader,
+library_benchmark_group!(
+    name = ci;
+    benchmarks = reader
 );
+
+main!(library_benchmark_groups = ci);
