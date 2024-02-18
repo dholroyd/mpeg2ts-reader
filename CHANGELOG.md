@@ -5,6 +5,9 @@
 ## Unreleased - FutureDate
 ### Changed
  - Updated to Rust 2021 edition
+ - `packet::TransportScramblingControl` is no longer an enum.  The internal implementation is now smaller, resulting in
+   around 10% parser throughput performance increase in the project's microbenchmark.  New `is_scrambled()` and
+   `scheme()` methods on `TransportScramblingControl` replace the functionality of the old enum variants.
 
 ## 0.15.0 - 2021-04-17
 

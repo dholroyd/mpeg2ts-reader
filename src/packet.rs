@@ -5,6 +5,8 @@ use log::warn;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
+use std::fmt::{Debug, Formatter};
+use std::num::NonZeroU8;
 
 /// the different values indicating whether a `Packet`'s `adaptation_field()` and `payload()`
 /// methods will return `Some` or `None`.
@@ -45,23 +47,38 @@ impl AdaptationControl {
 
 /// Indicates content scrambling in use, if any.
 ///
-/// Actual content scrambling schemes, indicates through the `u8` value in the `Unefined` variant,
-/// are undefined in the main TS spec (left to be described by other specifications).
-#[derive(Eq, PartialEq, Debug)]
-pub enum TransportScramblingControl {
-    /// The stream is not scrambled.
-    NotScrambled,
-    /// The stream is scrambled using a scheme not defined in the TS spec.
-    Undefined(u8),
-}
+/// Actual content scrambling schemes, are undefined in the main TS spec (left to be described
+/// by other specifications).
+#[derive(Eq, PartialEq)]
+pub struct TransportScramblingControl(u8);
 
 impl TransportScramblingControl {
-    fn from(val: u8) -> TransportScramblingControl {
-        match val {
-            0 => TransportScramblingControl::NotScrambled,
-            1..=3 => TransportScramblingControl::Undefined(val),
-            _ => panic!("invalid value {}", val),
-        }
+    /// creates a new instance from the fourth byte of a TS packet's header
+    #[inline]
+    fn from_byte_four(val: u8) -> TransportScramblingControl {
+        TransportScramblingControl(val)
+    }
+
+    /// If the `transport_scrambling_control` field in the Transport Stream data has the value
+    /// `00`, then return `false`, returns true if `transport_scrambling_control` has any other
+    /// values.
+    #[inline]
+    pub fn is_scrambled(&self) -> bool {
+        self.0 & 0b11000000 != 0
+    }
+
+    /// Returns the value of the  `transport_scrambling_control` field, or `None` if the field
+    /// indicates this packet payload is not scrambled.
+    pub fn scheme(&self) -> Option<NonZeroU8> {
+        let scheme = self.0 >> 6;
+        NonZeroU8::new(scheme)
+    }
+}
+impl Debug for TransportScramblingControl {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TransportScramblingControl")
+            .field("scheme", &self.scheme())
+            .finish()
     }
 }
 
@@ -581,8 +598,9 @@ impl<'buf> Packet<'buf> {
     }
 
     /// Value of the _transport_scrambling_control_ field.
+    #[inline]
     pub fn transport_scrambling_control(&self) -> TransportScramblingControl {
-        TransportScramblingControl::from(self.buf[3] >> 6 & 0b11)
+        TransportScramblingControl::from_byte_four(self.buf[3])
     }
 
     /// The returned enum value indicates if `adaptation_field()`, `payload()` or both will return
@@ -723,9 +741,10 @@ mod test {
         assert!(pk.transport_error_indicator());
         assert!(pk.payload_unit_start_indicator());
         assert!(pk.transport_priority());
+        assert!(pk.transport_scrambling_control().is_scrambled());
         assert_eq!(
-            pk.transport_scrambling_control(),
-            TransportScramblingControl::Undefined(3)
+            pk.transport_scrambling_control().scheme(),
+            NonZeroU8::new(3)
         );
         assert_eq!(
             pk.adaptation_control(),
