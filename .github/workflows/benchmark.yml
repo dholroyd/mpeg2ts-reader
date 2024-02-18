@@ -16,7 +16,7 @@ jobs:
         uses: dtolnay/rust-toolchain@1.76.0
 
       - uses: bencherdev/bencher@main
-      - run: wget --silent -c "http://www.badgers-in-foil.co.uk/4d0660bd-5755-4917-9592-2e3d85736592.ts"
+      - run: wget --quiet -c "http://www.badgers-in-foil.co.uk/4d0660bd-5755-4917-9592-2e3d85736592.ts"
       - run: |
           cargo bench --bench ci_bench > perf.txt
           bencher run "cargo bench ci_bench" \
