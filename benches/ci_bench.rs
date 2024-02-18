@@ -72,7 +72,7 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
 
 #[library_benchmark]
 fn reader() {
-    let mut f = File::open("586000000.ts")
+    let mut f = File::open("4d0660bd-5755-4917-9592-2e3d85736592.ts")
         .expect("Test file missing");
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188 * 200_000);
