@@ -941,7 +941,7 @@ impl Timestamp {
         self.val
     }
 
-    /// returns true if timestamps are likely to have wrapped around since `other`, given a curent
+    /// returns true if timestamps are likely to have wrapped around since `other`, given a current
     /// timestamp of `self`, and given the two timestamp values were taken no more than about
     /// _13.3 hours_ apart (i.e. no more than half the 26.5-ish hours it takes for the wrap around
     /// to occur).
