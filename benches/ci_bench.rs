@@ -1,7 +1,7 @@
-use iai_callgrind::{main, library_benchmark_group, library_benchmark};
-use mpeg2ts_reader::packet_filter_switch;
-use mpeg2ts_reader::demux_context;
+use iai_callgrind::{library_benchmark, library_benchmark_group, main};
 use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::demux_context;
+use mpeg2ts_reader::packet_filter_switch;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::psi;
 use std::fs::File;
@@ -72,8 +72,7 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
 
 #[library_benchmark]
 fn reader() {
-    let mut f = File::open("4d0660bd-5755-4917-9592-2e3d85736592.ts")
-        .expect("Test file missing");
+    let mut f = File::open("4d0660bd-5755-4917-9592-2e3d85736592.ts").expect("Test file missing");
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188 * 200_000);
     let mut buf = vec![0; size];
