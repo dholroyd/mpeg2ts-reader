@@ -945,8 +945,8 @@ impl Timestamp {
     /// timestamp of `self`, and given the two timestamp values were taken no more than about
     /// _13.3 hours_ apart (i.e. no more than half the 26.5-ish hours it takes for the wrap around
     /// to occur).
-    pub fn likely_wrapped_since(self, other: Self) -> bool {
-        other.val > self.val && other.val - self.val > Self::MAX.val / 2
+    pub fn likely_wrapped_since(self, since: Self) -> bool {
+        self.val <= since.val && since.val - self.val > Self::MAX.val / 2
     }
 }
 
@@ -1192,7 +1192,6 @@ mod test {
                 assert_matches!(p.es_rate(), Ok(pes::EsRate(1234567)));
                 assert_matches!(p.additional_copy_info(), Ok(123));
                 assert_matches!(p.previous_pes_packet_crc(), Ok(54321));
-                println!("{:#?}", p);
             }
             pes::PesContents::Payload(_) => {
                 panic!("expected PesContents::Parsed, got PesContents::Payload")
@@ -1258,6 +1257,15 @@ mod test {
             "timestamp values don't match:\n  actual:{:#b}\nexpected:{:#b}",
             a, b
         );
+    }
+
+    #[test]
+    fn timestamp_wrap() {
+        let zero: pes::Timestamp = pes::Timestamp::from_u64(0);
+        assert!(zero.likely_wrapped_since(pes::Timestamp::MAX));
+        assert!(!pes::Timestamp::MAX.likely_wrapped_since(zero));
+        assert!(!zero.likely_wrapped_since(pes::Timestamp::from_u64(1)));
+        assert!(!pes::Timestamp::from_u64(1).likely_wrapped_since(zero));
     }
 
     #[test]
