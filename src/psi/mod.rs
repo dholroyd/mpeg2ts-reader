@@ -924,6 +924,13 @@ mod test {
     }
 
     #[test]
+    fn table_next_syntax() {
+        let sect = hex!("4084e80000");
+        let header = TableSyntaxHeader::new(&sect);
+        assert_eq!(header.current_next_indicator(), CurrentNext::Next);
+    }
+
+    #[test]
     fn dedup_section() {
         struct CallCounts {
             start: usize,
