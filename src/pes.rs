@@ -151,7 +151,7 @@ where
 }
 
 /// Type for the length of a PES packet
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PesLength {
     /// The PES packet continues until the next TS packet that has `payload_unit_start_indicator`
     /// set.  According to the spec, only valid for video streams (but really, it is needed in
@@ -1011,11 +1011,13 @@ mod test {
     use crate::demultiplex::PacketFilter;
     use crate::packet;
     use crate::pes;
+    use crate::pes::PesLength;
     use assert_matches::assert_matches;
     use bitstream_io::{BigEndian, BitWrite};
     use bitstream_io::{BitWriter, BE};
     use hex_literal::*;
     use std::io;
+    use std::num::NonZeroU16;
 
     packet_filter_switch! {
         NullFilterSwitch<NullDemuxContext> {
@@ -1145,7 +1147,10 @@ mod test {
         });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
         assert_eq!(pes::StreamId::Unknown(7), header.stream_id());
-        //assert_eq!(8, header.pes_packet_length());
+        assert_eq!(
+            header.pes_packet_length(),
+            PesLength::Bounded(NonZeroU16::new(7).unwrap())
+        );
 
         match header.contents() {
             pes::PesContents::Parsed(parsed_contents) => {
