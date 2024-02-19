@@ -12,6 +12,11 @@
    reference, and a new `has_adaptation_field()` method has been added.  The changed type layout slightly improves
    performance.
 
+### Added
+ - `FormatIdentifier` is now re-exported from the
+   [smptera-format-identifiers-rust](https://crates.io/crates/smptera-format-identifiers-rust) crate so that calling
+   code can more easily use the same version of it as the `mpeg2ts-reader` crate.
+
 ## 0.15.0 - 2021-04-17
 
 ### Changed

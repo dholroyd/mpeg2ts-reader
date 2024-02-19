@@ -42,6 +42,10 @@ pub mod mpegts_crc;
 pub mod pes;
 pub mod psi;
 
+// expose access to FormatIdentifier, which is part of the public API of
+// descriptor::registration::RegistrationDescriptor
+pub use smptera_format_identifiers_rust as smptera;
+
 /// The types of Elementary Stream specified in _ISO/IEC 13818-1_.
 ///
 /// As returned by

@@ -3,7 +3,7 @@
 
 use super::DescriptorError;
 use crate::descriptor::descriptor_len;
-use smptera_format_identifiers_rust::FormatIdentifier;
+use crate::smptera::FormatIdentifier;
 use std::fmt;
 
 /// Indicates which kind of syntax any 'private data' within the transport stream will be following
@@ -28,7 +28,7 @@ impl<'buf> RegistrationDescriptor<'buf> {
     ///
     /// ```rust
     /// # use mpeg2ts_reader::descriptor::registration::RegistrationDescriptor;
-    /// use smptera_format_identifiers_rust::FormatIdentifier;
+    /// use mpeg2ts_reader::smptera::FormatIdentifier;
     /// # let descriptor = RegistrationDescriptor::new(RegistrationDescriptor::TAG, b"CUEI")
     /// #   .unwrap();
     /// if descriptor.format_identifier() == FormatIdentifier::CUEI {
@@ -73,7 +73,7 @@ mod test {
         let data = hex!("050443554549");
         let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
         assert_matches!(desc, CoreDescriptors::Registration(reg) => {
-            let expected = smptera_format_identifiers_rust::FormatIdentifier::from(&b"CUEI"[..]);
+            let expected = crate::smptera::FormatIdentifier::from(&b"CUEI"[..]);
             assert_eq!(reg.format_identifier(), expected);
             assert!(reg.is_format(expected));
             assert!(!format!("{:?}", reg).is_empty())
