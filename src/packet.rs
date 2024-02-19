@@ -8,40 +8,32 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU8;
 
-/// the different values indicating whether a `Packet`'s `adaptation_field()` and `payload()`
+/// Representation of the `adaptation_field_control` field from the Transport Stream packet header.
+/// The methods on this type indicate whether a `Packet`'s `adaptation_field()` and `payload()`
 /// methods will return `Some` or `None`.
 #[derive(Eq, PartialEq, Debug)]
-pub enum AdaptationControl {
-    /// This value is used if the transport stream packet `adaptation_control` field uses the value
-    /// `0b00`, which is not defined by the spec.
-    Reserved,
-    /// indicates that this packet contains a payload, but not an adaptation field
-    PayloadOnly,
-    /// indicates that this packet contains an adaptation field, but not a payload
-    AdaptationFieldOnly,
-    /// indicates that this packet contains both an adaptation field and a payload
-    AdaptationFieldAndPayload,
-}
+pub struct AdaptationControl(u8);
 
 impl AdaptationControl {
+    /// Construct a new `AdaptationControl` given the fourth byte from a Transport Stream packet's
+    /// header.  The `adaptation_field_control` field that this type represents is derived from
+    /// just two bits within the given byte - all the other bits are ignored
     #[inline(always)]
-    fn from(val: u8) -> AdaptationControl {
-        match val {
-            0 => AdaptationControl::Reserved,
-            1 => AdaptationControl::PayloadOnly,
-            2 => AdaptationControl::AdaptationFieldOnly,
-            3 => AdaptationControl::AdaptationFieldAndPayload,
-            _ => panic!("invalid value {}", val),
-        }
+    fn new(header_byte: u8) -> AdaptationControl {
+        AdaptationControl(header_byte)
     }
 
-    /// True if this AdaptationControl variant indicates that the packet will have a payload
+    /// True if the `adaptation_field_control` indicates that the packet will have a payload
     #[inline(always)]
-    pub fn has_payload(self) -> bool {
-        match self {
-            AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => false,
-            AdaptationControl::PayloadOnly | AdaptationControl::AdaptationFieldAndPayload => true,
-        }
+    pub fn has_payload(&self) -> bool {
+        self.0 & 0b00010000 != 0
+    }
+
+    /// True if the `adaptation_field_control` field indicates that the packet will have an
+    /// adaptation field.
+    #[inline(always)]
+    pub fn has_adaptation_field(&self) -> bool {
+        self.0 & 0b00100000 != 0
     }
 }
 
@@ -607,7 +599,7 @@ impl<'buf> Packet<'buf> {
     /// something.
     #[inline]
     pub fn adaptation_control(&self) -> AdaptationControl {
-        AdaptationControl::from(self.buf[3] >> 4 & 0b11)
+        AdaptationControl::new(self.buf[3])
     }
 
     /// Each packet with a given `pid()` value within a transport stream should have a continuity
@@ -625,21 +617,9 @@ impl<'buf> Packet<'buf> {
 
     /// An `AdaptationField` contains additional packet headers that may be present in the packet.
     pub fn adaptation_field(&self) -> Option<AdaptationField<'buf>> {
-        match self.adaptation_control() {
-            AdaptationControl::Reserved | AdaptationControl::PayloadOnly => None,
-            AdaptationControl::AdaptationFieldOnly => {
-                let len = self.adaptation_field_length();
-                if len != (Self::SIZE - ADAPTATION_FIELD_OFFSET) {
-                    warn!(
-                        "invalid adaptation_field_length for AdaptationFieldOnly: {}",
-                        len
-                    );
-                    // TODO: Option<Result<AdaptationField>> instead?
-                    return None;
-                }
-                Some(self.mk_af(len))
-            }
-            AdaptationControl::AdaptationFieldAndPayload => {
+        let ac = self.adaptation_control();
+        if ac.has_adaptation_field() {
+            if ac.has_payload() {
                 let len = self.adaptation_field_length();
                 if len > 182 {
                     warn!(
@@ -653,7 +633,20 @@ impl<'buf> Packet<'buf> {
                     return None;
                 }
                 Some(self.mk_af(len))
+            } else {
+                let len = self.adaptation_field_length();
+                if len != (Self::SIZE - ADAPTATION_FIELD_OFFSET) {
+                    warn!(
+                        "invalid adaptation_field_length for AdaptationFieldOnly: {}",
+                        len
+                    );
+                    // TODO: Option<Result<AdaptationField>> instead?
+                    return None;
+                }
+                Some(self.mk_af(len))
             }
+        } else {
+            None
         }
     }
 
@@ -667,11 +660,10 @@ impl<'buf> Packet<'buf> {
     /// If `Some` payload is returned, it is guaranteed not to be an empty slice.
     #[inline(always)]
     pub fn payload(&self) -> Option<&'buf [u8]> {
-        match self.adaptation_control() {
-            AdaptationControl::Reserved | AdaptationControl::AdaptationFieldOnly => None,
-            AdaptationControl::PayloadOnly | AdaptationControl::AdaptationFieldAndPayload => {
-                self.mk_payload()
-            }
+        if self.adaptation_control().has_payload() {
+            self.mk_payload()
+        } else {
+            None
         }
     }
 
@@ -702,12 +694,10 @@ impl<'buf> Packet<'buf> {
 
     #[inline]
     fn content_offset(&self) -> usize {
-        match self.adaptation_control() {
-            AdaptationControl::Reserved | AdaptationControl::PayloadOnly => FIXED_HEADER_SIZE,
-            AdaptationControl::AdaptationFieldOnly
-            | AdaptationControl::AdaptationFieldAndPayload => {
-                ADAPTATION_FIELD_OFFSET + self.adaptation_field_length()
-            }
+        if self.adaptation_control().has_adaptation_field() {
+            ADAPTATION_FIELD_OFFSET + self.adaptation_field_length()
+        } else {
+            FIXED_HEADER_SIZE
         }
     }
 }
@@ -746,10 +736,8 @@ mod test {
             pk.transport_scrambling_control().scheme(),
             NonZeroU8::new(3)
         );
-        assert_eq!(
-            pk.adaptation_control(),
-            AdaptationControl::AdaptationFieldAndPayload
-        );
+        assert!(pk.adaptation_control().has_payload());
+        assert!(pk.adaptation_control().has_adaptation_field());
         assert_eq!(pk.continuity_counter().count(), 0b1111);
         assert!(pk.adaptation_field().is_some());
         let ad = pk.adaptation_field().unwrap();
@@ -791,10 +779,8 @@ mod test {
         buf[0] = Packet::SYNC_BYTE;
         buf[4] = 0; // adaptation_field_length
         let pk = Packet::new(&buf[..]);
-        assert_eq!(
-            pk.adaptation_control(),
-            AdaptationControl::AdaptationFieldAndPayload
-        );
+        assert!(pk.adaptation_control().has_payload());
+        assert!(pk.adaptation_control().has_adaptation_field());
         assert!(pk.adaptation_field().is_none());
     }
 
