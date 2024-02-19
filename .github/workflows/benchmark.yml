@@ -19,7 +19,7 @@ jobs:
       - uses: cargo-bins/cargo-binstall@main
 
       - run: sudo apt-get install valgrind
-      - run: cargo binstall iai-callgrind-runner@0.10.2
+      - run: cargo binstall --no-confirm iai-callgrind-runner@0.10.2
       - run: ls -l testsrc.ts
       - run: |
           IAI_CALLGRIND_COLOR=never cargo bench --bench ci_bench > perf.txt
