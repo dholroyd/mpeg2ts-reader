@@ -72,7 +72,8 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
 
 #[library_benchmark]
 fn reader() {
-    let mut f = File::open("4d0660bd-5755-4917-9592-2e3d85736592.ts").expect("Test file missing");
+    let mut f = File::open("testsrc.ts")
+        .expect("Test file missing.  To create, run: mkdir -p resources && ffmpeg -f lavfi -i testsrc=duration=20:size=640x360:rate=30,noise=alls=20:allf=t+u -f lavfi -i sine=duration=20:frequency=1:beep_factor=480:sample_rate=48000 -c:v libx264 -b:v 20M -map 0:v -c:a aac -b:a 128k -map 1:a -vf format=yuv420p -f mpegts testsrc.ts");
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188 * 200_000);
     let mut buf = vec![0; size];
