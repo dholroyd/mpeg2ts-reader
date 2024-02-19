@@ -54,15 +54,15 @@ pub trait SectionProcessor {
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
     /// been supplied to this call in the `header` parameter.  This is to allow implementers to
     /// calculate a CRC over the whole section if required.
-    fn start_section<'a>(
+    fn start_section(
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        section_data: &'a [u8],
+        section_data: &[u8],
     );
     /// may be called to pass the implementation additional slices of section data, if the
     /// complete section was not already passed.
-    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, section_data: &'a [u8]);
+    fn continue_section(&mut self, ctx: &mut Self::Context, section_data: &[u8]);
 
     /// called if there is a problem in the transport stream that means any in-progress section
     /// data should be discarded.
@@ -239,7 +239,7 @@ pub trait WholeCompactSyntaxPayloadParser {
 
     /// Method that will receive a complete PSI table section, where the `data` parameter will
     /// be `header.section_length` bytes long
-    fn section<'a>(&mut self, _: &mut Self::Context, header: &SectionCommonHeader, data: &'a [u8]);
+    fn section(&mut self, _: &mut Self::Context, header: &SectionCommonHeader, data: &[u8]);
 }
 
 enum BufferSectionState {
@@ -304,7 +304,7 @@ where
         }
     }
 
-    fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+    fn continue_syntax_section(&mut self, ctx: &mut Self::Context, data: &[u8]) {
         match self.state {
             BufferSectionState::Complete => {
                 warn!("attempt to add extra data when section already complete");
@@ -367,11 +367,11 @@ where
 {
     type Context = P::Context;
 
-    fn start_compact_section<'a>(
+    fn start_compact_section(
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        data: &'a [u8],
+        data: &[u8],
     ) {
         let section_length_with_header = header.section_length + SectionCommonHeader::SIZE;
         if section_length_with_header <= data.len() {
@@ -388,7 +388,7 @@ where
         }
     }
 
-    fn continue_compact_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+    fn continue_compact_section(&mut self, ctx: &mut Self::Context, data: &[u8]) {
         match self.state {
             BufferSectionState::Complete => {
                 warn!("attempt to add extra data when section already complete");
@@ -470,7 +470,7 @@ where
             .start_syntax_section(ctx, header, table_syntax_header, data);
     }
 
-    fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+    fn continue_syntax_section(&mut self, ctx: &mut Self::Context, data: &[u8]) {
         if !self.ignore_rest {
             self.inner.continue_syntax_section(ctx, data)
         }
@@ -500,7 +500,7 @@ pub trait SectionSyntaxPayloadParser {
 
     /// may be called to pass the implementation additional slices of section data, if the
     /// complete section was not already passed.
-    fn continue_syntax_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]);
+    fn continue_syntax_section(&mut self, ctx: &mut Self::Context, data: &[u8]);
 
     /// called if there is a problem in the transport stream that means any in-progress section
     /// data should be discarded.
@@ -515,16 +515,16 @@ pub trait CompactSyntaxPayloadParser {
     /// NB the `data` buffer passed to _will_ include the bytes which are represented by `header`
     /// (in order that the called code can check any CRC that covers the
     /// whole section).
-    fn start_compact_section<'a>(
+    fn start_compact_section(
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        data: &'a [u8],
+        data: &[u8],
     );
 
     /// may be called to pass the implementation additional slices of section data, if the
     /// complete section was not already passed.
-    fn continue_compact_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]);
+    fn continue_compact_section(&mut self, ctx: &mut Self::Context, data: &[u8]);
 
     /// called if there is a problem in the transport stream that means any in-progress section
     /// data should be discarded.
@@ -563,11 +563,11 @@ where
 {
     type Context = SP::Context;
 
-    fn start_section<'a>(
+    fn start_section(
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        data: &'a [u8],
+        data: &[u8],
     ) {
         if header.section_syntax_indicator {
             // Maybe this should actually be allowed in some cases?
@@ -595,7 +595,7 @@ where
         self.payload_parser.start_compact_section(ctx, header, data)
     }
 
-    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+    fn continue_section(&mut self, ctx: &mut Self::Context, data: &[u8]) {
         if !self.ignore_rest {
             self.payload_parser.continue_compact_section(ctx, data)
         }
@@ -638,11 +638,11 @@ where
 {
     type Context = SP::Context;
 
-    fn start_section<'a>(
+    fn start_section(
         &mut self,
         ctx: &mut Self::Context,
         header: &SectionCommonHeader,
-        data: &'a [u8],
+        data: &[u8],
     ) {
         if !header.section_syntax_indicator {
             warn!(
@@ -671,7 +671,7 @@ where
             .start_syntax_section(ctx, header, &table_syntax_header, data)
     }
 
-    fn continue_section<'a>(&mut self, ctx: &mut Self::Context, data: &'a [u8]) {
+    fn continue_section(&mut self, ctx: &mut Self::Context, data: &[u8]) {
         if !self.ignore_rest {
             self.payload_parser.continue_syntax_section(ctx, data)
         }

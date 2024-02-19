@@ -377,12 +377,12 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
 impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ctx> {
     type Context = Ctx;
 
-    fn section<'a>(
+    fn section(
         &mut self,
         ctx: &mut Self::Context,
         header: &psi::SectionCommonHeader,
         table_syntax_header: &psi::TableSyntaxHeader<'_>,
-        data: &'a [u8],
+        data: &[u8],
     ) {
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4; // remove CRC bytes
@@ -515,12 +515,12 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
 impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ctx> {
     type Context = Ctx;
 
-    fn section<'a>(
+    fn section(
         &mut self,
         ctx: &mut Self::Context,
         header: &psi::SectionCommonHeader,
         table_syntax_header: &psi::TableSyntaxHeader<'_>,
-        data: &'a [u8],
+        data: &[u8],
     ) {
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4; // remove CRC bytes
