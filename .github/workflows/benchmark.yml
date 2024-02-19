@@ -26,5 +26,5 @@ jobs:
           --branch "$GITHUB_REF_NAME" \
           --err \
           --adapter rust_iai_callgrind \
-          --hash "$GITHUB_SHA"
+          --hash "$GITHUB_SHA" \
           --file "perf.txt"
