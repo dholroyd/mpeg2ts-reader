@@ -3,6 +3,8 @@
 <!-- next-header -->
 
 ## Unreleased - FutureDate
+
+## 0.16.0 - 2024-02-20
 ### Changed
  - Updated to Rust 2021 edition
  - `packet::TransportScramblingControl` changed from an enum to a struct.  New `is_scrambled()` and `scheme()` methods
