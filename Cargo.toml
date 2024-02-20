@@ -1,6 +1,6 @@
 [package]
 name = "mpeg2ts-reader"
-version = "0.15.1-dev"
+version = "0.15.1"
 authors = ["David Holroyd <dave@badgers-in-foil.co.uk>"]
 description = "Parser for MPEG Transport Stream data"
 repository = "https://github.com/dholroyd/mpeg2ts-reader"
@@ -9,6 +9,8 @@ categories = [ "multimedia::video", "parser-implementations" ]
 keywords = [ "mpegts", "ISO-13818-1", "H-222-0" ]
 readme = "README.md"
 edition = "2021"
+
+exclude = [ "testsrc.ts" ]
 
 [dependencies]
 fixedbitset = "0.4.0"
