@@ -841,27 +841,28 @@ mod test {
         psi_buf.consume(&mut ctx, &pk);
     }
 
+    struct MockWholeSectParse {
+        state: Rc<RefCell<bool>>,
+    }
+    impl WholeSectionSyntaxPayloadParser for MockWholeSectParse {
+        type Context = ();
+        fn section<'a>(
+            &mut self,
+            _: &mut Self::Context,
+            _header: &SectionCommonHeader,
+            _table_syntax_header: &TableSyntaxHeader<'_>,
+            _data: &[u8],
+        ) {
+            *self.state.borrow_mut() = true;
+        }
+    }
+
     #[test]
     fn section_spanning_packets() {
         // state to track if MockSectParse.section() got called,
         let state = Rc::new(RefCell::new(false));
-        struct MockSectParse {
-            state: Rc<RefCell<bool>>,
-        }
-        impl WholeSectionSyntaxPayloadParser for MockSectParse {
-            type Context = ();
-            fn section<'a>(
-                &mut self,
-                _: &mut Self::Context,
-                _header: &SectionCommonHeader,
-                _table_syntax_header: &TableSyntaxHeader<'_>,
-                _data: &[u8],
-            ) {
-                *self.state.borrow_mut() = true;
-            }
-        }
         let mut p = BufferSectionSyntaxParser::new(CrcCheckWholeSectionSyntaxPayloadParser::new(
-            MockSectParse {
+            MockWholeSectParse {
                 state: state.clone(),
             },
         ));
@@ -1018,7 +1019,9 @@ mod test {
     #[test]
     fn compact_section_syntax() {
         struct CallCounts {
-            start: usize,
+            start: u64,
+            reset: u64,
+            continue_section: u64,
         }
         struct Mock {
             inner: Rc<RefCell<CallCounts>>,
@@ -1036,14 +1039,18 @@ mod test {
             }
 
             fn continue_compact_section<'a>(&mut self, _ctx: &mut Self::Context, _data: &'a [u8]) {
-                todo!()
+                self.inner.borrow_mut().continue_section += 1;
             }
 
             fn reset(&mut self) {
-                todo!()
+                self.inner.borrow_mut().reset += 1;
             }
         }
-        let counts = Rc::new(RefCell::new(CallCounts { start: 0 }));
+        let counts = Rc::new(RefCell::new(CallCounts {
+            start: 0,
+            reset: 0,
+            continue_section: 0,
+        }));
         let mut proc = CompactSyntaxSectionProcessor::new(Mock {
             inner: counts.clone(),
         });
@@ -1057,6 +1064,8 @@ mod test {
         assert!(common_header.section_syntax_indicator);
         proc.start_section(ctx, &common_header, &sect);
         assert_eq!(0, counts.borrow().start);
+        proc.continue_section(ctx, &[]);
+        assert_eq!(0, counts.borrow().continue_section);
 
         let sect = hex!("427131");
         let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
@@ -1065,6 +1074,8 @@ mod test {
         // CompactSyntaxSectionProcessor to fail,
         proc.start_section(ctx, &common_header, &sect[..2]);
         assert_eq!(0, counts.borrow().start);
+        proc.continue_section(ctx, &[]);
+        assert_eq!(0, counts.borrow().continue_section);
 
         // section_length of 1022 (0x3fe) in this header is too long
         let header = hex!("4273fe");
@@ -1077,13 +1088,21 @@ mod test {
         // CompactSyntaxSectionProcessor to fail,
         proc.start_section(ctx, &common_header, &sect);
         assert_eq!(0, counts.borrow().start);
+        proc.continue_section(ctx, &[]);
+        assert_eq!(0, counts.borrow().continue_section);
 
-        // not too long, so this should now be accepted and we should see counts.start increment
+        // not too long, so this should now be accepted, and we should see counts.start increment
         let sect = hex!("427000");
         let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
         assert!(!common_header.section_syntax_indicator);
         proc.start_section(ctx, &common_header, &sect);
         assert_eq!(1, counts.borrow().start);
+
+        proc.continue_section(ctx, &[]);
+        assert_eq!(1, counts.borrow().continue_section);
+
+        proc.reset();
+        assert_eq!(1, counts.borrow().reset);
     }
 
     #[test]
@@ -1131,5 +1150,143 @@ mod test {
         // data supplied in error
         parser.continue_compact_section(ctx, &SECT[SECT.len() - 2..]);
         assert_eq!(1, parser.parser.section_count);
+    }
+
+    #[test]
+    fn section_syntax_section_processor() {
+        struct Mock {
+            start_syntax_section_count: usize,
+            continue_syntax_section_count: usize,
+            reset_count: usize,
+        }
+        impl SectionSyntaxPayloadParser for Mock {
+            type Context = ();
+
+            fn start_syntax_section<'a>(
+                &mut self,
+                _ctx: &mut Self::Context,
+                _header: &SectionCommonHeader,
+                _table_syntax_header: &TableSyntaxHeader<'a>,
+                _data: &'a [u8],
+            ) {
+                self.start_syntax_section_count += 1;
+            }
+
+            fn continue_syntax_section(&mut self, _ctx: &mut Self::Context, _data: &[u8]) {
+                self.continue_syntax_section_count += 1;
+            }
+
+            fn reset(&mut self) {
+                self.reset_count += 1;
+            }
+        }
+        let sect = hex!("42f130 4084e90000");
+
+        {
+            let mock = Mock {
+                start_syntax_section_count: 0,
+                continue_syntax_section_count: 0,
+                reset_count: 0,
+            };
+            let mut proc = SectionSyntaxSectionProcessor::new(mock);
+            // copy the sample data
+            let mut not_section_syntax = sect.to_vec();
+            // set section_syntax_indicator to 0
+            not_section_syntax[1] &= 0b0111_1111;
+            let ctx = &mut ();
+            let common_header =
+                SectionCommonHeader::new(&not_section_syntax[..SectionCommonHeader::SIZE]);
+            assert!(!common_header.section_syntax_indicator);
+            proc.start_section(ctx, &common_header, &not_section_syntax);
+            assert_eq!(proc.payload_parser.start_syntax_section_count, 0);
+        }
+
+        {
+            let mock = Mock {
+                start_syntax_section_count: 0,
+                continue_syntax_section_count: 0,
+                reset_count: 0,
+            };
+            let mut proc = SectionSyntaxSectionProcessor::new(mock);
+            // copy the sample data, but now make it too short to be a valid
+            // SectionCommonHeader + TableSyntaxHeader
+            let too_short = &sect[0..7];
+            let ctx = &mut ();
+            let common_header = SectionCommonHeader::new(&too_short[..SectionCommonHeader::SIZE]);
+            assert!(common_header.section_syntax_indicator);
+            proc.start_section(ctx, &common_header, &too_short);
+            assert_eq!(proc.payload_parser.start_syntax_section_count, 0);
+        }
+
+        {
+            let mock = Mock {
+                start_syntax_section_count: 0,
+                continue_syntax_section_count: 0,
+                reset_count: 0,
+            };
+            let mut proc = SectionSyntaxSectionProcessor::new(mock);
+            let mut section_length_too_large = sect.to_vec();
+            let bad_section_length: u16 = 1021 + 1;
+            assert_eq!(bad_section_length >> 8 & 0b1111_0000, 0);
+            section_length_too_large[1] =
+                section_length_too_large[1] & 0b1111_0000 | (bad_section_length >> 8) as u8;
+            section_length_too_large[2] = (bad_section_length & 0xff) as u8;
+            let ctx = &mut ();
+            let common_header =
+                SectionCommonHeader::new(&section_length_too_large[..SectionCommonHeader::SIZE]);
+            assert!(common_header.section_syntax_indicator);
+            proc.start_section(ctx, &common_header, &section_length_too_large);
+            assert_eq!(proc.payload_parser.start_syntax_section_count, 0);
+        }
+    }
+
+    #[test]
+    fn should_reject_section_too_small_for_crc() {
+        let sect = hex!(
+            "
+            42f13040 84e90000 233aff44 40ff8026
+            480d1900 0a424243 2054574f 20484473
+            0c66702e 6262632e 636f2e75 6b5f0400
+            00233a7e 01f744c4 ff802148 09190006
+            49545620 4844730b 7777772e 6974762e
+            636f6d5f 04000023 3a7e01f7 4500ff80
+            2c480f19 000c4368 616e6e65 6c203420
+            48447310 7777772e 6368616e 6e656c34
+            2e636f6d 5f040000 233a7e01 f74484ff
+            8026480d 19000a42 4243204f 4e452048
+            44730c66 702e6262 632e636f 2e756b5f
+            04000023 3a7e01
+            f746c0ff 8023480a 19000743 42424320
+            4844730c 66702e62 62632e63 6f2e756b
+            5f040000 233a7e01 f74f80ff 801e480a
+            16000746 696c6d34 2b317310 7777772e
+            6368616e 6e656c34 2e636f6d 4540ff80
+            27480f19 000c4368 616e6e65 6c203520
+            4844730b 7777772e 66697665 2e74765f
+            04000023 3a7e01f7 f28b26c4 ffffffff
+            ffffffff ffffffff ffffffff ffffffff
+            ffffffff ffffffff ffffffff ffffffff
+            ffffffff ffffffff ffffffff ffffffff
+            ffffffff ffffffff"
+        );
+
+        let mut sect_length_too_small = sect.to_vec();
+        let bad_section_length: u16 = 11;
+        assert_eq!(bad_section_length >> 8 & 0b1111_0000, 0);
+        sect_length_too_small[1] =
+            sect_length_too_small[1] & 0b1111_0000 | (bad_section_length >> 8) as u8;
+        sect_length_too_small[2] = (bad_section_length & 0xff) as u8;
+        sect_length_too_small.truncate(bad_section_length as usize);
+        let state = Rc::new(RefCell::new(false));
+        let mut crc_check = CrcCheckWholeSectionSyntaxPayloadParser::new(MockWholeSectParse {
+            state: state.clone(),
+        });
+        let common_header =
+            SectionCommonHeader::new(&sect_length_too_small[..SectionCommonHeader::SIZE]);
+        let table_header =
+            TableSyntaxHeader::new(&sect_length_too_small[SectionCommonHeader::SIZE..]);
+        let ctx = &mut ();
+        crc_check.section(ctx, &common_header, &table_header, &sect_length_too_small);
+        assert!(!*state.borrow());
     }
 }

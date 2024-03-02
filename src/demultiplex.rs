@@ -686,16 +686,30 @@ pub(crate) mod test {
     use std::io;
 
     use crate::demultiplex;
+    use crate::demultiplex::{Filters, NullPacketFilter, PacketFilter};
     use crate::packet;
+    use crate::packet::{Packet, Pid};
     use crate::psi;
     use crate::psi::WholeSectionSyntaxPayloadParser;
     use bitstream_io::BigEndian;
+
+    pub struct CountPacketFilter {
+        count: u64,
+    }
+    impl PacketFilter for CountPacketFilter {
+        type Ctx = NullDemuxContext;
+
+        fn consume(&mut self, _ctx: &mut Self::Ctx, _pk: &Packet<'_>) {
+            self.count += 1;
+        }
+    }
 
     packet_filter_switch! {
         NullFilterSwitch<NullDemuxContext> {
             Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
             Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,
             Nul: demultiplex::NullPacketFilter<NullDemuxContext>,
+            Count: CountPacketFilter,
         }
     }
     demux_context!(NullDemuxContext, NullFilterSwitch);
@@ -731,11 +745,13 @@ pub(crate) mod test {
 
     #[test]
     fn pat() {
-        // TODO: better
+        // this PAT data references a program with PID 480
         let buf = hex!("474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
         let mut ctx = NullDemuxContext::new();
         let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
         deplex.push(&mut ctx, &buf[..]);
+        // check that a processor was registered for the program referenced by the PAT
+        assert!(deplex.processor_by_pid.contains(Pid::new(480)));
     }
 
     #[test]
@@ -869,6 +885,126 @@ pub(crate) mod test {
             assert_eq!(packet::Pid::new(201), pid);
         } else {
             panic!();
+        }
+    }
+
+    #[test]
+    fn filters() {
+        let mut filters = Filters::<NullPacketFilter<NullDemuxContext>>::default();
+        assert!(!filters.contains(Pid::PAT));
+        assert!(filters.get(Pid::PAT).is_none());
+        filters.insert(Pid::PAT, NullPacketFilter::default());
+        assert!(filters.contains(Pid::PAT));
+        assert!(filters.get(Pid::PAT).is_some());
+        filters.remove(Pid::PAT);
+        assert!(!filters.contains(Pid::PAT));
+        assert!(filters.get(Pid::PAT).is_none());
+    }
+
+    #[test]
+    fn bad_sync() {
+        let mut buf = hex!("474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+            .to_vec();
+        buf[0] = 0; // owerwrite the sync byte with an invalid valud
+        let mut ctx = NullDemuxContext::new();
+        let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
+        deplex.push(&mut ctx, &buf[..]);
+        // while we don't assert anything yet, the code should not panic
+    }
+
+    #[test]
+    fn unknown_pid() {
+        let mut buf = hex!("474000150000B00D0001C100000001E1E02D507804FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+            .to_vec();
+        let new_pid: u16 = 123;
+        assert_eq!(new_pid & 0b1110_0000_0000_0000, 0);
+        buf[1] = buf[1] & 0b1110_0000 | ((new_pid >> 8) as u8);
+        buf[2] = (new_pid & 0xff) as u8;
+        // a single sync-byte - too short since a full 188 byte packet is expected
+        let mut ctx = NullDemuxContext::new();
+        let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
+        assert!(!deplex.processor_by_pid.contains(Pid::new(new_pid)));
+        deplex.push(&mut ctx, &buf[..]);
+        // discovery of a packet with a new PID should case a processor to be registered for that
+        // PID
+        assert!(deplex.processor_by_pid.contains(Pid::new(new_pid)));
+    }
+
+    #[test]
+    fn ignore_scrambled_packet() {
+        let mut ctx = NullDemuxContext::new();
+        let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
+        let count = CountPacketFilter { count: 0 };
+        deplex
+            .processor_by_pid
+            .insert(Pid::STUFFING, NullFilterSwitch::Count(count));
+
+        let mut buf = hex!("47400015FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+            .to_vec();
+        let new_pid: u16 = Pid::STUFFING.into();
+        assert_eq!(new_pid & 0b1110_0000_0000_0000, 0);
+        buf[1] = buf[1] & 0b1110_0000 | ((new_pid >> 8) as u8);
+        buf[2] = (new_pid & 0xff) as u8;
+
+        deplex.push(&mut ctx, &buf);
+        // the packet was unscrambled, so we expect call-count to increase by 1
+        if let Some(NullFilterSwitch::Count(count)) = deplex.processor_by_pid.get(Pid::STUFFING) {
+            assert_eq!(count.count, 1);
+        } else {
+            unreachable!()
+        }
+
+        let new_transport_scrambling_control = 1;
+        buf[3] = buf[3] & 0b0011_1111 | (new_transport_scrambling_control << 6);
+
+        deplex.push(&mut ctx, &buf);
+        // the packet was scrambled, so we don't expect the packet filter to have been called a
+        // second time - count should remain at 1
+        if let Some(NullFilterSwitch::Count(count)) = deplex.processor_by_pid.get(Pid::STUFFING) {
+            assert_eq!(count.count, 1);
+        } else {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn ignore_error_packet() {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Warn)
+            .is_test(true)
+            .try_init();
+        let mut ctx = NullDemuxContext::new();
+        let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
+        let count = CountPacketFilter { count: 0 };
+        deplex
+            .processor_by_pid
+            .insert(Pid::STUFFING, NullFilterSwitch::Count(count));
+
+        let mut buf = hex!("47400015FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+            .to_vec();
+        let new_pid: u16 = Pid::STUFFING.into();
+        assert_eq!(new_pid & 0b1110_0000_0000_0000, 0);
+        buf[1] = buf[1] & 0b1110_0000 | ((new_pid >> 8) as u8);
+        buf[2] = (new_pid & 0xff) as u8;
+
+        deplex.push(&mut ctx, &buf);
+        // the packet was good, so we expect call-count to increase by 1
+        if let Some(NullFilterSwitch::Count(count)) = deplex.processor_by_pid.get(Pid::STUFFING) {
+            assert_eq!(count.count, 1);
+        } else {
+            unreachable!()
+        }
+
+        // set the transport_error_indicator
+        buf[1] = buf[1] | 0b1000_0000;
+
+        deplex.push(&mut ctx, &buf);
+        // the packet has error_indicator, so we don't expect the packet filter to have been called
+        // a second time - count should remain at 1
+        if let Some(NullFilterSwitch::Count(count)) = deplex.processor_by_pid.get(Pid::STUFFING) {
+            assert_eq!(count.count, 1);
+        } else {
+            unreachable!()
         }
     }
 }
