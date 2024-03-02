@@ -704,6 +704,8 @@ impl<'buf> Packet<'buf> {
 
 #[cfg(test)]
 mod test {
+    use crate::demultiplex::test::NullDemuxContext;
+    use crate::demultiplex::{NullPacketFilter, PacketFilter};
     use crate::packet::*;
     use crate::pes;
 
@@ -787,5 +789,14 @@ mod test {
     #[test]
     fn empty_adaptation_field_extension() {
         assert!(AdaptationFieldExtension::new(b"").is_err());
+    }
+
+    #[test]
+    fn should_do_nothing() {
+        let mut ctx = NullDemuxContext::new();
+        let mut data = vec![0; 188];
+        data[0] = 0x47;
+        let pkt = Packet::new(&data);
+        NullPacketFilter::default().consume(&mut ctx, &pkt);
     }
 }

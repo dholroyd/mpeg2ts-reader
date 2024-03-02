@@ -1011,7 +1011,10 @@ mod test {
     use crate::demultiplex::PacketFilter;
     use crate::packet;
     use crate::pes;
-    use crate::pes::PesLength;
+    use crate::pes::{
+        Copyright, DataAlignment, EsRate, FrequencyTruncationCoefficientSelection, OriginalOrCopy,
+        PesContents, PesError, PesHeader, PesLength, PesParsedContents, StreamId,
+    };
     use assert_matches::assert_matches;
     use bitstream_io::{BigEndian, BitWrite};
     use bitstream_io::{BitWriter, BE};
@@ -1417,5 +1420,112 @@ mod test {
         });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
         assert!(matches!(header.contents(), pes::PesContents::Parsed(None)));
+    }
+
+    #[test]
+    fn should_convert_u8_to_stream_id_without_panic() {
+        for i in 0..255 {
+            let _ = StreamId::from(i);
+        }
+    }
+
+    #[test]
+    fn should_reject_too_short_pes_header() {
+        assert!(PesHeader::from_bytes(&[0, 0, 1, 0, 0]).is_none());
+    }
+
+    #[test]
+    fn should_reject_bad_start_code_prefix() {
+        // start code prefix other than 0,0,1 should be rejected
+        assert!(PesHeader::from_bytes(&[0, 0, 2, 0, 0, 0]).is_none());
+        assert!(PesHeader::from_bytes(&[0, 1, 1, 0, 0, 0]).is_none());
+        assert!(PesHeader::from_bytes(&[1, 0, 1, 0, 0, 0]).is_none());
+    }
+
+    #[test]
+    fn should_report_unbounded_length() {
+        // if the length (u16 in the 5th+6th bytes) is 0, this means the PES packet length is
+        // unbounded (payload continues until the next TS packet with payload_unit_start_indicator)
+        let header = PesHeader::from_bytes(&[0, 0, 1, 0, 0, 0]).unwrap();
+        assert_matches!(header.pes_packet_length(), PesLength::Unbounded);
+    }
+
+    #[test]
+    fn should_produce_unparsed_payload() {
+        let header = PesHeader::from_bytes(&[0, 0, 1, 0b1011_1110, 0, 0, 47]).unwrap();
+        assert_eq!(header.stream_id(), StreamId::PaddingStream);
+        match header.contents() {
+            PesContents::Parsed(_) => panic!("expected PesContents::Payload"),
+            PesContents::Payload(_) => { /* ok */ }
+        }
+    }
+
+    #[test]
+    fn should_convert_freq_truncation_from_u8() {
+        assert_matches!(
+            FrequencyTruncationCoefficientSelection::from_id(0),
+            FrequencyTruncationCoefficientSelection::DCNonZero
+        );
+        assert_matches!(
+            FrequencyTruncationCoefficientSelection::from_id(1),
+            FrequencyTruncationCoefficientSelection::FirstThreeNonZero
+        );
+        assert_matches!(
+            FrequencyTruncationCoefficientSelection::from_id(2),
+            FrequencyTruncationCoefficientSelection::FirstSixNonZero
+        );
+        assert_matches!(
+            FrequencyTruncationCoefficientSelection::from_id(3),
+            FrequencyTruncationCoefficientSelection::AllMaybeNonZero
+        );
+    }
+
+    #[test]
+    fn should_convert_es_rate() {
+        for r in 0..1 << 22 {
+            let es_rate = EsRate::new(r);
+            assert_eq!(es_rate.bytes_per_second(), r * 50);
+            assert_eq!(u32::from(es_rate), r);
+        }
+    }
+
+    #[test]
+    fn should_reject_parsed_pes_too_short_for_header() {
+        assert!(PesParsedContents::from_bytes(&[0b10000000, 0]).is_none());
+    }
+    #[test]
+    fn should_reject_parsed_pes_too_short_for_payload() {
+        assert!(PesParsedContents::from_bytes(&[0b10000000, 0, 1]).is_none());
+    }
+    #[test]
+    fn should_reject_parsed_pes_bad_check_bits() {
+        // first two bits are expected tp be 10, but here they are 01,
+        assert!(PesParsedContents::from_bytes(&[0b01000000, 0, 1]).is_none());
+    }
+    #[test]
+    fn should_report_zero_flags() {
+        // all the flags in this header are 0s
+        let contents = PesParsedContents::from_bytes(&[0b10000000, 0, 0]).unwrap();
+        assert_eq!(
+            contents.data_alignment_indicator(),
+            DataAlignment::NotAligned
+        );
+        assert_eq!(contents.copyright(), Copyright::Protected);
+        assert_eq!(contents.original_or_copy(), OriginalOrCopy::Copy);
+        assert_matches!(contents.escr(), Err(PesError::FieldNotPresent));
+        assert_matches!(contents.es_rate(), Err(PesError::FieldNotPresent));
+        assert_matches!(contents.pes_extension(), Err(PesError::FieldNotPresent));
+        assert_matches!(
+            contents.previous_pes_packet_crc(),
+            Err(PesError::FieldNotPresent)
+        );
+    }
+    #[test]
+    fn should_report_one_flags() {
+        // all the flags in this header are 1s
+        let contents = PesParsedContents::from_bytes(&[0b10111111, 0, 0]).unwrap();
+        assert_eq!(contents.data_alignment_indicator(), DataAlignment::Aligned);
+        assert_eq!(contents.copyright(), Copyright::Undefined);
+        assert_eq!(contents.original_or_copy(), OriginalOrCopy::Original);
     }
 }
