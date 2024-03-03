@@ -164,7 +164,7 @@ impl<'buf> StreamInfo<'buf> {
 
     /// The type of this stream
     pub fn stream_type(&self) -> StreamType {
-        self.data[0].into()
+        StreamType(self.data[0])
     }
     /// The Pid that will be used for TS packets containing the data of this stream
     pub fn elementary_pid(&self) -> packet::Pid {

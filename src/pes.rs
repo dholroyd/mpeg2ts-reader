@@ -15,6 +15,7 @@ use crate::demultiplex;
 use crate::packet;
 use crate::packet::ClockRef;
 use log::warn;
+use std::fmt::Formatter;
 use std::marker;
 use std::{fmt, num};
 
@@ -165,97 +166,100 @@ pub enum PesLength {
 /// Values which may be returned by
 /// [`PesHeader::stream_id()`](struct.PesHeader.html#method.stream_id) to identify the kind of
 /// content within the Packetized Elementary Stream.
-#[derive(Debug, PartialEq, Eq)]
-pub enum StreamId {
-    /// `program_stream_map`
-    ProgramStreamMap,
-    /// `private_stream_1`
-    PrivateStream1,
-    /// `padding_stream`
-    PaddingStream,
-    /// `private_stream_2`
-    PrivateStream2,
-    /// ISO/IEC 13818-3 or ISO/IEC 11172-3 or ISO/IEC 13818-7 or ISO/IEC 14496-3 audio stream
-    Audio(u8),
-    /// Rec. ITU-T H.262 | ISO/IEC 13818-2, ISO/IEC 11172-2, ISO/IEC 14496-2, Rec. ITU-T H.264 |
-    /// ISO/IEC 14496-10 or Rec. ITU-T H.265 | ISO/IEC 23008-2 video stream
-    Video(u8),
-    /// `ECM_stream`
-    EcmStream,
-    /// `EMM_stream`
-    EmmStream,
-    /// Rec. ITU-T H.222.0 | ISO/IEC 13818-1 Annex B or ISO/IEC 13818-6_DSMCC_stream
-    DsmCc,
-    /// ISO/IEC_13522_stream
-    Iso13522Stream,
-    /// Rec. ITU-T H.222.1 type A
-    H2221TypeA,
-    /// Rec. ITU-T H.222.1 type B
-    H2221TypeB,
-    /// Rec. ITU-T H.222.1 type C
-    H2221TypeC,
-    /// Rec. ITU-T H.222.1 type D
-    H2221TypeD,
-    /// Rec. ITU-T H.222.1 type E
-    H2221TypeE,
-    /// `ancillary_stream`
-    AncillaryStream,
-    /// ISO/IEC 14496-1_SL-packetized_stream
-    SlPacketizedStream,
-    /// ISO/IEC 14496-1_FlexMux_stream
-    FlexMuxStream,
-    /// metadata stream
-    MetadataStream,
-    /// `extended_stream_id`
-    ExtendedStreamId,
-    /// reserved data stream
-    ReservedDataStream,
-    /// `program_stream_directory`
-    ProgramStreamDirectory,
-    /// Encapsulates a stream_id value not specified in _ISO/IEC 13818-1_
-    Unknown(u8),
-}
+#[derive(PartialEq, Eq)]
+pub struct StreamId(u8);
+
 impl StreamId {
+    /// `program_stream_map`
+    pub const PROGRAM_STREAM_MAP: StreamId = StreamId(0b1011_1100);
+    /// `private_stream_1`
+    pub const PRIVATE_STREAM1: StreamId = StreamId(0b1011_1101);
+    /// `padding_stream`
+    pub const PADDING_STREAM: StreamId = StreamId(0b1011_1110);
+    /// `private_stream_2`
+    pub const PRIVATE_STREAM2: StreamId = StreamId(0b1011_1111);
+    // /// ISO/IEC 13818-3 or ISO/IEC 11172-3 or ISO/IEC 13818-7 or ISO/IEC 14496-3 audio stream
+    // const Audio(u8): StreamId = StreamId();
+    // /// Rec. ITU-T H.262 | ISO/IEC 13818-2, ISO/IEC 11172-2, ISO/IEC 14496-2, Rec. ITU-T H.264 |
+    // /// ISO/IEC 14496-10 or Rec. ITU-T H.265 | ISO/IEC 23008-2 video stream
+    // const Video(u8): StreamId = StreamId();
+    /// `ECM_stream`
+    pub const ECM_STREAM: StreamId = StreamId(0b1111_0000);
+    /// `EMM_stream`
+    pub const EMM_STREAM: StreamId = StreamId(0b1111_0001);
+    /// Rec. ITU-T H.222.0 | ISO/IEC 13818-1 Annex B or ISO/IEC 13818-6_DSMCC_stream
+    pub const DSM_CC: StreamId = StreamId(0b1111_0010);
+    /// ISO/IEC_13522_stream
+    pub const ISO_13522_STREAM: StreamId = StreamId(0b1111_0011);
+    /// Rec. ITU-T H.222.1 type A
+    pub const H222_1_TYPE_A: StreamId = StreamId(0b1111_0100);
+    /// Rec. ITU-T H.222.1 type B
+    pub const H222_1_TYPE_B: StreamId = StreamId(0b1111_0101);
+    /// Rec. ITU-T H.222.1 type C
+    pub const H222_1_TYPE_C: StreamId = StreamId(0b1111_0110);
+    /// Rec. ITU-T H.222.1 type D
+    pub const H222_1_TYPE_D: StreamId = StreamId(0b1111_0111);
+    /// Rec. ITU-T H.222.1 type E
+    pub const H222_1_TYPE_E: StreamId = StreamId(0b1111_1000);
+    /// `ancillary_stream`
+    pub const ANCILLARY_STREAM: StreamId = StreamId(0b1111_1001);
+    /// ISO/IEC 14496-1_SL-packetized_stream
+    pub const SL_PACKETIZED_STREAM: StreamId = StreamId(0b1111_1010);
+    /// ISO/IEC 14496-1_FlexMux_stream
+    pub const FLEX_MUX_STREAM: StreamId = StreamId(0b1111_1011);
+    /// metadata stream
+    pub const METADATA_STREAM: StreamId = StreamId(0b1111_1100);
+    /// `extended_stream_id`
+    pub const EXTENDED_STREAM_ID: StreamId = StreamId(0b1111_1101);
+    /// reserved data stream
+    pub const RESERVED_DATA_STREAM: StreamId = StreamId(0b1111_1110);
+    /// `program_stream_directory`
+    pub const PROGRAM_STREAM_DIRECTORY: StreamId = StreamId(0b1111_1111);
+
     fn is_parsed(&self) -> bool {
         !matches!(
-            self,
-            StreamId::ProgramStreamMap
-                | StreamId::PaddingStream
-                | StreamId::PrivateStream2
-                | StreamId::EcmStream
-                | StreamId::EmmStream
-                | StreamId::ProgramStreamDirectory
-                | StreamId::DsmCc
-                | StreamId::H2221TypeE
+            *self,
+            StreamId::PROGRAM_STREAM_MAP
+                | StreamId::PADDING_STREAM
+                | StreamId::PRIVATE_STREAM2
+                | StreamId::ECM_STREAM
+                | StreamId::EMM_STREAM
+                | StreamId::PROGRAM_STREAM_DIRECTORY
+                | StreamId::DSM_CC
+                | StreamId::H222_1_TYPE_E
         )
     }
 }
-impl From<u8> for StreamId {
-    fn from(v: u8) -> Self {
-        match v {
-            0b1011_1100 => StreamId::ProgramStreamMap,
-            0b1011_1101 => StreamId::PrivateStream1,
-            0b1011_1110 => StreamId::PaddingStream,
-            0b1011_1111 => StreamId::PrivateStream2,
-            0b1100_0000..=0b1101_1111 => StreamId::Audio(v & 0b0001_1111),
-            0b1110_0000..=0b1110_1111 => StreamId::Video(v & 0b0000_1111),
-            0b1111_0000 => StreamId::EcmStream,
-            0b1111_0001 => StreamId::EmmStream,
-            0b1111_0010 => StreamId::DsmCc,
-            0b1111_0011 => StreamId::Iso13522Stream,
-            0b1111_0100 => StreamId::H2221TypeA,
-            0b1111_0101 => StreamId::H2221TypeB,
-            0b1111_0110 => StreamId::H2221TypeC,
-            0b1111_0111 => StreamId::H2221TypeD,
-            0b1111_1000 => StreamId::H2221TypeE,
-            0b1111_1001 => StreamId::AncillaryStream,
-            0b1111_1010 => StreamId::SlPacketizedStream,
-            0b1111_1011 => StreamId::FlexMuxStream,
-            0b1111_1100 => StreamId::MetadataStream,
-            0b1111_1101 => StreamId::ExtendedStreamId,
-            0b1111_1110 => StreamId::ReservedDataStream,
-            0b1111_1111 => StreamId::ProgramStreamDirectory,
-            _ => StreamId::Unknown(v),
+impl fmt::Debug for StreamId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match *self {
+            StreamId::PROGRAM_STREAM_MAP => f.write_str("PROGRAM_STREAM_MAP"),
+            StreamId::PRIVATE_STREAM1 => f.write_str("PRIVATE_STREAM1"),
+            StreamId::PADDING_STREAM => f.write_str("PADDING_STREAM"),
+            StreamId::PRIVATE_STREAM2 => f.write_str("PRIVATE_STREAM2"),
+            StreamId(0b1100_0000..=0b1101_1111) => {
+                f.write_fmt(format_args!("Audio({})", self.0 & 0b0001_1111))
+            }
+            StreamId(0b1110_0000..=0b1110_1111) => {
+                f.write_fmt(format_args!("Video({})", self.0 & 0b0001_1111))
+            }
+            StreamId::ECM_STREAM => f.write_str("ECM_STREAM"),
+            StreamId::EMM_STREAM => f.write_str("EMM_STREAM"),
+            StreamId::DSM_CC => f.write_str("DSM_CC"),
+            StreamId::ISO_13522_STREAM => f.write_str("ISO_13522_STREAM"),
+            StreamId::H222_1_TYPE_A => f.write_str("H222_1_TYPE_A"),
+            StreamId::H222_1_TYPE_B => f.write_str("H222_1_TYPE_B"),
+            StreamId::H222_1_TYPE_C => f.write_str("H222_1_TYPE_C"),
+            StreamId::H222_1_TYPE_D => f.write_str("H222_1_TYPE_D"),
+            StreamId::H222_1_TYPE_E => f.write_str("H222_1_TYPE_E"),
+            StreamId::ANCILLARY_STREAM => f.write_str("ANCILLARY_STREAM"),
+            StreamId::SL_PACKETIZED_STREAM => f.write_str("SL_PACKETIZED_STREAM"),
+            StreamId::FLEX_MUX_STREAM => f.write_str("FLEX_MUX_STREAM"),
+            StreamId::METADATA_STREAM => f.write_str("METADATA_STREAM"),
+            StreamId::EXTENDED_STREAM_ID => f.write_str("EXTENDED_STREAM_ID"),
+            StreamId::RESERVED_DATA_STREAM => f.write_str("RESERVED_DATA_STREAM"),
+            StreamId::PROGRAM_STREAM_DIRECTORY => f.write_str("PROGRAM_STREAM_DIRECTORY"),
+            _ => f.write_fmt(format_args!("Unknown({})", self.0)),
         }
     }
 }
@@ -307,7 +311,7 @@ impl<'buf> PesHeader<'buf> {
 
     /// Indicator of the type of stream per _ISO/IEC 13818-1_, _Table 2-18_.
     pub fn stream_id(&self) -> StreamId {
-        self.buf[3].into()
+        StreamId(self.buf[3])
     }
 
     /// The overall length of the PES packet, once all pieces from the transport stream have
@@ -1149,7 +1153,7 @@ mod test {
             w.write(16, 54321) // previous_PES_packet_CRC
         });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
-        assert_eq!(pes::StreamId::Unknown(7), header.stream_id());
+        assert_eq!(pes::StreamId(7), header.stream_id());
         assert_eq!(
             header.pes_packet_length(),
             PesLength::Bounded(NonZeroU16::new(7).unwrap())
@@ -1424,8 +1428,9 @@ mod test {
 
     #[test]
     fn should_convert_u8_to_stream_id_without_panic() {
-        for i in 0..255 {
-            let _ = StreamId::from(i);
+        for i in 0..=255 {
+            let sid = StreamId(i);
+            let _ = format!("{:?}", sid);
         }
     }
 
@@ -1453,7 +1458,7 @@ mod test {
     #[test]
     fn should_produce_unparsed_payload() {
         let header = PesHeader::from_bytes(&[0, 0, 1, 0b1011_1110, 0, 0, 47]).unwrap();
-        assert_eq!(header.stream_id(), StreamId::PaddingStream);
+        assert_eq!(header.stream_id(), StreamId::PADDING_STREAM);
         match header.contents() {
             PesContents::Parsed(_) => panic!("expected PesContents::Payload"),
             PesContents::Payload(_) => { /* ok */ }
