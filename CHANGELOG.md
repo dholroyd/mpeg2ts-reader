@@ -4,6 +4,10 @@
 
 ## Unreleased - FutureDate
 
+### Changed
+ - The `pes::StreamType` and `StreamId` types changed from enums to structs.  These changes reduce the risk of silent
+   breakage in future releases of this crate, if support for additional `StreamType` or `StreamId` values are added.
+
 ## 0.16.0 - 2024-02-20
 ### Changed
  - Updated to Rust 2021 edition
