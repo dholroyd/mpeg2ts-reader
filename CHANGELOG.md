@@ -1,8 +1,6 @@
 # Changelog
 
-<!-- next-header -->
-
-## Unreleased - FutureDate
+## Unreleased
 
 ### Changed
  - The `pes::StreamType` and `StreamId` types changed from enums to structs.  These changes reduce the risk of silent
@@ -124,7 +122,7 @@
    program to which the stream belongs.
  - All uses of `println!()` have been replaced with use of `warn!()` from the `log` crate.
 
-## [0.6.0]
+## 0.6.0
 ### Fixed
  - PES data is no longer truncated at the end of the TS packet with
    `payload_unit_start_indicator`
