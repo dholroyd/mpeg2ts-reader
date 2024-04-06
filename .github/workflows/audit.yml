@@ -1,0 +1,13 @@
+name: Security audit
+on:
+  schedule:
+    # on the 1st of each month
+    - cron: '0 0 1 * *'
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: rustsec/audit-check@v1.4.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
