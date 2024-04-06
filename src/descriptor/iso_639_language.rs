@@ -2,9 +2,6 @@
 //! audio-type metadata.
 
 use super::DescriptorError;
-use encoding::all::ISO_8859_1;
-use encoding::types::DecoderTrap;
-use encoding::Encoding;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -105,8 +102,8 @@ impl<'buf> Language<'buf> {
     }
     /// Returns a string containing the ISO-639 language code of the elementary stream to which
     /// this descriptor is attached.
-    pub fn code(&self, trap: DecoderTrap) -> Result<String, Cow<'static, str>> {
-        ISO_8859_1.decode(&self.buf[0..3], trap)
+    pub fn code(&self) -> Cow<'_, str> {
+        encoding_rs::mem::decode_latin1(&self.buf[0..3])
     }
     /// Returns an `AudioType` variant indicating what role this audio track plays within the
     /// program.
@@ -117,7 +114,7 @@ impl<'buf> Language<'buf> {
 impl<'buf> fmt::Debug for Language<'buf> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("Language")
-            .field("code", &self.code(DecoderTrap::Replace).unwrap())
+            .field("code", &self.code())
             .field("audio_type", &self.audio_type())
             .finish()
     }
@@ -151,7 +148,7 @@ mod test {
         assert_matches!(desc, CoreDescriptors::ISO639Language(iso_639_language) => {
             let mut langs = iso_639_language.languages();
             let first = langs.next().unwrap().unwrap();
-            assert_eq!("eng", first.code(encoding::DecoderTrap::Strict).unwrap());
+            assert_eq!("eng", first.code());
             assert_eq!(AudioType::Undefined, first.audio_type());
             assert_matches!(langs.next(), None);
         });

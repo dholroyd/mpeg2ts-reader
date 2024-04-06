@@ -5,6 +5,12 @@
 ### Changed
  - The `pes::StreamType` and `StreamId` types changed from enums to structs.  These changes reduce the risk of silent
    breakage in future releases of this crate, if support for additional `StreamType` or `StreamId` values are added.
+ - `descriptor::iso_639_language::Code::code()` no longer takes any arguments, and now returns `Cow<'_, str>` rather
+   than `Result<String, ..>` (due to the switch from the `encoding` crate to the `encoding_rs` crate).
+
+### Fixed
+ - Removed the dependency on the unmaintained `encoding` create and switched to `encoding_rs`. See
+   [RUSTSEC-2021-0153](https://rustsec.org/advisories/RUSTSEC-2021-0153).
 
 ## 0.16.0 - 2024-02-20
 ### Changed
