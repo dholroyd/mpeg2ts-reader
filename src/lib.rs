@@ -125,7 +125,8 @@ impl StreamType {
     // 0x80 privately defined
     /// Dolby Digital (AC-3) audio for ATSC
     pub const ATSC_DOLBY_DIGITAL_AUDIO: StreamType = StreamType(0x81);
-    // 0x86 SCTE-35 digital program insertion cue message
+    // 0x86 scte35
+    /// SCTE-35 digital program insertion cue message
     pub const SCTE35: StreamType = StreamType(0x86);
     // 0x82-0x94 privately defined
     /// ATSC Data Service Table, Network Resources Table
