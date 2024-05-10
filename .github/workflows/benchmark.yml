@@ -28,7 +28,7 @@ jobs:
             jq '.packages[] | select(.name == "iai-callgrind").version' |\
             tr -d '"'
           )
-          cargo binstall iai-callgrind-runner --version $version
+          cargo binstall iai-callgrind-runner --no-confirm --version $version
 
       - run: |
           IAI_CALLGRIND_COLOR=never cargo bench --bench ci_bench > perf.txt
