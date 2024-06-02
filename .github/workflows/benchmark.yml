@@ -20,9 +20,7 @@ jobs:
       - uses: bencherdev/bencher@main
       - uses: cargo-bins/cargo-binstall@main
 
-      - run: |
-          apt update
-          apt install valgrind
+      - run: sudo apt update && sudo apt install valgrind
 
       - name: Install iai-callgrind-runner
         run: |
