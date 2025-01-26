@@ -41,6 +41,7 @@ jobs:
       - name: Track Benchmarks with Bencher
         run: |
           bencher run \
+          --ci-only-thresholds \
           --branch "$PR_HEAD" \
           --start-point "$PR_BASE" \
           --start-point-hash "$PR_BASE_SHA" \
