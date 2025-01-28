@@ -1,4 +1,4 @@
-use ffmpeg_sys::*;
+use ffmpeg_sys_next::*;
 use std::ptr;
 use std::mem;
 use std::ffi;
@@ -9,7 +9,6 @@ pub struct Ffmpeg{
 impl Ffmpeg {
     pub fn new() -> Ffmpeg {
         unsafe {
-            av_register_all();
             let fmt_name = ffi::CString::new("mpegts").unwrap();
             let fmt = av_find_input_format(fmt_name.as_ptr());
             if fmt.is_null() {

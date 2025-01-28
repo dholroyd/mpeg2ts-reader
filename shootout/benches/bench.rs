@@ -10,7 +10,7 @@ use mpeg2ts_reader_shootout::mpeg2ts_reader_timestamps::Mpeg2tsReader;
 use mpeg2ts_reader_shootout::ffmpeg_timestamps::Ffmpeg;
 
 fn load_sample_data() -> (Vec<u8>, usize) {
-    let mut f = File::open("../big_buck_bunny_1080p_24fps_h264.ts").expect("file not found");
+    let mut f = File::open("../testsrc.ts").expect("file not found");
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188*200_000);
     let mut buf = vec![0; size];
