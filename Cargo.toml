@@ -38,3 +38,7 @@ harness = false
 [profile.bench]
 # for profiling,
 debug = true
+
+[lints.rust]
+# per https://github.com/rust-fuzz/cargo-fuzz/issues/372
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
