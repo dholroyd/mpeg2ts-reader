@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.17.0 - 2025-01-28
+
 ### Changed
  - The `pes::StreamType` and `StreamId` types changed from enums to structs.  These changes reduce the risk of silent
    breakage in future releases of this crate, if support for additional `StreamType` or `StreamId` values are added.
