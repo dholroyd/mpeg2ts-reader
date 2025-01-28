@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-## 0.18.0 - 2025-01-28
+### Fixed
+ - Added `StreamType::from(u8)` which was missing in release 1.18.0
 
-## 0.17.0 - 2025-01-28
+## 0.18.0 - 2025-01-28
 
 ### Changed
  - The `pes::StreamType` and `StreamId` types changed from enums to structs.  These changes reduce the risk of silent

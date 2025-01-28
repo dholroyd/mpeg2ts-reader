@@ -241,6 +241,11 @@ impl From<StreamType> for u8 {
         val.0
     }
 }
+impl From<u8> for StreamType {
+    fn from(val: u8) -> Self {
+        StreamType(val)
+    }
+}
 
 /// The identifier of TS Packets containing 'stuffing' data, with value `0x1fff`
 pub const STUFFING_PID: packet::Pid = packet::Pid::new(0x1fff);
@@ -273,6 +278,7 @@ mod test {
             } else {
                 assert!(ty.is_pes(), "{:?}", ty);
             }
+            assert_eq!(ty, StreamType::from(u8::from(ty)));
             let _ = format!("{:?}", ty);
         }
     }
