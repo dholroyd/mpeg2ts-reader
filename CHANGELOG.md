@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.18.1 - 2025-01-29
+
 ### Fixed
  - Added `StreamType::from(u8)` which was missing in release 1.18.0
 
