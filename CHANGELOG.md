@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+ - Make `StreamType(u8)` constructor public so that it can be used in `const` contexts in other crates
+
 ## 0.18.1 - 2025-01-29
 
 ### Fixed

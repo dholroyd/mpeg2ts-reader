@@ -53,7 +53,7 @@ pub use smptera_format_identifiers_rust as smptera;
 /// As returned by
 /// [`StreamInfo::stream_type()`](psi/pmt/struct.StreamInfo.html#method.stream_type).
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub struct StreamType(u8);
+pub struct StreamType(pub u8);
 
 impl StreamType {
     // 0x00 reserved
