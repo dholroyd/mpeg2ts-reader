@@ -272,3 +272,11 @@ and what's yet to come:
   - [ ] fmxbuffersize_descriptor
   - [ ] multiplexbuffer_descriptor
   - [x] AVC_video_descriptor
+
+# Related crates
+
+Since this crate only covers the core Transport Stream spec, related specs are to be covered by other crates.
+
+ - [scte35-reader](https://crates.io/crates/scte35-reader) extends `mpeg2ts-reader` to support SCTE-35 data.
+ - [en-300-468-reader](https://crates.io/crates/en-300-468-reader) extends `mpeg2ts-reader` to support reading the
+   *Service Description Table* (SDT) defined in ETSI standard *EN 300 486*.
