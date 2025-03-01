@@ -61,6 +61,6 @@ jobs:
           components: clippy
 
       - name: Run clippy
-        uses: actions-rs-plus/clippy-check@v2.2.0
+        uses: actions-rs-plus/clippy-check@v2.2.1
         with:
           args: --all-features
