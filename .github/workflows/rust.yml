@@ -30,7 +30,7 @@ jobs:
     name: Coverage
     runs-on: ubuntu-22.04
     container:
-      image: xd009642/tarpaulin:0.28.0-slim
+      image: xd009642/tarpaulin:0.34.1-slim
       options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
