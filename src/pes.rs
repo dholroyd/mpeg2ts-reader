@@ -166,7 +166,7 @@ pub enum PesLength {
 /// Values which may be returned by
 /// [`PesHeader::stream_id()`](struct.PesHeader.html#method.stream_id) to identify the kind of
 /// content within the Packetized Elementary Stream.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StreamId(u8);
 
 impl StreamId {
@@ -228,6 +228,21 @@ impl StreamId {
                 | StreamId::DSM_CC
                 | StreamId::H222_1_TYPE_E
         )
+    }
+
+    /// Returns the value of the identifier.
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+
+    /// Returns `true` if it is an audio identifier, otherwise `false`.
+    pub fn is_audio(&self) -> bool {
+        self.0 & 0xE0 == 0xC0
+    }
+
+    /// Returns `true` if it is a video identifier, otherwise `false`.
+    pub fn is_video(&self) -> bool {
+        self.0 & 0xF0 == 0xE0
     }
 }
 impl fmt::Debug for StreamId {
