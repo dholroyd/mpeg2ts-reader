@@ -2,6 +2,7 @@
 name = "mpeg2ts-reader-shootout"
 version = "0.0.1"
 publish = false
+edition = "2021"
 
 [dependencies]
 mpeg2ts = "0.1.1"
