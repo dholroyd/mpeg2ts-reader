@@ -627,18 +627,26 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
         let mut itr = buf
             .chunks_exact(packet::Packet::SIZE)
             .map(packet::Packet::try_new);
-        let mut pk = if let Some(Some(p)) = itr.next() {
-            p
-        } else {
+        let Some(Some(mut pk)) = itr.next() else {
             return;
         };
-        'outer: loop {
+        loop {
             let this_pid = pk.pid();
+
             if !self.processor_by_pid.contains(this_pid) {
-                self.add_pid_filter(ctx, this_pid);
-            };
+                // If PAT/PMT have not yet caused a filter to be defined for a some PID, let the
+                // given context have a chance to add a filter if it knows how.  If the PID is
+                // simply not (yet) known, the context can always respond with NullPacketFilter,
+                // to ignore packets with this PID.
+                let filter = ctx.construct(FilterRequest::ByPid(this_pid));
+                self.processor_by_pid.insert(this_pid, filter);
+            }
+
+            // Get filter and process consecutive packets with same PID
             let this_proc = self.processor_by_pid.get(this_pid).unwrap();
-            'inner: loop {
+
+            loop {
+                // Validate and process current packet
                 if pk.transport_error_indicator() {
                     // drop packets that have transport_error_indicator set, on the assumption that
                     // the contents are nonsense
@@ -652,34 +660,34 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                     );
                 } else {
                     this_proc.consume(ctx, &pk);
+
+                    // If filter scheduled changes, apply them
                     if !ctx.filter_changeset().is_empty() {
-                        break 'inner;
+                        ctx.filter_changeset().apply(&mut self.processor_by_pid);
+                        debug_assert!(ctx.filter_changeset().is_empty());
+                        // It's possible that filter_changeset could have changed the filter for
+                        // the current PID, so break out of the inner loop in order to look the
+                        // filter up afresh for the next packet
+                        pk = if let Some(Some(p)) = itr.next() {
+                            p
+                        } else {
+                            return;
+                        };
+                        break;
                     }
                 }
                 pk = if let Some(Some(p)) = itr.next() {
                     p
                 } else {
-                    break 'outer;
+                    return;
                 };
+
+                // If PID changed, break to get new filter reference
                 if pk.pid() != this_pid {
-                    continue 'outer;
+                    break;
                 }
             }
-            if !ctx.filter_changeset().is_empty() {
-                ctx.filter_changeset().apply(&mut self.processor_by_pid);
-            }
-            debug_assert!(ctx.filter_changeset().is_empty());
-            pk = if let Some(Some(p)) = itr.next() {
-                p
-            } else {
-                break 'outer;
-            };
         }
-    }
-
-    fn add_pid_filter(&mut self, ctx: &mut Ctx, this_pid: packet::Pid) {
-        let filter = ctx.construct(FilterRequest::ByPid(this_pid));
-        self.processor_by_pid.insert(this_pid, filter);
     }
 }
 
