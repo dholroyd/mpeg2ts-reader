@@ -160,6 +160,10 @@ macro_rules! packet_filter_switch {
 /// indexed by [`Pid`](../packet/struct.Pid.html).  Lookups produce an `Option`, and the result
 /// is `None` rather than `panic!()` when not found.
 struct Filters<F: PacketFilter> {
+    // We use a Vec keyed by PID rather than a HashMap, even though this may use more memory,
+    // because looking up entries is in the hot path, and we want this to be as fast as possible.
+    // The max size of this Vec is 2^13 = 8192 entries; the Pid type upholds this invariant
+    // (will panic if trying to construct a value which is too large).
     filters_by_pid: Vec<Option<F>>,
 }
 impl<F: PacketFilter> Default for Filters<F> {
