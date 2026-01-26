@@ -650,12 +650,12 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                 if pk.transport_error_indicator() {
                     // drop packets that have transport_error_indicator set, on the assumption that
                     // the contents are nonsense
-                    warn!("{:?} transport_error_indicator", pk.pid());
+                    warn!("{:?} transport_error_indicator", this_pid);
                 } else if pk.transport_scrambling_control().is_scrambled() {
                     // TODO: allow descrambler to be plugged in
                     warn!(
                         "{:?} dropping scrambled packet {:?}",
-                        pk.pid(),
+                        this_pid,
                         pk.transport_scrambling_control()
                     );
                 } else {
