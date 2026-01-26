@@ -188,13 +188,11 @@ impl<F: PacketFilter> Filters<F> {
     }
 
     pub fn insert(&mut self, pid: packet::Pid, filter: F) {
-        let diff = usize::from(pid) as isize - self.filters_by_pid.len() as isize;
-        if diff >= 0 {
-            for _ in 0..=diff {
-                self.filters_by_pid.push(None);
-            }
+        let index = usize::from(pid);
+        if index >= self.filters_by_pid.len() {
+            self.filters_by_pid.resize_with(index + 1, || None);
         }
-        self.filters_by_pid[usize::from(pid)] = Some(filter);
+        self.filters_by_pid[index] = Some(filter);
     }
 
     pub fn remove(&mut self, pid: packet::Pid) {
