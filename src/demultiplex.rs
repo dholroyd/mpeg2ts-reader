@@ -174,11 +174,13 @@ impl<F: PacketFilter> Default for Filters<F> {
     }
 }
 impl<F: PacketFilter> Filters<F> {
+    #[inline]
     pub fn contains(&self, pid: packet::Pid) -> bool {
         usize::from(pid) < self.filters_by_pid.len()
             && self.filters_by_pid[usize::from(pid)].is_some()
     }
 
+    #[inline]
     pub fn get(&mut self, pid: packet::Pid) -> Option<&mut F> {
         if usize::from(pid) >= self.filters_by_pid.len() {
             None
