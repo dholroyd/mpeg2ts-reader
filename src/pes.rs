@@ -1548,4 +1548,243 @@ mod test {
         assert_eq!(contents.copyright(), Copyright::Undefined);
         assert_eq!(contents.original_or_copy(), OriginalOrCopy::Original);
     }
+
+    #[test]
+    fn test_pes_parsed_contents_debug() {
+        // Test the Debug implementation with most optional fields present
+        let data = make_test_data(|w| {
+            w.write(2, 0b10)?; // check-bits
+            w.write(2, 0)?; // PES_scrambling_control
+            w.write(1, 1)?; // pes_priority
+            w.write(1, 1)?; // data_alignment_indicator
+            w.write(1, 0)?; // copyright
+            w.write(1, 1)?; // original_or_copy
+            w.write(2, 0b11)?; // PTS_DTS_flags (both present)
+            w.write(1, 1)?; // ESCR_flag
+            w.write(1, 1)?; // ES_rate_flag
+            w.write(1, 1)?; // DSM_trick_mode_flag
+            w.write(1, 1)?; // additional_copy_info_flag
+            w.write(1, 1)?; // PES_CRC_flag
+            w.write(1, 0)?; // PES_extension_flag
+            let pes_header_length = 10  // PTS + DTS
+                + 6  // ESCR
+                + 3  // es_rate
+                + 1  // DSM trick mode
+                + 1  // additional_copy_info
+                + 2; // previous_PES_packet_CRC
+            w.write(8, pes_header_length)?; // PES_header_data_length
+            write_ts(w, 123456789, 0b0011)?; // PTS
+            write_ts(w, 987654321, 0b0001)?; // DTS
+            write_escr(w, 0xAABBCCDD, 123)?;
+            write_es_rate(w, 500000)?;
+
+            // DSM_trick_mode (slow motion)
+            w.write(3, 0b001)?; // trick_mode_control (== slow_motion)
+            w.write(5, 7)?; // rep_cntrl
+
+            // additional_copy_info
+            w.write(1, 1)?; // marker_bit
+            w.write(7, 42)?; // additional_copy_info
+
+            w.write(16, 12345) // previous_PES_packet_CRC
+        });
+
+        let contents = PesParsedContents::from_bytes(&data[..]).unwrap();
+        let debug_output = format!("{:?}", contents);
+
+        // Verify the debug output contains key fields
+        assert!(debug_output.contains("PesParsedContents"));
+        assert!(debug_output.contains("pes_priority"));
+        assert!(debug_output.contains("data_alignment_indicator"));
+        assert!(debug_output.contains("copyright"));
+        assert!(debug_output.contains("original_or_copy"));
+        assert!(debug_output.contains("pts_dts"));
+        assert!(debug_output.contains("escr"));
+        assert!(debug_output.contains("es_rate"));
+        assert!(debug_output.contains("dsm_trick_mode"));
+        assert!(debug_output.contains("additional_copy_info"));
+        assert!(debug_output.contains("previous_pes_packet_crc"));
+    }
+
+    #[test]
+    fn test_pes_parsed_contents_debug_minimal() {
+        // Test Debug implementation with minimal optional fields
+        let data = make_test_data(|w| {
+            w.write(2, 0b10)?; // check-bits
+            w.write(2, 0)?; // PES_scrambling_control
+            w.write(1, 0)?; // pes_priority
+            w.write(1, 0)?; // data_alignment_indicator
+            w.write(1, 0)?; // copyright
+            w.write(1, 0)?; // original_or_copy
+            w.write(2, 0b10)?; // PTS_DTS_flags (only PTS)
+            w.write(1, 0)?; // ESCR_flag
+            w.write(1, 0)?; // ES_rate_flag
+            w.write(1, 0)?; // DSM_trick_mode_flag
+            w.write(1, 0)?; // additional_copy_info_flag
+            w.write(1, 0)?; // PES_CRC_flag
+            w.write(1, 0)?; // PES_extension_flag
+            w.write(8, 5)?; // PES_header_data_length (only PTS)
+            write_ts(w, 555555, 0b0010) // PTS only
+        });
+
+        let contents = PesParsedContents::from_bytes(&data[..]).unwrap();
+        let debug_output = format!("{:?}", contents);
+
+        // Verify basic fields are present
+        assert!(debug_output.contains("PesParsedContents"));
+        assert!(debug_output.contains("pes_priority"));
+        assert!(debug_output.contains("pts_dts"));
+
+        // Verify optional fields that are not present don't appear in debug output
+        // (the Debug impl only includes them with `if let Ok(...)`)
+        // We can't easily verify they're absent, but we can verify no panic occurs
+    }
+
+    /// Helper function to create a TS packet with specific properties
+    fn make_ts_packet(
+        pid: u16,
+        continuity_counter: u8,
+        payload_unit_start: bool,
+        has_payload: bool,
+        has_adaptation_field: bool,
+        payload_data: &[u8],
+    ) -> Vec<u8> {
+        let mut packet = vec![0u8; 188];
+
+        // Sync byte
+        packet[0] = 0x47;
+
+        // Transport Error Indicator (0), Payload Unit Start Indicator, Transport Priority (0), PID (13 bits)
+        let pusi_bit = if payload_unit_start { 1u16 << 14 } else { 0 };
+        let pid_field = pusi_bit | (pid & 0x1FFF);
+        packet[1] = (pid_field >> 8) as u8;
+        packet[2] = (pid_field & 0xFF) as u8;
+
+        // Transport Scrambling Control (00), Adaptation Field Control (2 bits), Continuity Counter (4 bits)
+        let afc = match (has_adaptation_field, has_payload) {
+            (false, true) => 0b01,  // payload only
+            (true, false) => 0b10,  // adaptation field only
+            (true, true) => 0b11,   // both
+            (false, false) => 0b00, // reserved (invalid)
+        };
+        packet[3] = (afc << 4) | (continuity_counter & 0x0F);
+
+        let mut offset = 4;
+
+        // Add adaptation field if needed
+        if has_adaptation_field {
+            if has_payload {
+                // Adaptation field with minimal content (just the length byte and flags byte)
+                packet[offset] = 1; // adaptation field length
+                offset += 1;
+                packet[offset] = 0; // flags byte (all flags off)
+                offset += 1;
+            } else {
+                // Adaptation field only - fill remainder of packet
+                let af_length = 188 - offset - 1;
+                packet[offset] = af_length as u8;
+                offset += 1;
+                packet[offset] = 0; // flags byte
+                // Rest is filled with 0xFF (stuffing bytes) by default initialization
+            }
+        }
+
+        // Add payload if needed
+        if has_payload && !payload_data.is_empty() {
+            let copy_len = payload_data.len().min(188 - offset);
+            packet[offset..offset + copy_len].copy_from_slice(&payload_data[..copy_len]);
+        }
+
+        packet
+    }
+
+    #[test]
+    fn continuity_counter_unchanged_when_no_payload() {
+        // Test that continuity counter should remain the same when a packet has no payload
+        let state = std::rc::Rc::new(std::cell::RefCell::new(MockState::new()));
+        let mock = MockElementaryStreamConsumer::new(state.clone());
+        let mut pes_filter = pes::PesPacketFilter::new(mock);
+        let mut ctx = NullDemuxContext::new();
+
+        // Create PES header data
+        let pes_data = make_test_data(|w| {
+            w.write(24, 1)?; // packet_start_code_prefix
+            w.write(8, 0xE0)?; // stream_id (video)
+            w.write(16, 0)?; // PES_packet_length (unbounded)
+            w.write(2, 0b10)?; // check-bits
+            w.write(2, 0)?; // PES_scrambling_control
+            w.write(1, 0)?; // pes_priority
+            w.write(1, 0)?; // data_alignment_indicator
+            w.write(1, 0)?; // copyright
+            w.write(1, 0)?; // original_or_copy
+            w.write(2, 0b00)?; // PTS_DTS_flags (none)
+            w.write(1, 0)?; // ESCR_flag
+            w.write(1, 0)?; // ES_rate_flag
+            w.write(1, 0)?; // DSM_trick_mode_flag
+            w.write(1, 0)?; // additional_copy_info_flag
+            w.write(1, 0)?; // PES_CRC_flag
+            w.write(1, 0)?; // PES_extension_flag
+            w.write(8, 0)?; // PES_header_data_length
+            // some payload data
+            w.write(32, 0x12345678u32)?;
+            w.write(32, 0xABCDEF01u32)
+        });
+
+        // First packet: has payload, continuity counter = 5
+        let packet1 = make_ts_packet(
+            0x100,               // PID
+            5,                   // continuity counter
+            true,                // payload_unit_start
+            true,                // has_payload
+            false,               // has_adaptation_field
+            &pes_data,
+        );
+        let pk1 = packet::Packet::new(&packet1[..]);
+        pes_filter.consume(&mut ctx, &pk1);
+
+        // Verify first packet was processed without error
+        {
+            let state = state.borrow();
+            assert!(state.start_stream_called);
+            assert!(state.begin_packet_called);
+            assert!(!state.continuity_error_called);
+        }
+
+        // Second packet: NO payload (adaptation field only), SAME continuity counter = 5
+        // According to spec, continuity counter should not increment when packet has no payload
+        let packet2 = make_ts_packet(
+            0x100,               // same PID
+            5,                   // SAME continuity counter (should not increment without payload)
+            false,               // no payload_unit_start
+            false,               // NO payload
+            true,                // has_adaptation_field (adaptation field only)
+            &[],
+        );
+        let pk2 = packet::Packet::new(&packet2[..]);
+        pes_filter.consume(&mut ctx, &pk2);
+
+        // Verify NO continuity error was triggered
+        {
+            let state = state.borrow();
+            assert!(!state.continuity_error_called, "Continuity error should not be called when counter stays same for packet without payload");
+        }
+
+        // Third packet: has payload again, continuity counter should increment to 6
+        let packet3 = make_ts_packet(
+            0x100,               // same PID
+            6,                   // continuity counter incremented
+            false,               // no payload_unit_start
+            true,                // has_payload
+            false,               // no adaptation_field
+            &[1, 2, 3, 4, 5],
+        );
+        let pk3 = packet::Packet::new(&packet3[..]);
+        pes_filter.consume(&mut ctx, &pk3);
+
+        // Verify still no continuity error
+        {
+            let state = state.borrow();
+            assert!(!state.continuity_error_called, "Continuity error should not be called for properly incrementing counter");
+        }
+    }
 }
