@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+ - Updated `StreamType` constants and `CoreDescriptors` / `AudioType` variants to match the 2025 edition.
+
 ## 0.18.2 - 2025-01-29
 
 ### Fixed

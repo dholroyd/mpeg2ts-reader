@@ -69,15 +69,25 @@ pub enum LangError {
 /// Metadata about the role of the audio elementary stream to which this descriptor is attached.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AudioType {
-    /// The audio has no particular role define
+    /// The audio has no particular role defined
     Undefined,
     /// There is no language-specific content within the audio
     CleanEffects,
-    /// The audio is prepared for the heading impaired
+    /// The audio is prepared for the hearing impaired
     HearingImpaired,
     /// The audio is prepared for the visually impaired
     VisualImpairedCommentary,
-    /// Values `0x80` to `0xFF` are reserved for use in future versions of _ISO/IEC 13818-1_
+    /// Main dialogue
+    MainDialogue,
+    /// Descriptive narration / audio description
+    DescriptiveNarration,
+    /// Content delivered in the form of a pre-recorded commentary
+    PreRecordedCommentary,
+    /// Dialogue enhancement
+    DialogueEnhancement,
+    /// Spoken subtitles
+    SpokenSubtitles,
+    /// Reserved for use in future versions of _ISO/IEC 13818-1_
     Reserved(u8),
 }
 impl From<u8> for AudioType {
@@ -87,6 +97,11 @@ impl From<u8> for AudioType {
             1 => AudioType::CleanEffects,
             2 => AudioType::HearingImpaired,
             3 => AudioType::VisualImpairedCommentary,
+            0x80 => AudioType::MainDialogue,
+            0x81 => AudioType::DescriptiveNarration,
+            0x82 => AudioType::PreRecordedCommentary,
+            0x83 => AudioType::DialogueEnhancement,
+            0x84 => AudioType::SpokenSubtitles,
             _ => AudioType::Reserved(v),
         }
     }

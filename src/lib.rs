@@ -115,20 +115,68 @@ impl StreamType {
     pub const AUDIO_WITHOUT_TRANSPORT_SYNTAX: StreamType = StreamType(0x1c);
     /// ISO/IEC 14496-17 Text
     pub const ISO_14496_17_TEXT: StreamType = StreamType(0x1d);
-    // 0x1e-0x23 reserved
+    /// Auxiliary video stream as defined in ISO/IEC 23002-3
+    pub const AUXILIARY_VIDEO: StreamType = StreamType(0x1e);
+    /// SVC video sub-bitstream of an AVC video stream as defined in Annex G of Rec. ITU-T H.264
+    pub const SVC: StreamType = StreamType(0x1f);
+    /// MVC video sub-bitstream of an AVC video stream as defined in Annex H of Rec. ITU-T H.264
+    pub const MVC: StreamType = StreamType(0x20);
+    /// Video stream conforming to one or more profiles as defined in Rec. ITU-T T.800 | ISO/IEC 15444-1
+    pub const JPEG_2000_VIDEO: StreamType = StreamType(0x21);
+    /// Additional view Rec. ITU-T H.262 video stream for service-compatible stereoscopic 3D services
+    pub const H262_STEREO_3D_VIEW: StreamType = StreamType(0x22);
+    /// Additional view Rec. ITU-T H.264 video stream for service-compatible stereoscopic 3D services
+    pub const H264_STEREO_3D_VIEW: StreamType = StreamType(0x23);
     /// ITU-T Rec. H.265 and ISO/IEC 23008-2
     pub const H265: StreamType = StreamType(0x24);
-    // 0x26-0x41 reserved
-    /// Chinese Video Standard
+    /// HEVC temporal video subset of an HEVC video stream as defined in Annex A of Rec. ITU-T H.265
+    pub const HEVC_TEMPORAL_SUBSET: StreamType = StreamType(0x25);
+    /// MVCD video sub-bitstream of an AVC video stream as defined in Annex I of Rec. ITU-T H.264
+    pub const MVCD: StreamType = StreamType(0x26);
+    /// Timeline and External Media Information Stream as defined in Annex U
+    pub const TEMI: StreamType = StreamType(0x27);
+    /// HEVC enhancement sub-partition including TemporalId 0 as defined in Annex G of Rec. ITU-T H.265
+    pub const HEVC_ENHANCEMENT_ANNEX_G: StreamType = StreamType(0x28);
+    /// HEVC temporal enhancement sub-partition as defined in Annex G of Rec. ITU-T H.265
+    pub const HEVC_TEMPORAL_ENHANCEMENT_ANNEX_G: StreamType = StreamType(0x29);
+    /// HEVC enhancement sub-partition including TemporalId 0 as defined in Annex H of Rec. ITU-T H.265
+    pub const HEVC_ENHANCEMENT_ANNEX_H: StreamType = StreamType(0x2a);
+    /// HEVC temporal enhancement sub-partition as defined in Annex H of Rec. ITU-T H.265
+    pub const HEVC_TEMPORAL_ENHANCEMENT_ANNEX_H: StreamType = StreamType(0x2b);
+    /// Green access units carried in MPEG-2 sections
+    pub const GREEN_ACCESS_UNITS: StreamType = StreamType(0x2c);
+    /// ISO/IEC 23008-3 Audio with MHAS transport syntax - main stream
+    pub const MHAS_AUDIO_MAIN: StreamType = StreamType(0x2d);
+    /// ISO/IEC 23008-3 Audio with MHAS transport syntax - auxiliary stream
+    pub const MHAS_AUDIO_AUX: StreamType = StreamType(0x2e);
+    /// Quality access units carried in sections
+    pub const QUALITY_ACCESS_UNITS: StreamType = StreamType(0x2f);
+    /// Media Orchestration Access Units carried in sections
+    pub const MEDIA_ORCHESTRATION_ACCESS_UNITS: StreamType = StreamType(0x30);
+    /// Substream of a Rec. ITU-T H.265 video stream containing a Motion Constrained Tile Set
+    pub const HEVC_MOTION_CONSTRAINED_TILE_SET: StreamType = StreamType(0x31);
+    /// JPEG XS video stream as defined in ISO/IEC 21122-2
+    pub const JPEG_XS_VIDEO: StreamType = StreamType(0x32);
+    /// VVC video stream as defined in Rec. ITU-T H.266 | ISO/IEC 23090-3
+    pub const VVC: StreamType = StreamType(0x33);
+    /// VVC temporal video subset as defined in Rec. ITU-T H.266 | ISO/IEC 23090-3
+    pub const VVC_TEMPORAL_SUBSET: StreamType = StreamType(0x34);
+    /// EVC video stream as defined in ISO/IEC 23094-1
+    pub const EVC: StreamType = StreamType(0x35);
+    /// LCEVC video stream as defined in ISO/IEC 23094-2
+    pub const LCEVC: StreamType = StreamType(0x36);
+    // 0x37-0x7e reserved
+    /// IPMP stream
+    pub const IPMP_STREAM: StreamType = StreamType(0x7f);
+    /// Chinese Video Standard (GB/T 17975.1, not defined in ISO/IEC 13818-1)
     pub const CHINESE_VIDEO_STANDARD: StreamType = StreamType(0x42);
-    // 0x43-0x7f reserved
     // 0x80 privately defined
     /// Dolby Digital (AC-3) audio for ATSC
     pub const ATSC_DOLBY_DIGITAL_AUDIO: StreamType = StreamType(0x81);
     // 0x82-0x94 privately defined
     /// ATSC Data Service Table, Network Resources Table
     pub const ATSC_DSMCC_NETWORK_RESOURCES_TABLE: StreamType = StreamType(0x95);
-    // 0x95-0xc1 privately defined
+    // 0x96-0xc1 privately defined
     /// PES packets containing ATSC streaming synchronous data
     pub const ATSC_DSMCC_SYNCHRONOUS_DATA: StreamType = StreamType(0xc2);
     // 0xc3-0xff privately defined,
@@ -166,7 +214,29 @@ impl StreamType {
                 | StreamType::H264
                 | StreamType::AUDIO_WITHOUT_TRANSPORT_SYNTAX
                 | StreamType::ISO_14496_17_TEXT
+                | StreamType::AUXILIARY_VIDEO
+                | StreamType::SVC
+                | StreamType::MVC
+                | StreamType::JPEG_2000_VIDEO
+                | StreamType::H262_STEREO_3D_VIEW
+                | StreamType::H264_STEREO_3D_VIEW
                 | StreamType::H265
+                | StreamType::HEVC_TEMPORAL_SUBSET
+                | StreamType::MVCD
+                | StreamType::TEMI
+                | StreamType::HEVC_ENHANCEMENT_ANNEX_G
+                | StreamType::HEVC_TEMPORAL_ENHANCEMENT_ANNEX_G
+                | StreamType::HEVC_ENHANCEMENT_ANNEX_H
+                | StreamType::HEVC_TEMPORAL_ENHANCEMENT_ANNEX_H
+                | StreamType::MHAS_AUDIO_MAIN
+                | StreamType::MHAS_AUDIO_AUX
+                | StreamType::HEVC_MOTION_CONSTRAINED_TILE_SET
+                | StreamType::JPEG_XS_VIDEO
+                | StreamType::VVC
+                | StreamType::VVC_TEMPORAL_SUBSET
+                | StreamType::EVC
+                | StreamType::LCEVC
+                | StreamType::IPMP_STREAM
                 | StreamType::CHINESE_VIDEO_STANDARD
                 | StreamType::ATSC_DOLBY_DIGITAL_AUDIO
                 | StreamType::ATSC_DSMCC_NETWORK_RESOURCES_TABLE
@@ -218,7 +288,40 @@ impl fmt::Debug for StreamType {
                 f.write_str("AUDIO_WITHOUT_TRANSPORT_SYNTAX")
             }
             StreamType::ISO_14496_17_TEXT => f.write_str("ISO_14496_17_TEXT"),
+            StreamType::AUXILIARY_VIDEO => f.write_str("AUXILIARY_VIDEO"),
+            StreamType::SVC => f.write_str("SVC"),
+            StreamType::MVC => f.write_str("MVC"),
+            StreamType::JPEG_2000_VIDEO => f.write_str("JPEG_2000_VIDEO"),
+            StreamType::H262_STEREO_3D_VIEW => f.write_str("H262_STEREO_3D_VIEW"),
+            StreamType::H264_STEREO_3D_VIEW => f.write_str("H264_STEREO_3D_VIEW"),
             StreamType::H265 => f.write_str("H265"),
+            StreamType::HEVC_TEMPORAL_SUBSET => f.write_str("HEVC_TEMPORAL_SUBSET"),
+            StreamType::MVCD => f.write_str("MVCD"),
+            StreamType::TEMI => f.write_str("TEMI"),
+            StreamType::HEVC_ENHANCEMENT_ANNEX_G => f.write_str("HEVC_ENHANCEMENT_ANNEX_G"),
+            StreamType::HEVC_TEMPORAL_ENHANCEMENT_ANNEX_G => {
+                f.write_str("HEVC_TEMPORAL_ENHANCEMENT_ANNEX_G")
+            }
+            StreamType::HEVC_ENHANCEMENT_ANNEX_H => f.write_str("HEVC_ENHANCEMENT_ANNEX_H"),
+            StreamType::HEVC_TEMPORAL_ENHANCEMENT_ANNEX_H => {
+                f.write_str("HEVC_TEMPORAL_ENHANCEMENT_ANNEX_H")
+            }
+            StreamType::GREEN_ACCESS_UNITS => f.write_str("GREEN_ACCESS_UNITS"),
+            StreamType::MHAS_AUDIO_MAIN => f.write_str("MHAS_AUDIO_MAIN"),
+            StreamType::MHAS_AUDIO_AUX => f.write_str("MHAS_AUDIO_AUX"),
+            StreamType::QUALITY_ACCESS_UNITS => f.write_str("QUALITY_ACCESS_UNITS"),
+            StreamType::MEDIA_ORCHESTRATION_ACCESS_UNITS => {
+                f.write_str("MEDIA_ORCHESTRATION_ACCESS_UNITS")
+            }
+            StreamType::HEVC_MOTION_CONSTRAINED_TILE_SET => {
+                f.write_str("HEVC_MOTION_CONSTRAINED_TILE_SET")
+            }
+            StreamType::JPEG_XS_VIDEO => f.write_str("JPEG_XS_VIDEO"),
+            StreamType::VVC => f.write_str("VVC"),
+            StreamType::VVC_TEMPORAL_SUBSET => f.write_str("VVC_TEMPORAL_SUBSET"),
+            StreamType::EVC => f.write_str("EVC"),
+            StreamType::LCEVC => f.write_str("LCEVC"),
+            StreamType::IPMP_STREAM => f.write_str("IPMP_STREAM"),
             StreamType::CHINESE_VIDEO_STANDARD => f.write_str("CHINESE_VIDEO_STANDARD"),
             StreamType::ATSC_DOLBY_DIGITAL_AUDIO => f.write_str("ATSC_DOLBY_DIGITAL_AUDIO"),
             StreamType::ATSC_DSMCC_NETWORK_RESOURCES_TABLE => {
@@ -256,9 +359,18 @@ mod test {
 
     fn is_reserved(st: &StreamType) -> bool {
         match st.0 {
-            0x00 | 0x1e..=0x23 | 0x25..=0x41 | 0x43..=0x7f => true,
+            0x00 | 0x37..=0x41 | 0x43..=0x7e => true,
             _ => false,
         }
+    }
+
+    fn is_section_carried(st: &StreamType) -> bool {
+        matches!(
+            *st,
+            StreamType::GREEN_ACCESS_UNITS
+                | StreamType::QUALITY_ACCESS_UNITS
+                | StreamType::MEDIA_ORCHESTRATION_ACCESS_UNITS
+        )
     }
 
     fn is_private(st: &StreamType) -> bool {
@@ -273,7 +385,11 @@ mod test {
     fn pes() {
         for st in 0..=255 {
             let ty = StreamType(st);
-            if ty == StreamType::H222_0_PRIVATE_SECTIONS || is_reserved(&ty) || is_private(&ty) {
+            if ty == StreamType::H222_0_PRIVATE_SECTIONS
+                || is_section_carried(&ty)
+                || is_reserved(&ty)
+                || is_private(&ty)
+            {
                 assert!(!ty.is_pes(), "{:?}", ty);
             } else {
                 assert!(ty.is_pes(), "{:?}", ty);

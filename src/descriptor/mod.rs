@@ -87,11 +87,11 @@ pub trait Descriptor<'buf>: Sized {
 /// descriptor_enum! {
 ///     // you could #[derive(Debug)] here if you wanted
 ///     MyOwnDescriptors {
-///         /// descriptor tag values `0`, `1` and `57` to `62` inclusive are marked as reserved
+///         /// descriptor tag values `0`, `1` and `59` to `62` inclusive are marked as reserved
 ///         /// by _ISO/IEC 13818-1_.  If any of these tag values are found,
 ///         /// MyOwnDescriptors::from_bytes() will return MyOwnDescriptors::Reserved.
-///         Reserved 0|1|57..=62 => UnknownDescriptor,
-///         Other 2..=56|63..=254 => UnknownDescriptor,
+///         Reserved 0|1|59..=62 => UnknownDescriptor,
+///         Other 2..=58|63..=254 => UnknownDescriptor,
 ///         /// When MyOwnDescriptors::from_bytes() finds the value 255, it will return the
 ///         /// MyOwnDescriptors::MySpecialPrivate variant, which will in turn wrap an instance
 ///         /// of MySpecialDescriptor.
@@ -171,8 +171,8 @@ descriptor_enum! {
     /// future release of this crate.
     #[derive(Debug)]
     CoreDescriptors {
-        /// descriptor tag values `0`, `1` and `57` to `62` inclusive are marked as reserved by _ISO/IEC 13818-1_.
-        Reserved 0|1|57..=62 => UnknownDescriptor,
+        /// Descriptor tag value `0` is reserved and tag value `1` is forbidden by _ISO/IEC 13818-1_.
+        Reserved 0|1|59..=62 => UnknownDescriptor,
         /// The `video_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
         VideoStream 2 => UnknownDescriptor,
         /// The `audio_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
@@ -269,6 +269,10 @@ descriptor_enum! {
         TransportProfile 55 => UnknownDescriptor,
         /// The `HEVC video descriptor()` syntax element from _ISO/IEC 13818-1_.
         HevcVideo 56 => UnknownDescriptor,
+        /// The `VVC video descriptor()` syntax element from _ISO/IEC 13818-1_.
+        VvcVideo 57 => UnknownDescriptor,
+        /// The `EVC video descriptor()` syntax element from _ISO/IEC 13818-1_.
+        EvcVideo 58 => UnknownDescriptor,
         /// The `Extension_descriptor()` syntax element from _ISO/IEC 13818-1_.
         Extension 63 => UnknownDescriptor,
         /// descriptor tag values `64` to `255` inclusive are marked for 'use private' use by _ISO/IEC 13818-1_.
