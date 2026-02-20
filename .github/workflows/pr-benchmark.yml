@@ -27,12 +27,12 @@ jobs:
       - run: |
           IAI_CALLGRIND_COLOR=never cargo bench --bench ci_bench > benchmark_results.txt
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: benchmark_results.txt
           path: ./benchmark_results.txt
       - name: Upload GitHub Pull Request Event
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: event.json
           path: ${{ github.event_path }}
