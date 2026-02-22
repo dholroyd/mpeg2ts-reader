@@ -7,6 +7,9 @@
  - Fixed `PesParsedContents::copyright()` returning inverted values: bit=1 now produces `Copyright::Protected` and bit=0 produces `Copyright::Undefined`.
  - Fixed `Timestamp::from_u64()` incorrectly accepting 34-bit values; now correctly limited to 33-bit range (`Timestamp::MAX`).
 
+### Changed
+ - **Breaking:** `AdaptationField::splice_countdown()` now returns `Result<i8, ..>` instead of `Result<u8, ..>`, since the spec defines this as a signed two's complement value.
+
 ### Added
  - Updated `StreamType` constants and `CoreDescriptors` / `AudioType` variants to match the 2025 edition.
 

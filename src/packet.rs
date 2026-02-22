@@ -238,10 +238,10 @@ impl<'buf> AdaptationField<'buf> {
     }
     /// Get the value of the _splice_countdown_ field,
     /// or `AdaptationFieldError::FieldNotPresent` if absent
-    pub fn splice_countdown(&self) -> Result<u8, AdaptationFieldError> {
+    pub fn splice_countdown(&self) -> Result<i8, AdaptationFieldError> {
         if self.splicing_point_flag() {
             let off = self.splice_countdown_offset();
-            Ok(self.slice(off, off + 1)?[0])
+            Ok(self.slice(off, off + 1)?[0] as i8)
         } else {
             Err(AdaptationFieldError::FieldNotPresent)
         }
@@ -759,7 +759,7 @@ mod test {
                 0b1_1111_1111
             ))
         );
-        assert_eq!(ad.splice_countdown(), Ok(0b11111111));
+        assert_eq!(ad.splice_countdown(), Ok(-1));
         let expected_data = [0xff];
         assert_eq!(ad.transport_private_data(), Ok(&expected_data[..]));
         let ext = ad.adaptation_field_extension().unwrap();
