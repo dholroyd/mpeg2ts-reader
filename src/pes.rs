@@ -720,7 +720,7 @@ impl<'buf> PesParsedContents<'buf> {
                         ),
                     },
                     0b001 => DsmTrickMode::SlowMotion {
-                        rep_cntrl: trick_mode_control,
+                        rep_cntrl: trick_mode_data,
                     },
                     0b010 => DsmTrickMode::FreezeFrame {
                         field_id: trick_mode_data >> 3,
@@ -734,7 +734,7 @@ impl<'buf> PesParsedContents<'buf> {
                         ),
                     },
                     0b100 => DsmTrickMode::SlowReverse {
-                        rep_cntrl: trick_mode_control,
+                        rep_cntrl: trick_mode_data,
                     },
                     _ => DsmTrickMode::Reserved {
                         reserved: trick_mode_control,

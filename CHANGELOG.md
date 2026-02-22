@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+ - Fixed `DsmTrickMode::SlowMotion` and `DsmTrickMode::SlowReverse` returning the 3-bit `trick_mode_control` value instead of the 5-bit `rep_cntrl` field from the DSM trick mode byte.
+
 ### Added
  - Updated `StreamType` constants and `CoreDescriptors` / `AudioType` variants to match the 2025 edition.
 
