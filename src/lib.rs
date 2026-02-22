@@ -191,25 +191,14 @@ impl StreamType {
                 | StreamType::ISO_11172_AUDIO
                 | StreamType::ISO_138183_AUDIO
                 | StreamType::H222_0_PES_PRIVATE_DATA
-                | StreamType::MHEG
                 | StreamType::H222_0_DSM_CC
                 | StreamType::H2221
-                | StreamType::ISO_13818_6_MULTIPROTOCOL_ENCAPSULATION
-                | StreamType::DSMCC_UN_MESSAGES
-                | StreamType::DSMCC_STREAM_DESCRIPTORS
-                | StreamType::DSMCC_SECTIONS
                 | StreamType::H222_0_AUXILIARY
                 | StreamType::ADTS
                 | StreamType::ISO_14496_2_VISUAL
                 | StreamType::LATM
                 | StreamType::FLEX_MUX_PES
-                | StreamType::FLEX_MUX_ISO_14496_SECTIONS
-                | StreamType::SYNCHRONIZED_DOWNLOAD_PROTOCOL
                 | StreamType::METADATA_IN_PES
-                | StreamType::METADATA_IN_METADATA_SECTIONS
-                | StreamType::DSMCC_DATA_CAROUSEL_METADATA
-                | StreamType::DSMCC_OBJECT_CAROUSEL_METADATA
-                | StreamType::SYNCHRONIZED_DOWNLOAD_PROTOCOL_METADATA
                 | StreamType::IPMP
                 | StreamType::H264
                 | StreamType::AUDIO_WITHOUT_TRANSPORT_SYNTAX
@@ -367,7 +356,18 @@ mod test {
     fn is_section_carried(st: &StreamType) -> bool {
         matches!(
             *st,
-            StreamType::GREEN_ACCESS_UNITS
+            StreamType::MHEG
+                | StreamType::ISO_13818_6_MULTIPROTOCOL_ENCAPSULATION
+                | StreamType::DSMCC_UN_MESSAGES
+                | StreamType::DSMCC_STREAM_DESCRIPTORS
+                | StreamType::DSMCC_SECTIONS
+                | StreamType::FLEX_MUX_ISO_14496_SECTIONS
+                | StreamType::SYNCHRONIZED_DOWNLOAD_PROTOCOL
+                | StreamType::METADATA_IN_METADATA_SECTIONS
+                | StreamType::DSMCC_DATA_CAROUSEL_METADATA
+                | StreamType::DSMCC_OBJECT_CAROUSEL_METADATA
+                | StreamType::SYNCHRONIZED_DOWNLOAD_PROTOCOL_METADATA
+                | StreamType::GREEN_ACCESS_UNITS
                 | StreamType::QUALITY_ACCESS_UNITS
                 | StreamType::MEDIA_ORCHESTRATION_ACCESS_UNITS
         )

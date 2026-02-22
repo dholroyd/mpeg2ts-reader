@@ -6,6 +6,7 @@
  - Fixed `DsmTrickMode::SlowMotion` and `DsmTrickMode::SlowReverse` returning the 3-bit `trick_mode_control` value instead of the 5-bit `rep_cntrl` field from the DSM trick mode byte.
  - Fixed `PesParsedContents::copyright()` returning inverted values: bit=1 now produces `Copyright::Protected` and bit=0 produces `Copyright::Undefined`.
  - Fixed `Timestamp::from_u64()` incorrectly accepting 34-bit values; now correctly limited to 33-bit range (`Timestamp::MAX`).
+ - Fixed `StreamType::is_pes()` incorrectly returning `true` for section-based stream types (`MHEG`, `DSMCC_UN_MESSAGES`, `DSMCC_STREAM_DESCRIPTORS`, `DSMCC_SECTIONS`, `ISO_13818_6_MULTIPROTOCOL_ENCAPSULATION`, `FLEX_MUX_ISO_14496_SECTIONS`, `SYNCHRONIZED_DOWNLOAD_PROTOCOL`, `METADATA_IN_METADATA_SECTIONS`, `DSMCC_DATA_CAROUSEL_METADATA`, `DSMCC_OBJECT_CAROUSEL_METADATA`, `SYNCHRONIZED_DOWNLOAD_PROTOCOL_METADATA`).
 
 ### Changed
  - **Breaking:** `AdaptationField::splice_countdown()` now returns `Result<i8, ..>` instead of `Result<u8, ..>`, since the spec defines this as a signed two's complement value.
