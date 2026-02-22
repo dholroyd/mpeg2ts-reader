@@ -8,6 +8,7 @@
  - Fixed `Timestamp::from_u64()` incorrectly accepting 34-bit values; now correctly limited to 33-bit range (`Timestamp::MAX`).
  - Fixed `StreamType::is_pes()` incorrectly returning `true` for section-based stream types (`MHEG`, `DSMCC_UN_MESSAGES`, `DSMCC_STREAM_DESCRIPTORS`, `DSMCC_SECTIONS`, `ISO_13818_6_MULTIPROTOCOL_ENCAPSULATION`, `FLEX_MUX_ISO_14496_SECTIONS`, `SYNCHRONIZED_DOWNLOAD_PROTOCOL`, `METADATA_IN_METADATA_SECTIONS`, `DSMCC_DATA_CAROUSEL_METADATA`, `DSMCC_OBJECT_CAROUSEL_METADATA`, `SYNCHRONIZED_DOWNLOAD_PROTOCOL_METADATA`).
  - Raised PSI `section_length` limit from 1021 to 4093 in both `SectionSyntaxSectionProcessor` and `CompactSyntaxSectionProcessor`, matching the maximum allowed by the spec for private sections. The PAT and PMT retain their spec-mandated 1021 limit.
+ - Fixed `Timestamp::from_pts_bytes()` rejecting valid PTS data when both PTS and DTS are present (prefix `'0011'`); it now accepts both `'0010'` and `'0011'` prefixes.
 
 ### Changed
  - **Breaking:** `AdaptationField::splice_countdown()` now returns `Result<i8, ..>` instead of `Result<u8, ..>`, since the spec defines this as a signed two's complement value.

@@ -900,11 +900,19 @@ impl Timestamp {
     /// 90kHz timebase in which PTS and DTS values are measured.
     pub const TIMEBASE: u64 = 90_000;
 
-    /// Parse a Presentation Time Stamp value from the 5 bytes at the start of the given slice
+    /// Parse a Presentation Time Stamp value from the 5 bytes at the start of the given slice.
+    ///
+    /// Accepts prefix `'0010'` (PTS only) or `'0011'` (PTS when DTS also present).
     ///
     /// Panics if fewer than 5 bytes given
     pub fn from_pts_bytes(buf: &[u8]) -> Result<Timestamp, TimestampError> {
-        Timestamp::check_prefix(buf, 0b0010)?;
+        let actual = buf[0] >> 4;
+        if actual != 0b0010 && actual != 0b0011 {
+            return Err(TimestampError::IncorrectPrefixBits {
+                expected: 0b0010,
+                actual,
+            });
+        }
         Timestamp::from_bytes(buf)
     }
     /// Parse a Decode Time Stamp value from the 5 bytes at the start of the given slice
