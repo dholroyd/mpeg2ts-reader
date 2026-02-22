@@ -171,7 +171,7 @@ descriptor_enum! {
     /// future release of this crate.
     #[derive(Debug)]
     CoreDescriptors {
-        /// Descriptor tag value `0` is reserved and tag value `1` is forbidden by _ISO/IEC 13818-1_.
+        /// Descriptor tag value `0` and `59` to `62` are reserved; tag value `1` is forbidden by _ISO/IEC 13818-1_.
         Reserved 0|1|59..=62 => UnknownDescriptor,
         /// The `video_stream_descriptor()` syntax element from _ISO/IEC 13818-1_.
         VideoStream 2 => UnknownDescriptor,
