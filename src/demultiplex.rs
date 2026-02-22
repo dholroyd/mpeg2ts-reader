@@ -327,6 +327,9 @@ struct PmtProcessor<Ctx: DemuxContext> {
 }
 
 impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
+    /// Per the spec, the maximum section_length for a PMT section is 1021.
+    const SECTION_LENGTH_LIMIT: usize = 1021;
+
     pub fn new(pid: packet::Pid, program_number: u16) -> PmtProcessor<Ctx> {
         PmtProcessor {
             pid,
@@ -388,6 +391,13 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
         table_syntax_header: &psi::TableSyntaxHeader<'_>,
         data: &[u8],
     ) {
+        if header.section_length > Self::SECTION_LENGTH_LIMIT {
+            warn!(
+                "[PMT {:?} program:{}] section_length={} exceeds limit of {}",
+                self.pid, self.program_number, header.section_length, Self::SECTION_LENGTH_LIMIT
+            );
+            return;
+        }
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4; // remove CRC bytes
         match PmtSection::from_bytes(&data[start..end]) {
@@ -470,6 +480,9 @@ impl<Ctx: DemuxContext> Default for PatProcessor<Ctx> {
     }
 }
 impl<Ctx: DemuxContext> PatProcessor<Ctx> {
+    /// Per the spec, the maximum section_length for a PAT section is 1021.
+    const SECTION_LENGTH_LIMIT: usize = 1021;
+
     fn new_table(
         &mut self,
         ctx: &mut Ctx,
@@ -526,6 +539,13 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
         table_syntax_header: &psi::TableSyntaxHeader<'_>,
         data: &[u8],
     ) {
+        if header.section_length > Self::SECTION_LENGTH_LIMIT {
+            warn!(
+                "[PAT] section_length={} exceeds limit of {}",
+                header.section_length, Self::SECTION_LENGTH_LIMIT
+            );
+            return;
+        }
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4; // remove CRC bytes
         self.new_table(

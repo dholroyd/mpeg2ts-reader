@@ -546,7 +546,7 @@ impl<SP> CompactSyntaxSectionProcessor<SP>
 where
     SP: CompactSyntaxPayloadParser,
 {
-    const SECTION_LIMIT: usize = 1021;
+    const SECTION_LIMIT: usize = 4093;
 
     /// Wraps the given `CompactSyntaxPayloadParser` instance in a new
     /// `CompactSyntaxSectionProcessor`.
@@ -621,7 +621,7 @@ impl<SP> SectionSyntaxSectionProcessor<SP>
 where
     SP: SectionSyntaxPayloadParser,
 {
-    const SECTION_LIMIT: usize = 1021;
+    const SECTION_LIMIT: usize = 4093;
 
     /// Wraps the given `SectionSyntaxPayloadParser` instance in a new
     /// `SectionSyntaxSectionProcessor`.
@@ -1077,15 +1077,14 @@ mod test {
         proc.continue_section(ctx, &[]);
         assert_eq!(0, counts.borrow().continue_section);
 
-        // section_length of 1022 (0x3fe) in this header is too long
-        let header = hex!("4273fe");
+        // section_length of 4094 (0xffe) in this header is too long
+        let header = hex!("42 7f fe");
         let mut sect = vec![];
         sect.extend_from_slice(&header);
-        sect.resize(header.len() + 1022, 0); // fill remainder with zeros so we can accidentally fail because the buffer is too short
+        sect.resize(header.len() + 4094, 0); // fill remainder with zeros so we can accidentally fail because the buffer is too short
         let common_header = SectionCommonHeader::new(&sect[..SectionCommonHeader::SIZE]);
         assert!(!common_header.section_syntax_indicator);
-        // we trim the data slice down to 2 bytes which should cause the length check inside
-        // CompactSyntaxSectionProcessor to fail,
+        // section_length exceeds the 4093 limit, so CompactSyntaxSectionProcessor should reject,
         proc.start_section(ctx, &common_header, &sect);
         assert_eq!(0, counts.borrow().start);
         proc.continue_section(ctx, &[]);
@@ -1226,7 +1225,7 @@ mod test {
             };
             let mut proc = SectionSyntaxSectionProcessor::new(mock);
             let mut section_length_too_large = sect.to_vec();
-            let bad_section_length: u16 = 1021 + 1;
+            let bad_section_length: u16 = 4093 + 1;
             assert_eq!(bad_section_length >> 8 & 0b1111_0000, 0);
             section_length_too_large[1] =
                 section_length_too_large[1] & 0b1111_0000 | (bad_section_length >> 8) as u8;
