@@ -952,7 +952,7 @@ impl Timestamp {
     }
     /// Panics if the given val is greater than 2^33-1
     pub fn from_u64(val: u64) -> Timestamp {
-        assert!(val < 1 << 34);
+        assert!(val <= Self::MAX.val);
         Timestamp { val }
     }
     /// produces the timestamp's value (only the low 33 bits are used)
