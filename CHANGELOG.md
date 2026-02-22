@@ -4,6 +4,7 @@
 
 ### Fixed
  - Fixed `DsmTrickMode::SlowMotion` and `DsmTrickMode::SlowReverse` returning the 3-bit `trick_mode_control` value instead of the 5-bit `rep_cntrl` field from the DSM trick mode byte.
+ - Fixed `PesParsedContents::copyright()` returning inverted values: bit=1 now produces `Copyright::Protected` and bit=0 produces `Copyright::Undefined`.
 
 ### Added
  - Updated `StreamType` constants and `CoreDescriptors` / `AudioType` variants to match the 2025 edition.

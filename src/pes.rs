@@ -553,9 +553,9 @@ impl<'buf> PesParsedContents<'buf> {
     /// Indicates copyright status of the material in this PES data.
     pub fn copyright(&self) -> Copyright {
         if self.buf[0] & 0b10 != 0 {
-            Copyright::Undefined
-        } else {
             Copyright::Protected
+        } else {
+            Copyright::Undefined
         }
     }
     /// Indicates the originality of the data in this PES stream.
@@ -1180,7 +1180,7 @@ mod test {
                     parsed_contents.expect("expected PesContents::Parsed(Some(_)) but was None");
                 assert_eq!(0, p.pes_priority());
                 assert_eq!(pes::DataAlignment::Aligned, p.data_alignment_indicator());
-                assert_eq!(pes::Copyright::Protected, p.copyright());
+                assert_eq!(pes::Copyright::Undefined, p.copyright());
                 assert_eq!(pes::OriginalOrCopy::Copy, p.original_or_copy());
                 match p.pts_dts() {
                     Ok(pes::PtsDts::PtsOnly(Ok(ts))) => {
@@ -1530,7 +1530,7 @@ mod test {
             contents.data_alignment_indicator(),
             DataAlignment::NotAligned
         );
-        assert_eq!(contents.copyright(), Copyright::Protected);
+        assert_eq!(contents.copyright(), Copyright::Undefined);
         assert_eq!(contents.original_or_copy(), OriginalOrCopy::Copy);
         assert_matches!(contents.escr(), Err(PesError::FieldNotPresent));
         assert_matches!(contents.es_rate(), Err(PesError::FieldNotPresent));
@@ -1545,7 +1545,7 @@ mod test {
         // all the flags in this header are 1s
         let contents = PesParsedContents::from_bytes(&[0b10111111, 0, 0]).unwrap();
         assert_eq!(contents.data_alignment_indicator(), DataAlignment::Aligned);
-        assert_eq!(contents.copyright(), Copyright::Undefined);
+        assert_eq!(contents.copyright(), Copyright::Protected);
         assert_eq!(contents.original_or_copy(), OriginalOrCopy::Original);
     }
 
