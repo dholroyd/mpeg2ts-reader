@@ -243,7 +243,7 @@ and what's yet to come:
   - [x] DSM_trick_mode
   - [x] additional_copy_info
   - [x] PES_CRC
-  - [ ] PES_extension
+  - [x] PES_extension
 - Descriptors
   - [ ] video_stream_descriptor
   - [ ] audio_stream_descriptor

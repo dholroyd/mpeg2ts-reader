@@ -481,10 +481,382 @@ impl From<EsRate> for u32 {
     }
 }
 
-/// TODO: not yet implemented
-#[derive(Debug)] // TODO manual Debug
+/// P-STD buffer parameters from PES extension (Table 2-21 of ISO/IEC 13818-1).
+///
+/// Borrows a 2-byte slice and lazily parses the `P-STD_buffer_scale` and `P-STD_buffer_size`
+/// fields.
+pub struct PStdBuffer<'buf> {
+    buf: &'buf [u8],
+}
+impl<'buf> PStdBuffer<'buf> {
+    /// Returns `true` if the buffer size is measured in 1024-byte units, `false` for 128-byte
+    /// units.
+    pub fn buffer_scale(&self) -> bool {
+        self.buf[0] & 0b0010_0000 != 0
+    }
+    /// Returns the raw 13-bit buffer size value.
+    pub fn buffer_size_raw(&self) -> u16 {
+        u16::from(self.buf[0] & 0b0001_1111) << 8 | u16::from(self.buf[1])
+    }
+    /// Returns the buffer size in bytes, applying the scale factor.
+    pub fn buffer_size_bytes(&self) -> usize {
+        let size = self.buffer_size_raw() as usize;
+        if self.buffer_scale() {
+            size * 1024
+        } else {
+            size * 128
+        }
+    }
+}
+impl fmt::Debug for PStdBuffer<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PStdBuffer")
+            .field("buffer_scale", &self.buffer_scale())
+            .field("buffer_size_raw", &self.buffer_size_raw())
+            .field("buffer_size_bytes", &self.buffer_size_bytes())
+            .finish()
+    }
+}
+
+/// Program packet sequence counter from PES extension (Table 2-21 of ISO/IEC 13818-1).
+///
+/// Borrows a 2-byte slice and lazily parses the counter, MPEG1/MPEG2 identifier, and original
+/// stuff length fields.
+pub struct ProgramPacketSequenceCounter<'buf> {
+    buf: &'buf [u8],
+}
+impl<'buf> ProgramPacketSequenceCounter<'buf> {
+    /// Returns the 7-bit program packet sequence counter value.
+    pub fn counter(&self) -> u8 {
+        self.buf[0] & 0b0111_1111
+    }
+    /// Returns the MPEG1/MPEG2 identifier bit.
+    pub fn mpeg1_mpeg2_identifier(&self) -> bool {
+        self.buf[1] & 0b0100_0000 != 0
+    }
+    /// Returns the 6-bit original stuff length.
+    pub fn original_stuff_length(&self) -> u8 {
+        self.buf[1] & 0b0011_1111
+    }
+}
+impl fmt::Debug for ProgramPacketSequenceCounter<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProgramPacketSequenceCounter")
+            .field("counter", &self.counter())
+            .field("mpeg1_mpeg2_identifier", &self.mpeg1_mpeg2_identifier())
+            .field("original_stuff_length", &self.original_stuff_length())
+            .finish()
+    }
+}
+
+/// Parsed pack_header() from ISO/IEC 13818-1 §2.5.3.3.
+///
+/// Contains the System Clock Reference (SCR), program mux rate, and stuffing length.
+/// The SCR is represented as a [`ClockRef`](../packet/struct.ClockRef.html), the same type used
+/// for PCR and ESCR values.
+pub struct PackHeader<'buf> {
+    buf: &'buf [u8],
+}
+impl<'buf> PackHeader<'buf> {
+    const PACK_START_CODE: u32 = 0x000001BA;
+    const MIN_SIZE: usize = 14;
+
+    fn from_bytes(buf: &'buf [u8]) -> Result<PackHeader<'buf>, PesError> {
+        if buf.len() < Self::MIN_SIZE {
+            return Err(PesError::NotEnoughData {
+                requested: Self::MIN_SIZE,
+                available: buf.len(),
+            });
+        }
+        let start_code = u32::from(buf[0]) << 24
+            | u32::from(buf[1]) << 16
+            | u32::from(buf[2]) << 8
+            | u32::from(buf[3]);
+        if start_code != Self::PACK_START_CODE {
+            return Err(PesError::MarkerBitNotSet);
+        }
+        if buf[4] >> 6 != 0b01 {
+            return Err(PesError::MarkerBitNotSet);
+        }
+        Ok(PackHeader { buf })
+    }
+
+    /// Returns the System Clock Reference parsed from the pack header.
+    ///
+    /// The SCR uses the same bit layout as ESCR: a 33-bit, 90kHz base component and a 9-bit
+    /// extension component.
+    pub fn system_clock_reference(&self) -> ClockRef {
+        let s = &self.buf[4..10];
+        let base = u64::from(s[0] & 0b0011_1000) << 27
+            | u64::from(s[0] & 0b0000_0011) << 28
+            | u64::from(s[1]) << 20
+            | u64::from(s[2] & 0b1111_1000) << 12
+            | u64::from(s[2] & 0b0000_0011) << 13
+            | u64::from(s[3]) << 5
+            | u64::from(s[4] & 0b1111_1000) >> 3;
+        let extension =
+            u16::from(s[4] & 0b0000_0011) << 7 | u16::from(s[5] & 0b1111_1110) >> 1;
+        ClockRef::from_parts(base, extension)
+    }
+
+    /// Returns the 22-bit program_mux_rate value.
+    pub fn program_mux_rate(&self) -> u32 {
+        u32::from(self.buf[10]) << 14
+            | u32::from(self.buf[11]) << 6
+            | u32::from(self.buf[12]) >> 2
+    }
+
+    /// Returns the 3-bit pack_stuffing_length value.
+    pub fn pack_stuffing_length(&self) -> u8 {
+        self.buf[13] & 0b0000_0111
+    }
+}
+impl fmt::Debug for PackHeader<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PackHeader")
+            .field("system_clock_reference", &self.system_clock_reference())
+            .field("program_mux_rate", &self.program_mux_rate())
+            .field("pack_stuffing_length", &self.pack_stuffing_length())
+            .finish()
+    }
+}
+
+/// PES extension data (Table 2-21 of ISO/IEC 13818-1).
+///
+/// The PES extension is the last optional field in the PES parsed header, gated by
+/// `PES_extension_flag`. It contains a flags byte followed by optional sub-fields:
+/// PES private data, pack header field, program packet sequence counter, P-STD buffer,
+/// and a further PES extension 2 containing stream ID extension or TREF.
 pub struct PesExtension<'buf> {
-    _buf: &'buf [u8],
+    buf: &'buf [u8],
+}
+impl<'buf> PesExtension<'buf> {
+    const PES_PRIVATE_DATA_SIZE: usize = 16;
+    const PROGRAM_PACKET_SEQUENCE_COUNTER_SIZE: usize = 2;
+    const P_STD_BUFFER_SIZE: usize = 2;
+
+    fn from_bytes(buf: &'buf [u8]) -> Result<PesExtension<'buf>, PesError> {
+        if buf.is_empty() {
+            return Err(PesError::NotEnoughData {
+                requested: 1,
+                available: 0,
+            });
+        }
+        Ok(PesExtension { buf })
+    }
+
+    fn pes_private_data_flag(&self) -> bool {
+        self.buf[0] & 0b1000_0000 != 0
+    }
+    fn pack_header_field_flag(&self) -> bool {
+        self.buf[0] & 0b0100_0000 != 0
+    }
+    fn program_packet_sequence_counter_flag(&self) -> bool {
+        self.buf[0] & 0b0010_0000 != 0
+    }
+    fn p_std_buffer_flag(&self) -> bool {
+        self.buf[0] & 0b0001_0000 != 0
+    }
+    fn pes_extension_flag_2(&self) -> bool {
+        self.buf[0] & 0b0000_1000 != 0
+    }
+
+    fn extension_slice(&self, from: usize, to: usize) -> Result<&'buf [u8], PesError> {
+        if to > self.buf.len() {
+            Err(PesError::NotEnoughData {
+                requested: to,
+                available: self.buf.len(),
+            })
+        } else {
+            Ok(&self.buf[from..to])
+        }
+    }
+
+    fn pes_private_data_end(&self) -> usize {
+        1 + if self.pes_private_data_flag() {
+            Self::PES_PRIVATE_DATA_SIZE
+        } else {
+            0
+        }
+    }
+
+    fn pack_header_field_end(&self) -> Result<usize, PesError> {
+        let start = self.pes_private_data_end();
+        if self.pack_header_field_flag() {
+            if start >= self.buf.len() {
+                return Err(PesError::NotEnoughData {
+                    requested: start + 1,
+                    available: self.buf.len(),
+                });
+            }
+            let pack_field_length = self.buf[start] as usize;
+            Ok(start + 1 + pack_field_length)
+        } else {
+            Ok(start)
+        }
+    }
+
+    fn program_packet_sequence_counter_end(&self) -> Result<usize, PesError> {
+        let start = self.pack_header_field_end()?;
+        Ok(start
+            + if self.program_packet_sequence_counter_flag() {
+                Self::PROGRAM_PACKET_SEQUENCE_COUNTER_SIZE
+            } else {
+                0
+            })
+    }
+
+    fn p_std_buffer_end(&self) -> Result<usize, PesError> {
+        let start = self.program_packet_sequence_counter_end()?;
+        Ok(start
+            + if self.p_std_buffer_flag() {
+                Self::P_STD_BUFFER_SIZE
+            } else {
+                0
+            })
+    }
+
+    /// Returns the 16-byte PES private data, if present.
+    pub fn pes_private_data(&self) -> Result<&'buf [u8], PesError> {
+        if self.pes_private_data_flag() {
+            self.extension_slice(1, 1 + Self::PES_PRIVATE_DATA_SIZE)
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+
+    /// Returns the parsed pack header, if present.
+    pub fn pack_header(&self) -> Result<PackHeader<'buf>, PesError> {
+        if self.pack_header_field_flag() {
+            let data_start = self.pes_private_data_end() + 1;
+            let end = self.pack_header_field_end()?;
+            let s = self.extension_slice(data_start, end)?;
+            PackHeader::from_bytes(s)
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+
+    /// Returns the program packet sequence counter, if present.
+    ///
+    /// Validates the marker bits in the 2-byte field.
+    pub fn program_packet_sequence_counter(
+        &self,
+    ) -> Result<ProgramPacketSequenceCounter<'buf>, PesError> {
+        if self.program_packet_sequence_counter_flag() {
+            let start = self.pack_header_field_end()?;
+            let end = start + Self::PROGRAM_PACKET_SEQUENCE_COUNTER_SIZE;
+            let s = self.extension_slice(start, end)?;
+            if s[0] & 0b1000_0000 == 0 {
+                return Err(PesError::MarkerBitNotSet);
+            }
+            if s[1] & 0b1000_0000 == 0 {
+                return Err(PesError::MarkerBitNotSet);
+            }
+            Ok(ProgramPacketSequenceCounter { buf: s })
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+
+    /// Returns the P-STD buffer parameters, if present.
+    ///
+    /// Validates the `'01'` prefix bits in the 2-byte field.
+    pub fn p_std_buffer(&self) -> Result<PStdBuffer<'buf>, PesError> {
+        if self.p_std_buffer_flag() {
+            let start = self.program_packet_sequence_counter_end()?;
+            let end = start + Self::P_STD_BUFFER_SIZE;
+            let s = self.extension_slice(start, end)?;
+            if s[0] & 0b1100_0000 != 0b0100_0000 {
+                return Err(PesError::MarkerBitNotSet);
+            }
+            Ok(PStdBuffer { buf: s })
+        } else {
+            Err(PesError::FieldNotPresent)
+        }
+    }
+
+    /// Validates the PES_extension_2 header (flag check, marker bit, bounds) and returns the
+    /// index of the first data byte and the `stream_id_extension_flag` value.
+    fn pes_extension_2_data(&self) -> Result<(usize, bool), PesError> {
+        if !self.pes_extension_flag_2() {
+            return Err(PesError::FieldNotPresent);
+        }
+        let start = self.p_std_buffer_end()?;
+        if start >= self.buf.len() {
+            return Err(PesError::NotEnoughData {
+                requested: start + 1,
+                available: self.buf.len(),
+            });
+        }
+        if self.buf[start] & 0b1000_0000 == 0 {
+            return Err(PesError::MarkerBitNotSet);
+        }
+        let data_start = start + 1;
+        if data_start >= self.buf.len() {
+            return Err(PesError::NotEnoughData {
+                requested: data_start + 1,
+                available: self.buf.len(),
+            });
+        }
+        let stream_id_extension_flag = self.buf[data_start] & 0b1000_0000 != 0;
+        Ok((data_start, stream_id_extension_flag))
+    }
+
+    /// Returns the 7-bit stream ID extension value.
+    ///
+    /// Requires `PES_extension_flag_2` to be set and `stream_id_extension_flag` to be `0`.
+    pub fn stream_id_extension(&self) -> Result<u8, PesError> {
+        let (data_start, stream_id_extension_flag) = self.pes_extension_2_data()?;
+        if stream_id_extension_flag {
+            return Err(PesError::FieldNotPresent);
+        }
+        Ok(self.buf[data_start] & 0b0111_1111)
+    }
+
+    /// Returns the TREF timestamp.
+    ///
+    /// Requires `PES_extension_flag_2` to be set, `stream_id_extension_flag` to be `1`, and
+    /// `tref_extension_flag` to be `0`. The TREF uses the same 5-byte encoding as PTS/DTS
+    /// timestamps (with 4 reserved prefix bits).
+    pub fn tref(&self) -> Result<Timestamp, PesError> {
+        let (data_start, stream_id_extension_flag) = self.pes_extension_2_data()?;
+        if !stream_id_extension_flag {
+            return Err(PesError::FieldNotPresent);
+        }
+        let tref_extension_flag = self.buf[data_start] & 0b0000_0001 != 0;
+        if tref_extension_flag {
+            return Err(PesError::FieldNotPresent);
+        }
+        let tref_start = data_start + 1;
+        let tref_end = tref_start + 5;
+        let s = self.extension_slice(tref_start, tref_end)?;
+        Timestamp::from_bytes(s).map_err(|_| PesError::MarkerBitNotSet)
+    }
+}
+impl fmt::Debug for PesExtension<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("PesExtension");
+        if let Ok(data) = self.pes_private_data() {
+            s.field("pes_private_data", &data);
+        }
+        if let Ok(header) = self.pack_header() {
+            s.field("pack_header", &header);
+        }
+        if let Ok(counter) = self.program_packet_sequence_counter() {
+            s.field("program_packet_sequence_counter", &counter);
+        }
+        if let Ok(buffer) = self.p_std_buffer() {
+            s.field("p_std_buffer", &buffer);
+        }
+        if let Ok(ext) = self.stream_id_extension() {
+            s.field("stream_id_extension", &ext);
+        }
+        if let Ok(ts) = self.tref() {
+            s.field("tref", &ts);
+        }
+        s.finish()
+    }
 }
 
 /// Extra data which may optionally be present in the `PesHeader`, potentially including
@@ -817,7 +1189,7 @@ impl<'buf> PesParsedContents<'buf> {
                 self.pes_crc_end(),
                 self.pes_header_data_len() + Self::FIXED_HEADER_SIZE,
             )
-            .map(|s| PesExtension { _buf: s })
+            .and_then(PesExtension::from_bytes)
         } else {
             Err(PesError::FieldNotPresent)
         }
@@ -1040,7 +1412,7 @@ mod test {
     use crate::pes;
     use crate::pes::{
         Copyright, DataAlignment, EsRate, FrequencyTruncationCoefficientSelection, OriginalOrCopy,
-        PesContents, PesError, PesHeader, PesLength, PesParsedContents, StreamId,
+        PesContents, PesError, PesExtension, PesHeader, PesLength, PesParsedContents, StreamId,
     };
     use assert_matches::assert_matches;
     use bitstream_io::{BigEndian, BitWrite};
@@ -1793,6 +2165,291 @@ mod test {
         {
             let state = state.borrow();
             assert!(!state.continuity_error_called, "Continuity error should not be called for properly incrementing counter");
+        }
+    }
+
+    #[test]
+    fn pes_extension_private_data() {
+        let data = make_test_data(|w| {
+            w.write(1, 1u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 0u8)?; // P-STD_buffer_flag
+            w.write(1, 0u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            for i in 0u8..16 {
+                w.write(8, i)?;
+            }
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        let private_data = ext.pes_private_data().unwrap();
+        assert_eq!(private_data.len(), 16);
+        for i in 0u8..16 {
+            assert_eq!(private_data[i as usize], i);
+        }
+        assert_matches!(ext.pack_header(), Err(PesError::FieldNotPresent));
+        assert_matches!(
+            ext.program_packet_sequence_counter(),
+            Err(PesError::FieldNotPresent)
+        );
+        assert_matches!(ext.p_std_buffer(), Err(PesError::FieldNotPresent));
+        assert_matches!(ext.stream_id_extension(), Err(PesError::FieldNotPresent));
+        assert_matches!(ext.tref(), Err(PesError::FieldNotPresent));
+    }
+
+    #[test]
+    fn pes_extension_program_packet_sequence_counter() {
+        let data = make_test_data(|w| {
+            w.write(1, 0u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 1u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 0u8)?; // P-STD_buffer_flag
+            w.write(1, 0u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            w.write(1, 1u8)?; // marker_bit
+            w.write(7, 42u8)?; // program_packet_sequence_counter
+            w.write(1, 1u8)?; // marker_bit
+            w.write(1, 1u8)?; // MPEG1_MPEG2_identifier
+            w.write(6, 15u8)?; // original_stuff_length
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        let counter = ext.program_packet_sequence_counter().unwrap();
+        assert_eq!(counter.counter(), 42);
+        assert!(counter.mpeg1_mpeg2_identifier());
+        assert_eq!(counter.original_stuff_length(), 15);
+    }
+
+    #[test]
+    fn pes_extension_p_std_buffer() {
+        let data = make_test_data(|w| {
+            w.write(1, 0u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 1u8)?; // P-STD_buffer_flag
+            w.write(1, 0u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            w.write(2, 0b01u8)?; // '01' marker
+            w.write(1, 1u8)?; // P-STD_buffer_scale (1 = 1024-byte units)
+            w.write(13, 100u16)?; // P-STD_buffer_size
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        let buf = ext.p_std_buffer().unwrap();
+        assert!(buf.buffer_scale());
+        assert_eq!(buf.buffer_size_raw(), 100);
+        assert_eq!(buf.buffer_size_bytes(), 100 * 1024);
+    }
+
+    #[test]
+    fn pes_extension_p_std_buffer_scale_128() {
+        let data = make_test_data(|w| {
+            w.write(1, 0u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 1u8)?; // P-STD_buffer_flag
+            w.write(1, 0u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            w.write(2, 0b01u8)?; // '01' marker
+            w.write(1, 0u8)?; // P-STD_buffer_scale (0 = 128-byte units)
+            w.write(13, 200u16)?; // P-STD_buffer_size
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        let buf = ext.p_std_buffer().unwrap();
+        assert!(!buf.buffer_scale());
+        assert_eq!(buf.buffer_size_raw(), 200);
+        assert_eq!(buf.buffer_size_bytes(), 200 * 128);
+    }
+
+    #[test]
+    fn pes_extension_multiple_fields() {
+        let data = make_test_data(|w| {
+            w.write(1, 1u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 1u8)?; // P-STD_buffer_flag
+            w.write(1, 0u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            // 16 bytes of private data
+            for _ in 0u8..16 {
+                w.write(8, 0xAAu8)?;
+            }
+            // P-STD buffer
+            w.write(2, 0b01u8)?; // '01' marker
+            w.write(1, 0u8)?; // P-STD_buffer_scale (0 = 128-byte units)
+            w.write(13, 50u16)?; // P-STD_buffer_size
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        let private_data = ext.pes_private_data().unwrap();
+        assert_eq!(private_data.len(), 16);
+        assert!(private_data.iter().all(|&b| b == 0xAA));
+        let buf = ext.p_std_buffer().unwrap();
+        assert_eq!(buf.buffer_size_raw(), 50);
+        assert_eq!(buf.buffer_size_bytes(), 50 * 128);
+    }
+
+    /// Writes a pack_header() SCR field: '01' prefix + SCR base/extension + marker bits.
+    /// Same 6-byte layout as ESCR but with '01' prefix instead of reserved '11'.
+    fn write_pack_scr(
+        w: &mut BitWriter<Vec<u8>, BE>,
+        base: u64,
+        extension: u16,
+    ) -> Result<(), io::Error> {
+        w.write(2, 0b01u8)?; // '01' (MPEG-2 pack header identifier)
+        w.write(
+            3,
+            (base & 0b1_1100_0000_0000_0000_0000_0000_0000_0000) >> 30,
+        )?;
+        w.write(1, 1u8)?; // marker_bit
+        w.write(
+            15,
+            (base & 0b0_0011_1111_1111_1111_1000_0000_0000_0000) >> 15,
+        )?;
+        w.write(1, 1u8)?; // marker_bit
+        w.write(15, base & 0b0_0000_0000_0000_0000_0111_1111_1111_1111)?;
+        w.write(1, 1u8)?; // marker_bit
+        w.write(9, extension)?;
+        w.write(1, 1u8) // marker_bit
+    }
+
+    #[test]
+    fn pes_extension_pack_header() {
+        let scr_base: u64 = 0b1_1100_0000_0000_0000_0111_1111_1111_1111;
+        let scr_extension: u16 = 234;
+        let mux_rate: u32 = 1234567;
+        let data = make_test_data(|w| {
+            w.write(1, 0u8)?; // PES_private_data_flag
+            w.write(1, 1u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 0u8)?; // P-STD_buffer_flag
+            w.write(1, 0u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            w.write(8, 14u8)?; // pack_field_length (14 bytes for pack_header)
+            // pack_header():
+            w.write(32, 0x000001BAu32)?; // pack_start_code
+            write_pack_scr(w, scr_base, scr_extension)?;
+            w.write(22, mux_rate)?; // program_mux_rate
+            w.write(1, 1u8)?; // marker_bit
+            w.write(1, 1u8)?; // marker_bit
+            w.write(5, 0b11111u8)?; // reserved
+            w.write(3, 0u8)?; // pack_stuffing_length
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        let ph = ext.pack_header().unwrap();
+        assert_eq!(ph.system_clock_reference().base(), scr_base);
+        assert_eq!(ph.system_clock_reference().extension(), scr_extension);
+        assert_eq!(ph.program_mux_rate(), mux_rate);
+        assert_eq!(ph.pack_stuffing_length(), 0);
+    }
+
+    #[test]
+    fn pes_extension_stream_id_extension() {
+        let data = make_test_data(|w| {
+            w.write(1, 0u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 0u8)?; // P-STD_buffer_flag
+            w.write(1, 1u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            w.write(1, 1u8)?; // marker_bit
+            w.write(7, 1u8)?; // PES_extension_field_length
+            w.write(1, 0u8)?; // stream_id_extension_flag (0 = stream_id_extension present)
+            w.write(7, 0x55u8)?; // stream_id_extension
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        assert_eq!(ext.stream_id_extension().unwrap(), 0x55);
+        assert_matches!(ext.tref(), Err(PesError::FieldNotPresent));
+    }
+
+    #[test]
+    fn pes_extension_tref() {
+        let tref_val: u64 = 123456789;
+        let data = make_test_data(|w| {
+            w.write(1, 0u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 0u8)?; // P-STD_buffer_flag
+            w.write(1, 1u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+            w.write(1, 1u8)?; // marker_bit
+            w.write(7, 6u8)?; // PES_extension_field_length (1 + 5 bytes)
+            w.write(1, 1u8)?; // stream_id_extension_flag (1 = extended form)
+            w.write(6, 0b111111u8)?; // reserved
+            w.write(1, 0u8)?; // tref_extension_flag (0 = TREF present)
+            // TREF uses same 5-byte encoding as PTS/DTS
+            write_ts(w, tref_val, 0b0000)?;
+            Ok(())
+        });
+        let ext = PesExtension::from_bytes(&data).unwrap();
+        let ts = ext.tref().unwrap();
+        assert_eq!(ts.value(), tref_val);
+        assert_matches!(ext.stream_id_extension(), Err(PesError::FieldNotPresent));
+    }
+
+    #[test]
+    fn pes_extension_not_enough_data() {
+        assert_matches!(
+            PesExtension::from_bytes(&[]),
+            Err(PesError::NotEnoughData {
+                requested: 1,
+                available: 0
+            })
+        );
+    }
+
+    #[test]
+    fn pes_extension_in_full_header() {
+        let data = make_test_data(|w| {
+            w.write(24, 1u32)?; // packet_start_code_prefix
+            w.write(8, 7u8)?; // stream_id
+            w.write(16, 0u16)?; // PES_packet_length (unbounded)
+
+            w.write(2, 0b10u8)?; // check-bits
+            w.write(2, 0u8)?; // PES_scrambling_control
+            w.write(1, 0u8)?; // pes_priority
+            w.write(1, 0u8)?; // data_alignment_indicator
+            w.write(1, 0u8)?; // copyright
+            w.write(1, 0u8)?; // original_or_copy
+            w.write(2, 0b00u8)?; // PTS_DTS_flags
+            w.write(1, 0u8)?; // ESCR_flag
+            w.write(1, 0u8)?; // ES_rate_flag
+            w.write(1, 0u8)?; // DSM_trick_mode_flag
+            w.write(1, 0u8)?; // additional_copy_info_flag
+            w.write(1, 0u8)?; // PES_CRC_flag
+            w.write(1, 1u8)?; // PES_extension_flag
+            let ext_size = 1 + 2; // extension flags byte + P-STD buffer
+            w.write(8, ext_size as u8)?; // PES_header_data_length
+
+            // PES extension flags byte
+            w.write(1, 0u8)?; // PES_private_data_flag
+            w.write(1, 0u8)?; // pack_header_field_flag
+            w.write(1, 0u8)?; // program_packet_sequence_counter_flag
+            w.write(1, 1u8)?; // P-STD_buffer_flag
+            w.write(1, 0u8)?; // PES_extension_flag_2
+            w.write(3, 0b111u8)?; // reserved
+
+            // P-STD buffer (2 bytes)
+            w.write(2, 0b01u8)?; // '01' marker
+            w.write(1, 1u8)?; // P-STD_buffer_scale
+            w.write(13, 256u16)?; // P-STD_buffer_size
+
+            Ok(())
+        });
+        let header = PesHeader::from_bytes(&data).unwrap();
+        match header.contents() {
+            PesContents::Parsed(Some(parsed)) => {
+                let ext = parsed.pes_extension().unwrap();
+                let buf = ext.p_std_buffer().unwrap();
+                assert!(buf.buffer_scale());
+                assert_eq!(buf.buffer_size_raw(), 256);
+                assert_eq!(buf.buffer_size_bytes(), 256 * 1024);
+            }
+            _ => panic!("expected PesContents::Parsed(Some(...))"),
         }
     }
 }
