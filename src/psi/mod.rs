@@ -23,6 +23,7 @@
 
 pub mod pat;
 pub mod pmt;
+pub mod tsdt;
 
 use crate::mpegts_crc;
 use crate::packet;

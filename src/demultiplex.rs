@@ -17,6 +17,7 @@ use crate::psi;
 use crate::psi::pat;
 use crate::psi::pmt::PmtSection;
 use crate::psi::pmt::StreamInfo;
+use crate::psi::tsdt::TsdtSection;
 use crate::StreamType;
 use log::warn;
 use std::marker;
@@ -463,6 +464,101 @@ impl<Ctx: DemuxContext> PacketFilter for PmtPacketFilter<Ctx> {
 
     fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
         self.pmt_section_packet_consumer.consume(ctx, pk);
+    }
+}
+
+/// Trait for types that consume Transport Stream Description Table data.
+///
+/// Implement this trait to receive parsed TSDT sections.  The TSDT carries descriptors that
+/// apply to the entire transport stream.
+pub trait TsdtConsumer<Ctx> {
+    /// Called when a complete TSDT section has been received.
+    fn tsdt(
+        &mut self,
+        ctx: &mut Ctx,
+        header: &psi::TableSyntaxHeader<'_>,
+        section: &TsdtSection<'_>,
+    );
+}
+
+struct TsdtProcessor<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> {
+    consumer: C,
+    phantom: marker::PhantomData<Ctx>,
+}
+
+impl<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> TsdtProcessor<Ctx, C> {
+    /// Per the spec, the maximum section_length for a TSDT section is 1021.
+    const SECTION_LENGTH_LIMIT: usize = 1021;
+
+    fn new(consumer: C) -> TsdtProcessor<Ctx, C> {
+        TsdtProcessor {
+            consumer,
+            phantom: marker::PhantomData,
+        }
+    }
+}
+
+impl<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> psi::WholeSectionSyntaxPayloadParser
+    for TsdtProcessor<Ctx, C>
+{
+    type Context = Ctx;
+
+    fn section(
+        &mut self,
+        ctx: &mut Self::Context,
+        header: &psi::SectionCommonHeader,
+        table_syntax_header: &psi::TableSyntaxHeader<'_>,
+        data: &[u8],
+    ) {
+        if header.table_id != 0x03 {
+            warn!(
+                "[TSDT] Expected TSDT to have table id 0x03, but got {:#x}",
+                header.table_id
+            );
+            return;
+        }
+        if header.section_length > Self::SECTION_LENGTH_LIMIT {
+            warn!(
+                "[TSDT] section_length={} exceeds limit of {}",
+                header.section_length, Self::SECTION_LENGTH_LIMIT
+            );
+            return;
+        }
+        let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
+        let end = data.len() - 4; // remove CRC bytes
+        let section = TsdtSection::new(&data[start..end]);
+        self.consumer.tsdt(ctx, table_syntax_header, &section);
+    }
+}
+
+/// `PacketFilter` implementation for handling Transport Stream Description Table sections.
+///
+/// Users create an instance by providing a [`TsdtConsumer`] implementation, and then register
+/// this filter for [`TSDT_PID`](../psi/tsdt/constant.TSDT_PID.html) in their `do_construct()`
+/// method.
+pub struct TsdtPacketFilter<Ctx: DemuxContext + 'static, C: TsdtConsumer<Ctx>> {
+    tsdt_section_packet_consumer: PacketFilterConsumer<TsdtProcessor<Ctx, C>>,
+}
+impl<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> TsdtPacketFilter<Ctx, C> {
+    /// Creates a new `TsdtPacketFilter` that delivers parsed TSDT sections to the given consumer.
+    pub fn new(consumer: C) -> TsdtPacketFilter<Ctx, C> {
+        let tsdt_proc = TsdtProcessor::new(consumer);
+        TsdtPacketFilter {
+            tsdt_section_packet_consumer: psi::SectionPacketConsumer::new(
+                psi::SectionSyntaxSectionProcessor::new(psi::DedupSectionSyntaxPayloadParser::new(
+                    psi::BufferSectionSyntaxParser::new(
+                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(tsdt_proc),
+                    ),
+                )),
+            ),
+        }
+    }
+}
+impl<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> PacketFilter for TsdtPacketFilter<Ctx, C> {
+    type Ctx = Ctx;
+
+    fn consume(&mut self, ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
+        self.tsdt_section_packet_consumer.consume(ctx, pk);
     }
 }
 

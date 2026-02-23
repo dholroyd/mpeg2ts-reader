@@ -7,10 +7,16 @@ use mpeg2ts_reader::psi;
 use std::fs::File;
 use std::io::Read;
 
+pub struct NullTsdtConsumer;
+impl<Ctx> demultiplex::TsdtConsumer<Ctx> for NullTsdtConsumer {
+    fn tsdt(&mut self, _ctx: &mut Ctx, _header: &psi::TableSyntaxHeader<'_>, _section: &psi::tsdt::TsdtSection<'_>) {}
+}
+
 packet_filter_switch! {
     NullFilterSwitch<NullDemuxContext> {
         Pat: demultiplex::PatPacketFilter<NullDemuxContext>,
         Pmt: demultiplex::PmtPacketFilter<NullDemuxContext>,
+        Tsdt: demultiplex::TsdtPacketFilter<NullDemuxContext, NullTsdtConsumer>,
         Null: demultiplex::NullPacketFilter<NullDemuxContext>,
         NullPes: pes::PesPacketFilter<NullDemuxContext,NullElementaryStreamConsumer>,
     }
@@ -21,6 +27,9 @@ impl NullDemuxContext {
         match req {
             demultiplex::FilterRequest::ByPid(psi::pat::PAT_PID) => {
                 NullFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
+            }
+            demultiplex::FilterRequest::ByPid(psi::tsdt::TSDT_PID) => {
+                NullFilterSwitch::Tsdt(demultiplex::TsdtPacketFilter::new(NullTsdtConsumer))
             }
             demultiplex::FilterRequest::ByPid(_) => {
                 NullFilterSwitch::Null(demultiplex::NullPacketFilter::default())

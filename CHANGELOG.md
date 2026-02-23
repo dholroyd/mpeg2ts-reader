@@ -15,6 +15,7 @@
 
 ### Added
  - Updated `StreamType` constants and `CoreDescriptors` / `AudioType` variants to match the 2025 edition.
+ - Added TSDT (Transport Stream Description Table) support: `psi::tsdt::TsdtSection` for parsing, `demultiplex::TsdtConsumer` trait for receiving parsed sections, and `demultiplex::TsdtPacketFilter` for integration with the demuxer.
 
 ## 0.18.2 - 2025-01-29
 

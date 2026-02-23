@@ -234,7 +234,7 @@ and what's yet to come:
   - [ ] 'Multi-section' tables
   - [x] PAT - Program Association Table
   - [x] PMT - Program Mapping Table
-  - [ ] TSDT - Transport Stream Description Table
+  - [x] TSDT - Transport Stream Description Table
 - Packetised Elementary Stream syntax
   - [x] PES_packet_data
   - [x] PTS/DTS

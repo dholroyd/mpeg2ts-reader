@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use mpeg2ts_reader::{demultiplex, pes, packet, packet_filter_switch, demux_context, descriptor};
+use mpeg2ts_reader::{demultiplex, pes, packet, psi, packet_filter_switch, demux_context, descriptor};
 
 pub struct FuzzElementaryStreamConsumer;
 impl pes::ElementaryStreamConsumer<FuzzDemuxContext> for FuzzElementaryStreamConsumer {
@@ -44,10 +44,20 @@ impl demultiplex::PacketFilter for FuzzPacketFilter {
     }
 }
 
+pub struct FuzzTsdtConsumer;
+impl demultiplex::TsdtConsumer<FuzzDemuxContext> for FuzzTsdtConsumer {
+    fn tsdt(&mut self, _ctx: &mut FuzzDemuxContext, _header: &psi::TableSyntaxHeader<'_>, section: &psi::tsdt::TsdtSection<'_>) {
+        for desc in section.descriptors::<descriptor::CoreDescriptors<'_>>() {
+            format!("{:?}", desc);
+        }
+    }
+}
+
 packet_filter_switch!{
     FuzzFilterSwitch<FuzzDemuxContext> {
         Pat: demultiplex::PatPacketFilter<FuzzDemuxContext>,
         Pmt: demultiplex::PmtPacketFilter<FuzzDemuxContext>,
+        Tsdt: demultiplex::TsdtPacketFilter<FuzzDemuxContext, FuzzTsdtConsumer>,
         Elem: pes::PesPacketFilter<FuzzDemuxContext,FuzzElementaryStreamConsumer>,
         Packet: FuzzPacketFilter,
         Null: demultiplex::NullPacketFilter<FuzzDemuxContext>,
@@ -58,6 +68,7 @@ impl FuzzDemuxContext {
     fn do_construct(&mut self, req: demultiplex::FilterRequest) -> FuzzFilterSwitch {
         match req {
             demultiplex::FilterRequest::ByPid(packet::Pid::PAT) => FuzzFilterSwitch::Pat(demultiplex::PatPacketFilter::default()),
+            demultiplex::FilterRequest::ByPid(psi::tsdt::TSDT_PID) => FuzzFilterSwitch::Tsdt(demultiplex::TsdtPacketFilter::new(FuzzTsdtConsumer)),
             demultiplex::FilterRequest::ByPid(_) => FuzzFilterSwitch::Null(demultiplex::NullPacketFilter::default()),
             demultiplex::FilterRequest::ByStream { stream_type, pmt, stream_info, .. } => {
                 // we make redundant calls to pmt.descriptors() for each stream, but this is the
