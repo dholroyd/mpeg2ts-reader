@@ -1,4 +1,6 @@
 use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::error::DemuxError;
+use mpeg2ts_reader::error::ErrorSink;
 use mpeg2ts_reader::packet::Packet;
 use std::fs::File;
 use std::io::Read;
@@ -24,6 +26,11 @@ pub struct StripDemuxContext<W: io::Write> {
     out: W,
     written: u64,
     stripped: u64,
+}
+impl<W: io::Write> ErrorSink for StripDemuxContext<W> {
+    fn error(&mut self, error: DemuxError) {
+        eprintln!("error: {}", error);
+    }
 }
 impl<W: io::Write> demultiplex::DemuxContext for StripDemuxContext<W> {
     type F = StripFilterSwitch<W>;
@@ -88,8 +95,6 @@ impl<W: io::Write> Default for PacketStripper<W> {
 }
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
-
     // open input file named on command line,
     let name = env::args().nth(1).unwrap();
     let mut f = File::open(&name).unwrap_or_else(|_| panic!("file not found: {}", &name));

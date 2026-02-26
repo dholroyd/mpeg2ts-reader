@@ -12,9 +12,9 @@
 //! [`Demultiplex`](../demultiplex/struct.Demultiplex.html) instance.
 
 use crate::demultiplex;
+use crate::error::DemuxError;
 use crate::packet;
 use crate::packet::ClockRef;
-use log::warn;
 use std::fmt::Formatter;
 use std::marker;
 use std::{fmt, num};
@@ -128,22 +128,39 @@ where
                 }
                 self.state = PesState::Started;
             }
-            if let Some(payload) = packet.payload() {
-                if let Some(header) = PesHeader::from_bytes(payload) {
-                    self.stream_consumer.begin_packet(ctx, header);
+            match packet.payload() {
+                Ok(Some(payload)) => match PesHeader::from_bytes(payload) {
+                    Ok(header) => self.stream_consumer.begin_packet(ctx, header),
+                    Err(_) => {
+                        ctx.error(DemuxError::PesHeaderParseError { pid: packet.pid() });
+                    }
+                },
+                Ok(None) => {}
+                Err(e) => {
+                    ctx.error(DemuxError::MalformedPayload {
+                        pid: packet.pid(),
+                        error: e,
+                    });
                 }
             }
         } else {
             match self.state {
-                PesState::Started => {
-                    if let Some(payload) = packet.payload() {
+                PesState::Started => match packet.payload() {
+                    Ok(Some(payload)) => {
                         if !payload.is_empty() {
                             self.stream_consumer.continue_packet(ctx, payload);
                         }
                     }
-                }
+                    Ok(None) => {}
+                    Err(e) => {
+                        ctx.error(DemuxError::MalformedPayload {
+                            pid: packet.pid(),
+                            error: e,
+                        });
+                    }
+                },
                 PesState::Begin => {
-                    warn!("{:?}: Ignoring elementary stream content without a payload_start_indicator", packet.pid());
+                    ctx.error(DemuxError::MissingPayloadStartIndicator { pid: packet.pid() });
                 }
                 PesState::IgnoreRest => (),
             }
@@ -301,27 +318,23 @@ impl<'buf> PesHeader<'buf> {
     /// Wraps the given slice in a PesHeader, which will then provide method to parse the header
     /// fields within the slice.
     ///
-    /// Returns `None` if the buffer is too small to hold the PES header, or if the PES
+    /// Returns `Err` if the buffer is too small to hold the PES header, or if the PES
     /// 'start code prefix' is missing.
-    ///
-    /// TODO: should probably return `Result`.
-    pub fn from_bytes(buf: &'buf [u8]) -> Option<PesHeader<'buf>> {
+    pub fn from_bytes(buf: &'buf [u8]) -> Result<PesHeader<'buf>, PesError> {
         // TODO: could the header straddle the boundary between TS packets?
         //       ..In which case we'd need to implement buffering.
         if buf.len() < Self::FIXED_HEADER_SIZE {
-            warn!("Buffer size {} too small to hold PES header", buf.len());
-            return None;
+            return Err(PesError::NotEnoughData {
+                requested: Self::FIXED_HEADER_SIZE,
+                available: buf.len(),
+            });
         }
         let packet_start_code_prefix =
             u32::from(buf[0]) << 16 | u32::from(buf[1]) << 8 | u32::from(buf[2]);
         if packet_start_code_prefix != 1 {
-            warn!(
-                "invalid packet_start_code_prefix 0x{:06x}, expected 0x000001",
-                packet_start_code_prefix
-            );
-            return None;
+            return Err(PesError::InvalidStartCode);
         }
-        Some(PesHeader { buf })
+        Ok(PesHeader { buf })
     }
 
     /// Indicator of the type of stream per _ISO/IEC 13818-1_, _Table 2-18_.
@@ -372,6 +385,14 @@ pub enum PesError {
     /// Marker bits are expected to always have the value `1` -- the value `0` presumably implies
     /// a parsing error.
     MarkerBitNotSet,
+    /// The `packet_start_code_prefix` is not `0x000001`.
+    InvalidStartCode,
+    /// The check bits in the PES parsed contents header are not `0b10`.
+    InvalidCheckBits,
+    /// The `PES_header_data_length` extends beyond the available buffer.
+    HeaderLengthExceedsBuffer,
+    /// The calculated header data requirements exceed the `PES_header_data_length`.
+    HeaderDataLengthMismatch,
 }
 
 /// Either `PesContents::Payload`, when the `PesHeader` has no extra fields, or
@@ -391,14 +412,14 @@ pub enum PesError {
 /// fn handle_payload(header: PesHeader) {
 ///     match header.contents() {
 ///         PesContents::Payload(buf) => do_something(buf),
-///         PesContents::Parsed(Some(parsed)) => do_something(parsed.payload()),
+///         PesContents::Parsed(Ok(parsed)) => do_something(parsed.payload()),
 ///         _ => println!("error: couldn't access PES payload!"),
 ///     }
 /// }
 /// ```
 pub enum PesContents<'buf> {
     /// payload with extra PES headers
-    Parsed(Option<PesParsedContents<'buf>>),
+    Parsed(Result<PesParsedContents<'buf>, PesError>),
     /// just payload without headers
     Payload(&'buf [u8]),
 }
@@ -594,16 +615,13 @@ impl<'buf> PackHeader<'buf> {
             | u64::from(s[2] & 0b0000_0011) << 13
             | u64::from(s[3]) << 5
             | u64::from(s[4] & 0b1111_1000) >> 3;
-        let extension =
-            u16::from(s[4] & 0b0000_0011) << 7 | u16::from(s[5] & 0b1111_1110) >> 1;
+        let extension = u16::from(s[4] & 0b0000_0011) << 7 | u16::from(s[5] & 0b1111_1110) >> 1;
         ClockRef::from_parts(base, extension)
     }
 
     /// Returns the 22-bit program_mux_rate value.
     pub fn program_mux_rate(&self) -> u32 {
-        u32::from(self.buf[10]) << 14
-            | u32::from(self.buf[11]) << 6
-            | u32::from(self.buf[12]) >> 2
+        u32::from(self.buf[10]) << 14 | u32::from(self.buf[11]) << 6 | u32::from(self.buf[12]) >> 2
     }
 
     /// Returns the 3-bit pack_stuffing_length value.
@@ -866,46 +884,29 @@ pub struct PesParsedContents<'buf> {
 }
 impl<'buf> PesParsedContents<'buf> {
     /// Wrap the given slice in a `ParsedPesContents` whose methods can parse the structure's
-    /// fields
+    /// fields.
     ///
-    /// Returns `None` if the buffer is too short to hold the expected structure, or if the
+    /// Returns `Err` if the buffer is too short to hold the expected structure, or if the
     /// 'check bit' values within the buffer do not have the expected values.
-    ///
-    /// TODO: return `Result`
-    pub fn from_bytes(buf: &'buf [u8]) -> Option<PesParsedContents<'buf>> {
+    pub fn from_bytes(buf: &'buf [u8]) -> Result<PesParsedContents<'buf>, PesError> {
         if buf.len() < Self::FIXED_HEADER_SIZE {
-            warn!(
-                "buf not large enough to hold PES parsed header: {} bytes",
-                buf.len()
-            );
-            return None;
+            return Err(PesError::NotEnoughData {
+                requested: Self::FIXED_HEADER_SIZE,
+                available: buf.len(),
+            });
         }
         let check_bits = buf[0] >> 6;
         if check_bits != 0b10 {
-            warn!(
-                "unexpected check-bits value {:#b}, expected 0b10",
-                check_bits
-            );
-            return None;
+            return Err(PesError::InvalidCheckBits);
         }
         let contents = PesParsedContents { buf };
         if (Self::FIXED_HEADER_SIZE + contents.pes_header_data_len()) > buf.len() {
-            warn!(
-                "reported PES header length {} does not fit within remaining buffer length {}",
-                contents.pes_header_data_len(),
-                buf.len() - Self::FIXED_HEADER_SIZE,
-            );
-            return None;
+            return Err(PesError::HeaderLengthExceedsBuffer);
         }
         if contents.pes_crc_end() > (Self::FIXED_HEADER_SIZE + contents.pes_header_data_len()) {
-            warn!(
-                "calculated PES header data length {} does not fit with in recorded PES_header_length {}",
-                contents.pes_crc_end() - Self::FIXED_HEADER_SIZE,
-                contents.pes_header_data_len(),
-            );
-            return None;
+            return Err(PesError::HeaderDataLengthMismatch);
         }
-        Some(contents)
+        Ok(contents)
     }
 
     /// value 1 indicates higher priority and 0 indicates lower priority
@@ -1556,8 +1557,7 @@ mod test {
 
         match header.contents() {
             pes::PesContents::Parsed(parsed_contents) => {
-                let p =
-                    parsed_contents.expect("expected PesContents::Parsed(Some(_)) but was None");
+                let p = parsed_contents.expect("expected PesContents::Parsed(Ok(_)) but was Err");
                 assert_eq!(0, p.pes_priority());
                 assert_eq!(pes::DataAlignment::Aligned, p.data_alignment_indicator());
                 assert_eq!(pes::Copyright::Undefined, p.copyright());
@@ -1787,7 +1787,10 @@ mod test {
         // the buffer generated is now one byte too short, so attempting to get the PES contents
         // should fail,
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
-        assert!(matches!(header.contents(), pes::PesContents::Parsed(None)));
+        assert!(matches!(
+            header.contents(),
+            pes::PesContents::Parsed(Err(_))
+        ));
     }
 
     #[test]
@@ -1818,7 +1821,10 @@ mod test {
             w.write(8, 2) // previous_PES_packet_CRC
         });
         let header = pes::PesHeader::from_bytes(&data[..]).unwrap();
-        assert!(matches!(header.contents(), pes::PesContents::Parsed(None)));
+        assert!(matches!(
+            header.contents(),
+            pes::PesContents::Parsed(Err(_))
+        ));
     }
 
     #[test]
@@ -1831,15 +1837,15 @@ mod test {
 
     #[test]
     fn should_reject_too_short_pes_header() {
-        assert!(PesHeader::from_bytes(&[0, 0, 1, 0, 0]).is_none());
+        assert!(PesHeader::from_bytes(&[0, 0, 1, 0, 0]).is_err());
     }
 
     #[test]
     fn should_reject_bad_start_code_prefix() {
         // start code prefix other than 0,0,1 should be rejected
-        assert!(PesHeader::from_bytes(&[0, 0, 2, 0, 0, 0]).is_none());
-        assert!(PesHeader::from_bytes(&[0, 1, 1, 0, 0, 0]).is_none());
-        assert!(PesHeader::from_bytes(&[1, 0, 1, 0, 0, 0]).is_none());
+        assert!(PesHeader::from_bytes(&[0, 0, 2, 0, 0, 0]).is_err());
+        assert!(PesHeader::from_bytes(&[0, 1, 1, 0, 0, 0]).is_err());
+        assert!(PesHeader::from_bytes(&[1, 0, 1, 0, 0, 0]).is_err());
     }
 
     #[test]
@@ -1891,16 +1897,16 @@ mod test {
 
     #[test]
     fn should_reject_parsed_pes_too_short_for_header() {
-        assert!(PesParsedContents::from_bytes(&[0b10000000, 0]).is_none());
+        assert!(PesParsedContents::from_bytes(&[0b10000000, 0]).is_err());
     }
     #[test]
     fn should_reject_parsed_pes_too_short_for_payload() {
-        assert!(PesParsedContents::from_bytes(&[0b10000000, 0, 1]).is_none());
+        assert!(PesParsedContents::from_bytes(&[0b10000000, 0, 1]).is_err());
     }
     #[test]
     fn should_reject_parsed_pes_bad_check_bits() {
         // first two bits are expected tp be 10, but here they are 01,
-        assert!(PesParsedContents::from_bytes(&[0b01000000, 0, 1]).is_none());
+        assert!(PesParsedContents::from_bytes(&[0b01000000, 0, 1]).is_err());
     }
     #[test]
     fn should_report_zero_flags() {
@@ -2065,7 +2071,7 @@ mod test {
                 packet[offset] = af_length as u8;
                 offset += 1;
                 packet[offset] = 0; // flags byte
-                // Rest is filled with 0xFF (stuffing bytes) by default initialization
+                                    // Rest is filled with 0xFF (stuffing bytes) by default initialization
             }
         }
 
@@ -2105,18 +2111,18 @@ mod test {
             w.write(1, 0)?; // PES_CRC_flag
             w.write(1, 0)?; // PES_extension_flag
             w.write(8, 0)?; // PES_header_data_length
-            // some payload data
+                            // some payload data
             w.write(32, 0x12345678u32)?;
             w.write(32, 0xABCDEF01u32)
         });
 
         // First packet: has payload, continuity counter = 5
         let packet1 = make_ts_packet(
-            0x100,               // PID
-            5,                   // continuity counter
-            true,                // payload_unit_start
-            true,                // has_payload
-            false,               // has_adaptation_field
+            0x100, // PID
+            5,     // continuity counter
+            true,  // payload_unit_start
+            true,  // has_payload
+            false, // has_adaptation_field
             &pes_data,
         );
         let pk1 = packet::Packet::new(&packet1[..]);
@@ -2133,11 +2139,11 @@ mod test {
         // Second packet: NO payload (adaptation field only), SAME continuity counter = 5
         // According to spec, continuity counter should not increment when packet has no payload
         let packet2 = make_ts_packet(
-            0x100,               // same PID
-            5,                   // SAME continuity counter (should not increment without payload)
-            false,               // no payload_unit_start
-            false,               // NO payload
-            true,                // has_adaptation_field (adaptation field only)
+            0x100, // same PID
+            5,     // SAME continuity counter (should not increment without payload)
+            false, // no payload_unit_start
+            false, // NO payload
+            true,  // has_adaptation_field (adaptation field only)
             &[],
         );
         let pk2 = packet::Packet::new(&packet2[..]);
@@ -2151,11 +2157,11 @@ mod test {
 
         // Third packet: has payload again, continuity counter should increment to 6
         let packet3 = make_ts_packet(
-            0x100,               // same PID
-            6,                   // continuity counter incremented
-            false,               // no payload_unit_start
-            true,                // has_payload
-            false,               // no adaptation_field
+            0x100, // same PID
+            6,     // continuity counter incremented
+            false, // no payload_unit_start
+            true,  // has_payload
+            false, // no adaptation_field
             &[1, 2, 3, 4, 5],
         );
         let pk3 = packet::Packet::new(&packet3[..]);
@@ -2164,7 +2170,10 @@ mod test {
         // Verify still no continuity error
         {
             let state = state.borrow();
-            assert!(!state.continuity_error_called, "Continuity error should not be called for properly incrementing counter");
+            assert!(
+                !state.continuity_error_called,
+                "Continuity error should not be called for properly incrementing counter"
+            );
         }
     }
 
@@ -2272,7 +2281,7 @@ mod test {
             w.write(1, 1u8)?; // P-STD_buffer_flag
             w.write(1, 0u8)?; // PES_extension_flag_2
             w.write(3, 0b111u8)?; // reserved
-            // 16 bytes of private data
+                                  // 16 bytes of private data
             for _ in 0u8..16 {
                 w.write(8, 0xAAu8)?;
             }
@@ -2328,7 +2337,7 @@ mod test {
             w.write(1, 0u8)?; // PES_extension_flag_2
             w.write(3, 0b111u8)?; // reserved
             w.write(8, 14u8)?; // pack_field_length (14 bytes for pack_header)
-            // pack_header():
+                               // pack_header():
             w.write(32, 0x000001BAu32)?; // pack_start_code
             write_pack_scr(w, scr_base, scr_extension)?;
             w.write(22, mux_rate)?; // program_mux_rate
@@ -2381,7 +2390,7 @@ mod test {
             w.write(1, 1u8)?; // stream_id_extension_flag (1 = extended form)
             w.write(6, 0b111111u8)?; // reserved
             w.write(1, 0u8)?; // tref_extension_flag (0 = TREF present)
-            // TREF uses same 5-byte encoding as PTS/DTS
+                              // TREF uses same 5-byte encoding as PTS/DTS
             write_ts(w, tref_val, 0b0000)?;
             Ok(())
         });
@@ -2442,14 +2451,14 @@ mod test {
         });
         let header = PesHeader::from_bytes(&data).unwrap();
         match header.contents() {
-            PesContents::Parsed(Some(parsed)) => {
+            PesContents::Parsed(Ok(parsed)) => {
                 let ext = parsed.pes_extension().unwrap();
                 let buf = ext.p_std_buffer().unwrap();
                 assert!(buf.buffer_scale());
                 assert_eq!(buf.buffer_size_raw(), 256);
                 assert_eq!(buf.buffer_size_bytes(), 256 * 1024);
             }
-            _ => panic!("expected PesContents::Parsed(Some(...))"),
+            _ => panic!("expected PesContents::Parsed(Ok(...))"),
         }
     }
 }

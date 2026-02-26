@@ -25,9 +25,9 @@ pub mod pat;
 pub mod pmt;
 pub mod tsdt;
 
+use crate::error::{DemuxError, ErrorSink};
 use crate::mpegts_crc;
 use crate::packet;
-use log::warn;
 use std::fmt;
 
 // TODO: there is quite some duplication between XxxSectionSyntaxYyy and XxxCompactSyntaxYyy types
@@ -50,7 +50,7 @@ use std::fmt;
 pub trait SectionProcessor {
     /// The type of the context object that the caller will pass through to the methods of this
     /// trait
-    type Context;
+    type Context: ErrorSink;
 
     /// Note that the first 3 bytes of `section_data` contain the header fields that have also
     /// been supplied to this call in the `header` parameter.  This is to allow implementers to
@@ -165,6 +165,7 @@ pub struct CrcCheckWholeSectionSyntaxPayloadParser<P>
 where
     P: WholeSectionSyntaxPayloadParser,
 {
+    pid: packet::Pid,
     inner: P,
 }
 impl<P> CrcCheckWholeSectionSyntaxPayloadParser<P>
@@ -175,8 +176,8 @@ where
 
     /// create a new CrcCheckWholeSectionSyntaxPayloadParser which wraps and delegates to the given
     /// `WholeSectionSyntaxPayloadParser` instance
-    pub fn new(inner: P) -> CrcCheckWholeSectionSyntaxPayloadParser<P> {
-        CrcCheckWholeSectionSyntaxPayloadParser { inner }
+    pub fn new(pid: packet::Pid, inner: P) -> CrcCheckWholeSectionSyntaxPayloadParser<P> {
+        CrcCheckWholeSectionSyntaxPayloadParser { pid, inner }
     }
 }
 
@@ -195,18 +196,20 @@ where
     ) {
         assert!(header.section_syntax_indicator);
         if data.len() < SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE + Self::CRC_SIZE {
-            // must be big enough to hold the CRC!
-            warn!(
-                "section data length too small for table_id {}: {}",
-                header.table_id,
-                data.len()
-            );
+            ctx.error(DemuxError::SectionTooSmallForCrc {
+                pid: self.pid,
+                table_id: header.table_id,
+                actual: data.len(),
+            });
             return;
         }
         // don't apply CRC checks when fuzzing, to give more chances of test data triggering
         // parser bugs,
         if !cfg!(fuzzing) && mpegts_crc::sum32(data) != 0 {
-            warn!("section crc check failed for table_id {}", header.table_id,);
+            ctx.error(DemuxError::CrcCheckFailed {
+                pid: self.pid,
+                table_id: header.table_id,
+            });
             return;
         }
         self.inner.section(ctx, header, table_syntax_header, data);
@@ -217,7 +220,7 @@ where
 /// to have buffered section data if it spanned multiple TS packets.
 pub trait WholeSectionSyntaxPayloadParser {
     /// Type of the context object that will be passed to all methods.
-    type Context;
+    type Context: ErrorSink;
 
     /// Method that will receive a complete PSI table section, where the `data` parameter will
     /// be `header.section_length` bytes long
@@ -236,7 +239,7 @@ pub trait WholeSectionSyntaxPayloadParser {
 /// and the `BufferCompactSyntaxParser` type is available to perform such buffering.
 pub trait WholeCompactSyntaxPayloadParser {
     /// Type of the context object that will be passed to all methods.
-    type Context;
+    type Context: ErrorSink;
 
     /// Method that will receive a complete PSI table section, where the `data` parameter will
     /// be `header.section_length` bytes long
@@ -255,6 +258,7 @@ pub struct BufferSectionSyntaxParser<P>
 where
     P: WholeSectionSyntaxPayloadParser,
 {
+    pid: packet::Pid,
     buf: Vec<u8>,
     state: BufferSectionState,
     parser: P,
@@ -265,8 +269,9 @@ where
 {
     /// wraps the given `WholeSectionSyntaxPayloadParser` instance in a new
     /// `BufferSectionSyntaxParser`.
-    pub fn new(parser: P) -> BufferSectionSyntaxParser<P> {
+    pub fn new(pid: packet::Pid, parser: P) -> BufferSectionSyntaxParser<P> {
         BufferSectionSyntaxParser {
+            pid,
             buf: vec![],
             state: BufferSectionState::Complete,
             parser,
@@ -308,7 +313,7 @@ where
     fn continue_syntax_section(&mut self, ctx: &mut Self::Context, data: &[u8]) {
         match self.state {
             BufferSectionState::Complete => {
-                warn!("attempt to add extra data when section already complete");
+                ctx.error(DemuxError::ExtraDataAfterSectionComplete { pid: self.pid });
             }
             BufferSectionState::Buffering(remaining) => {
                 let new_remaining = if data.len() > remaining {
@@ -344,6 +349,7 @@ pub struct BufferCompactSyntaxParser<P>
 where
     P: WholeCompactSyntaxPayloadParser,
 {
+    pid: packet::Pid,
     buf: Vec<u8>,
     state: BufferSectionState,
     parser: P,
@@ -354,8 +360,9 @@ where
 {
     /// wraps the given `WholeSectionSyntaxPayloadParser` instance in a new
     /// `BufferSectionSyntaxParser`.
-    pub fn new(parser: P) -> BufferCompactSyntaxParser<P> {
+    pub fn new(pid: packet::Pid, parser: P) -> BufferCompactSyntaxParser<P> {
         BufferCompactSyntaxParser {
+            pid,
             buf: vec![],
             state: BufferSectionState::Complete,
             parser,
@@ -392,7 +399,7 @@ where
     fn continue_compact_section(&mut self, ctx: &mut Self::Context, data: &[u8]) {
         match self.state {
             BufferSectionState::Complete => {
-                warn!("attempt to add extra data when section already complete");
+                ctx.error(DemuxError::ExtraDataAfterSectionComplete { pid: self.pid });
             }
             BufferSectionState::Buffering(remaining) => {
                 let new_remaining = if data.len() > remaining {
@@ -486,7 +493,7 @@ where
 /// Trait for types that will handle MPEGTS PSI table sections with 'section syntax'.
 pub trait SectionSyntaxPayloadParser {
     /// The type of the context object passed to all methods
-    type Context;
+    type Context: ErrorSink;
 
     /// NB the `data` buffer passed to _will_ include the bytes which are represented by `header`
     /// and `table_syntax_header` (in order that the called code can check any CRC that covers the
@@ -511,7 +518,7 @@ pub trait SectionSyntaxPayloadParser {
 /// Trait for types that will handle MPEGTS PSI table sections with 'compact syntax'.
 pub trait CompactSyntaxPayloadParser {
     /// The type of the context object passed to all methods
-    type Context;
+    type Context: ErrorSink;
 
     /// NB the `data` buffer passed to _will_ include the bytes which are represented by `header`
     /// (in order that the called code can check any CRC that covers the
@@ -540,6 +547,7 @@ pub struct CompactSyntaxSectionProcessor<SP>
 where
     SP: CompactSyntaxPayloadParser,
 {
+    pid: packet::Pid,
     payload_parser: SP,
     ignore_rest: bool,
 }
@@ -551,8 +559,9 @@ where
 
     /// Wraps the given `CompactSyntaxPayloadParser` instance in a new
     /// `CompactSyntaxSectionProcessor`.
-    pub fn new(payload_parser: SP) -> CompactSyntaxSectionProcessor<SP> {
+    pub fn new(pid: packet::Pid, payload_parser: SP) -> CompactSyntaxSectionProcessor<SP> {
         CompactSyntaxSectionProcessor {
+            pid,
             payload_parser,
             ignore_rest: false,
         }
@@ -571,24 +580,30 @@ where
         data: &[u8],
     ) {
         if header.section_syntax_indicator {
-            // Maybe this should actually be allowed in some cases?
-            warn!(
-                "CompactSyntaxSectionProcessor requires that section_syntax_indicator NOT be set in the section header"
-            );
+            ctx.error(DemuxError::UnexpectedSectionSyntaxIndicator {
+                pid: self.pid,
+                table_id: header.table_id,
+            });
             self.ignore_rest = true;
             return;
         }
         if data.len() < SectionCommonHeader::SIZE {
-            warn!("CompactSyntaxSectionProcessor data {} too short for header {} (TODO: implement buffering)", data.len(), SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE);
+            ctx.error(DemuxError::SectionDataTooShort {
+                pid: self.pid,
+                table_id: header.table_id,
+                actual: data.len(),
+                minimum: SectionCommonHeader::SIZE,
+            });
             self.ignore_rest = true;
             return;
         }
         if header.section_length > Self::SECTION_LIMIT {
-            warn!(
-                "CompactSyntaxSectionProcessor section_length={} is too large (limit {})",
-                header.section_length,
-                Self::SECTION_LIMIT
-            );
+            ctx.error(DemuxError::PsiSectionTooLarge {
+                pid: self.pid,
+                table_id: header.table_id,
+                length: header.section_length,
+                limit: Self::SECTION_LIMIT,
+            });
             self.ignore_rest = true;
             return;
         }
@@ -615,6 +630,7 @@ pub struct SectionSyntaxSectionProcessor<SP>
 where
     SP: SectionSyntaxPayloadParser,
 {
+    pid: packet::Pid,
     payload_parser: SP,
     ignore_rest: bool,
 }
@@ -626,8 +642,9 @@ where
 
     /// Wraps the given `SectionSyntaxPayloadParser` instance in a new
     /// `SectionSyntaxSectionProcessor`.
-    pub fn new(payload_parser: SP) -> SectionSyntaxSectionProcessor<SP> {
+    pub fn new(pid: packet::Pid, payload_parser: SP) -> SectionSyntaxSectionProcessor<SP> {
         SectionSyntaxSectionProcessor {
+            pid,
             payload_parser,
             ignore_rest: false,
         }
@@ -646,23 +663,30 @@ where
         data: &[u8],
     ) {
         if !header.section_syntax_indicator {
-            warn!(
-                "SectionSyntaxSectionProcessor requires that section_syntax_indicator be set in the section header"
-            );
+            ctx.error(DemuxError::UnexpectedSectionSyntaxIndicator {
+                pid: self.pid,
+                table_id: header.table_id,
+            });
             self.ignore_rest = true;
             return;
         }
         if data.len() < SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE {
-            warn!("SectionSyntaxSectionProcessor data {} too short for header {} (TODO: implement buffering)", data.len(), SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE);
+            ctx.error(DemuxError::SectionDataTooShort {
+                pid: self.pid,
+                table_id: header.table_id,
+                actual: data.len(),
+                minimum: SectionCommonHeader::SIZE + TableSyntaxHeader::SIZE,
+            });
             self.ignore_rest = true;
             return;
         }
         if header.section_length > Self::SECTION_LIMIT {
-            warn!(
-                "SectionSyntaxSectionProcessor section_length={} is too large (limit {})",
-                header.section_length,
-                Self::SECTION_LIMIT
-            );
+            ctx.error(DemuxError::PsiSectionTooLarge {
+                pid: self.pid,
+                table_id: header.table_id,
+                length: header.section_length,
+                limit: Self::SECTION_LIMIT,
+            });
             self.ignore_rest = true;
             return;
         }
@@ -722,33 +746,34 @@ pub struct SectionPacketConsumer<P>
 where
     P: SectionProcessor,
 {
+    pid: packet::Pid,
     parser: P,
 }
 
 // TODO: maybe just implement PacketFilter directly
 
-impl<P, Ctx> SectionPacketConsumer<P>
+impl<P, Ctx: ErrorSink> SectionPacketConsumer<P>
 where
     P: SectionProcessor<Context = Ctx>,
 {
     /// Construct a new instance that will delegate processing of section data found in TS packet
     /// payloads to the given `SectionProcessor` instance.
-    pub fn new(parser: P) -> SectionPacketConsumer<P> {
-        SectionPacketConsumer { parser }
+    pub fn new(pid: packet::Pid, parser: P) -> SectionPacketConsumer<P> {
+        SectionPacketConsumer { pid, parser }
     }
 
     /// process the payload of the given TS packet, passing each piece of section data discovered
     /// to the `SectionProcessor` instance given at time of construction.
     pub fn consume(&mut self, ctx: &mut Ctx, pk: &packet::Packet<'_>) {
         match pk.payload() {
-            Some(pk_buf) => {
+            Ok(Some(pk_buf)) => {
                 if pk.payload_unit_start_indicator() {
                     // this packet payload contains the start of a new PSI section
                     let pointer = pk_buf[0] as usize;
                     let section_data = &pk_buf[1..];
                     if pointer > 0 {
                         if pointer >= section_data.len() {
-                            warn!("PSI pointer beyond end of packet payload");
+                            ctx.error(DemuxError::PsiPointerOutOfBounds { pid: self.pid });
                             self.parser.reset();
                             return;
                         }
@@ -759,9 +784,7 @@ where
                     }
                     let next_sect = &section_data[pointer..];
                     if next_sect.len() < SectionCommonHeader::SIZE {
-                        warn!(
-                            "TODO: not enough bytes to read section header - implement buffering"
-                        );
+                        ctx.error(DemuxError::SectionHeaderTooShort { pid: self.pid });
                         self.parser.reset();
                         return;
                     }
@@ -772,8 +795,14 @@ where
                     self.parser.continue_section(ctx, pk_buf);
                 }
             }
-            None => {
-                warn!("no payload present in PSI packet");
+            Ok(None) => {
+                ctx.error(DemuxError::NoPayloadInPsiPacket { pid: self.pid });
+            }
+            Err(e) => {
+                ctx.error(DemuxError::MalformedPayload {
+                    pid: self.pid,
+                    error: e,
+                });
             }
         }
     }
@@ -824,7 +853,7 @@ mod test {
         buf[0] = 0x47;
         buf[3] |= 0b00010000; // PayloadOnly
         let pk = Packet::new(&buf[..]);
-        let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
+        let mut psi_buf = SectionPacketConsumer::new(packet::Pid::new(0), NullSectionProcessor);
         let mut ctx = NullDemuxContext::new();
         psi_buf.consume(&mut ctx, &pk);
     }
@@ -837,7 +866,7 @@ mod test {
         buf[3] |= 0b00010000; // PayloadOnly
         buf[7] = 3; // section_length
         let pk = Packet::new(&buf[..]);
-        let mut psi_buf = SectionPacketConsumer::new(NullSectionProcessor);
+        let mut psi_buf = SectionPacketConsumer::new(packet::Pid::new(0), NullSectionProcessor);
         let mut ctx = NullDemuxContext::new();
         psi_buf.consume(&mut ctx, &pk);
     }
@@ -862,11 +891,16 @@ mod test {
     fn section_spanning_packets() {
         // state to track if MockSectParse.section() got called,
         let state = Rc::new(RefCell::new(false));
-        let mut p = BufferSectionSyntaxParser::new(CrcCheckWholeSectionSyntaxPayloadParser::new(
-            MockWholeSectParse {
-                state: state.clone(),
-            },
-        ));
+        let pid = packet::Pid::new(0);
+        let mut p = BufferSectionSyntaxParser::new(
+            pid,
+            CrcCheckWholeSectionSyntaxPayloadParser::new(
+                pid,
+                MockWholeSectParse {
+                    state: state.clone(),
+                },
+            ),
+        );
         let ctx = &mut ();
         {
             let sect = hex!(
@@ -1052,9 +1086,12 @@ mod test {
             reset: 0,
             continue_section: 0,
         }));
-        let mut proc = CompactSyntaxSectionProcessor::new(Mock {
-            inner: counts.clone(),
-        });
+        let mut proc = CompactSyntaxSectionProcessor::new(
+            packet::Pid::new(0),
+            Mock {
+                inner: counts.clone(),
+            },
+        );
 
         let ctx = &mut ();
 
@@ -1128,7 +1165,7 @@ mod test {
             }
         }
         let mock = Mock { section_count: 0 };
-        let mut parser = BufferCompactSyntaxParser::new(mock);
+        let mut parser = BufferCompactSyntaxParser::new(packet::Pid::new(0), mock);
         let ctx = &mut ();
 
         let common_header = SectionCommonHeader::new(&SECT[..SectionCommonHeader::SIZE]);
@@ -1188,7 +1225,7 @@ mod test {
                 continue_syntax_section_count: 0,
                 reset_count: 0,
             };
-            let mut proc = SectionSyntaxSectionProcessor::new(mock);
+            let mut proc = SectionSyntaxSectionProcessor::new(packet::Pid::new(0), mock);
             // copy the sample data
             let mut not_section_syntax = sect.to_vec();
             // set section_syntax_indicator to 0
@@ -1207,7 +1244,7 @@ mod test {
                 continue_syntax_section_count: 0,
                 reset_count: 0,
             };
-            let mut proc = SectionSyntaxSectionProcessor::new(mock);
+            let mut proc = SectionSyntaxSectionProcessor::new(packet::Pid::new(0), mock);
             // copy the sample data, but now make it too short to be a valid
             // SectionCommonHeader + TableSyntaxHeader
             let too_short = &sect[0..7];
@@ -1224,7 +1261,7 @@ mod test {
                 continue_syntax_section_count: 0,
                 reset_count: 0,
             };
-            let mut proc = SectionSyntaxSectionProcessor::new(mock);
+            let mut proc = SectionSyntaxSectionProcessor::new(packet::Pid::new(0), mock);
             let mut section_length_too_large = sect.to_vec();
             let bad_section_length: u16 = 4093 + 1;
             assert_eq!(bad_section_length >> 8 & 0b1111_0000, 0);
@@ -1278,9 +1315,12 @@ mod test {
         sect_length_too_small[2] = (bad_section_length & 0xff) as u8;
         sect_length_too_small.truncate(bad_section_length as usize);
         let state = Rc::new(RefCell::new(false));
-        let mut crc_check = CrcCheckWholeSectionSyntaxPayloadParser::new(MockWholeSectParse {
-            state: state.clone(),
-        });
+        let mut crc_check = CrcCheckWholeSectionSyntaxPayloadParser::new(
+            packet::Pid::new(0),
+            MockWholeSectParse {
+                state: state.clone(),
+            },
+        );
         let common_header =
             SectionCommonHeader::new(&sect_length_too_small[..SectionCommonHeader::SIZE]);
         let table_header =

@@ -12,10 +12,30 @@
 
 ### Changed
  - **Breaking:** `AdaptationField::splice_countdown()` now returns `Result<i8, ..>` instead of `Result<u8, ..>`, since the spec defines this as a signed two's complement value.
+ - **Breaking:** `PesHeader::from_bytes()` now returns `Result<PesHeader, PesError>` instead of `Option<PesHeader>`.
+ - **Breaking:** `PesParsedContents::from_bytes()` now returns `Result<PesParsedContents, PesError>` instead of `Option<PesParsedContents>`.
+ - **Breaking:** `PesContents::Parsed` now wraps `Result<PesParsedContents, PesError>` instead of `Option<PesParsedContents>`. Pattern matches should change from `Parsed(Some(content))` / `Parsed(None)` to `Parsed(Ok(content))` / `Parsed(Err(_))`.
+ - **Breaking:** `Packet::try_new()` now returns `Result<Packet, PacketError>` instead of `Option<Packet>`.
+ - **Breaking:** `Packet::adaptation_field()` now returns `Result<Option<AdaptationField>, PacketError>` instead of `Option<AdaptationField>`.
+ - **Breaking:** `Packet::payload()` now returns `Result<Option<&[u8]>, PacketError>` instead of `Option<&[u8]>`.
+ - **Breaking:** `PatSection::programs()` iterator now yields `Result<ProgramDescriptor, PatError>` instead of `ProgramDescriptor`.
+ - **Breaking:** `DemuxError` has been renamed to `PmtError` and moved from the `demultiplex` module to `psi::pmt`.
+ - **Breaking:** `PmtSection::streams()` iterator now yields `Result<StreamInfo, PmtError>` instead of `StreamInfo`.
+ - Replaced all `warn!()` logging with the new `ErrorSink::error()` callback.
+ - **Breaking:** `DemuxContext` now requires `ErrorSink` as a supertrait. The `demux_context!` macro automatically provides a no-op `ErrorSink` impl.
 
 ### Added
+ - `ErrorSink` trait with a default no-op `error()` method. Override this to receive error reports about transport stream problems. When not overridden, monomorphization eliminates the calls entirely in release builds.
+ - `DemuxError` enum (in the `error` module) for programmatic access to parsing problems (transport errors, scrambled packets, invalid table IDs, section length violations, PMT/PES parse errors).
+ - `PmtError` enum (in the `psi::pmt` module) for PMT-specific parse errors (previously `DemuxError` in the `demultiplex` module).
+ - `CrcCheckWholeSectionSyntaxPayloadParser::new()` now takes a `pid` parameter so errors carry the originating PID.
+ - PSI helper types (`SectionPacketConsumer`, `SectionSyntaxSectionProcessor`, `CompactSyntaxSectionProcessor`, `BufferSectionSyntaxParser`, `BufferCompactSyntaxParser`) now take a `pid` parameter in their constructors so all errors carry the originating PID.
+ - `PesError` variants: `InvalidStartCode`, `InvalidCheckBits`, `HeaderLengthExceedsBuffer`, `HeaderDataLengthMismatch`.
  - Updated `StreamType` constants and `CoreDescriptors` / `AudioType` variants to match the 2025 edition.
  - Added TSDT (Transport Stream Description Table) support: `psi::tsdt::TsdtSection` for parsing, `demultiplex::TsdtConsumer` trait for receiving parsed sections, and `demultiplex::TsdtPacketFilter` for integration with the demuxer.
+
+### Removed
+ - `log` dependency.
 
 ## 0.18.2 - 2025-01-29
 

@@ -56,7 +56,7 @@ impl TimeCheckElementaryStreamConsumer {
 impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for TimeCheckElementaryStreamConsumer {
     fn start_stream(&mut self, _ctx: &mut Ctx) {  }
     fn begin_packet(&mut self, _ctx: &mut Ctx, header: pes::PesHeader) {
-        if let pes::PesContents::Parsed(Some(content)) = header.contents() {
+        if let pes::PesContents::Parsed(Ok(content)) = header.contents() {
             let this_ts = match content.pts_dts() {
                 Ok(pes::PtsDts::PtsOnly(Ok(ts))) => Some(ts.value()),
                 Ok(pes::PtsDts::Both{ dts: Ok(ts), .. }) => Some(ts.value()),

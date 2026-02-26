@@ -1,7 +1,6 @@
 //! A [`Packet`](./struct.Packet.html) struct and associated infrastructure to read an MPEG Transport Stream packet
 
 use crate::pes;
-use log::warn;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
@@ -135,6 +134,38 @@ impl ClockRef {
     /// clockrate (i.e. 27MHz)
     pub fn extension(&self) -> u16 {
         self.extension
+    }
+}
+
+/// An error encountered while parsing a transport stream packet.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PacketError {
+    /// The first byte of the packet is not the expected sync byte (`0x47`).
+    InvalidSyncByte(u8),
+    /// The adaptation field length value is invalid for this packet.
+    InvalidAdaptationFieldLength {
+        /// The length value found in the packet.
+        length: usize,
+    },
+    /// The computed payload offset exceeds the packet size.
+    PayloadOutOfBounds {
+        /// The offset that was out of bounds.
+        offset: usize,
+    },
+}
+impl fmt::Display for PacketError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PacketError::InvalidSyncByte(b) => {
+                write!(f, "invalid sync byte: expected 0x47, got {:#04x}", b)
+            }
+            PacketError::InvalidAdaptationFieldLength { length } => {
+                write!(f, "invalid adaptation field length: {}", length)
+            }
+            PacketError::PayloadOutOfBounds { offset } => {
+                write!(f, "payload offset out of bounds: {}", offset)
+            }
+        }
     }
 }
 
@@ -548,15 +579,15 @@ impl<'buf> Packet<'buf> {
         Packet { buf }
     }
 
-    /// Like `new()`, but returns `None` if the sync-byte has incorrect value (still panics if the
+    /// Like `new()`, but returns `Err` if the sync-byte has incorrect value (still panics if the
     /// buffer size is not 188 bytes).
     #[inline(always)]
-    pub fn try_new(buf: &'buf [u8]) -> Option<Packet<'buf>> {
+    pub fn try_new(buf: &'buf [u8]) -> Result<Packet<'buf>, PacketError> {
         assert_eq!(buf.len(), Self::SIZE);
         if Packet::is_sync_byte(buf[0]) {
-            Some(Packet { buf })
+            Ok(Packet { buf })
         } else {
-            None
+            Err(PacketError::InvalidSyncByte(buf[0]))
         }
     }
 
@@ -616,37 +647,30 @@ impl<'buf> Packet<'buf> {
     }
 
     /// An `AdaptationField` contains additional packet headers that may be present in the packet.
-    pub fn adaptation_field(&self) -> Option<AdaptationField<'buf>> {
+    ///
+    /// Returns `Ok(None)` if the adaptation field control bits indicate no adaptation field is
+    /// present. Returns `Err` if the adaptation field length is invalid.
+    pub fn adaptation_field(&self) -> Result<Option<AdaptationField<'buf>>, PacketError> {
         let ac = self.adaptation_control();
         if ac.has_adaptation_field() {
             if ac.has_payload() {
                 let len = self.adaptation_field_length();
                 if len > 182 {
-                    warn!(
-                        "invalid adaptation_field_length for AdaptationFieldAndPayload: {}",
-                        len
-                    );
-                    // TODO: Option<Result<AdaptationField>> instead?
-                    return None;
+                    return Err(PacketError::InvalidAdaptationFieldLength { length: len });
                 }
                 if len == 0 {
-                    return None;
+                    return Err(PacketError::InvalidAdaptationFieldLength { length: len });
                 }
-                Some(self.mk_af(len))
+                Ok(Some(self.mk_af(len)))
             } else {
                 let len = self.adaptation_field_length();
                 if len != (Self::SIZE - ADAPTATION_FIELD_OFFSET) {
-                    warn!(
-                        "invalid adaptation_field_length for AdaptationFieldOnly: {}",
-                        len
-                    );
-                    // TODO: Option<Result<AdaptationField>> instead?
-                    return None;
+                    return Err(PacketError::InvalidAdaptationFieldLength { length: len });
                 }
-                Some(self.mk_af(len))
+                Ok(Some(self.mk_af(len)))
             }
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -655,35 +679,26 @@ impl<'buf> Packet<'buf> {
     }
 
     /// The data contained within the packet, not including the packet headers.
-    /// Not all packets have a payload, and `None` is returned if `adaptation_control()` indicates
-    /// that no payload is present.  None may also be returned if the packet is malformed.
-    /// If `Some` payload is returned, it is guaranteed not to be an empty slice.
+    /// Returns `Ok(None)` if `adaptation_control()` indicates no payload is present.
+    /// Returns `Err` if the payload offset is out of bounds (malformed packet).
+    /// If `Ok(Some(payload))` is returned, it is guaranteed not to be an empty slice.
     #[inline(always)]
-    pub fn payload(&self) -> Option<&'buf [u8]> {
+    pub fn payload(&self) -> Result<Option<&'buf [u8]>, PacketError> {
         if self.adaptation_control().has_payload() {
             self.mk_payload()
         } else {
-            None
+            Ok(None)
         }
     }
 
     #[inline]
-    fn mk_payload(&self) -> Option<&'buf [u8]> {
+    fn mk_payload(&self) -> Result<Option<&'buf [u8]>, PacketError> {
         let offset = self.content_offset();
         let len = self.buf.len();
         match offset.cmp(&len) {
-            Ordering::Equal => {
-                warn!("no payload data present");
-                None
-            }
-            Ordering::Greater => {
-                warn!(
-                    "adaptation_field_length {} too large",
-                    self.adaptation_field_length()
-                );
-                None
-            }
-            Ordering::Less => Some(&self.buf[offset..]),
+            Ordering::Equal => Ok(None),
+            Ordering::Greater => Err(PacketError::PayloadOutOfBounds { offset }),
+            Ordering::Less => Ok(Some(&self.buf[offset..])),
         }
     }
 
@@ -741,8 +756,8 @@ mod test {
         assert!(pk.adaptation_control().has_payload());
         assert!(pk.adaptation_control().has_adaptation_field());
         assert_eq!(pk.continuity_counter().count(), 0b1111);
-        assert!(pk.adaptation_field().is_some());
-        let ad = pk.adaptation_field().unwrap();
+        assert!(pk.adaptation_field().unwrap().is_some());
+        let ad = pk.adaptation_field().unwrap().unwrap();
         assert!(ad.discontinuity_indicator());
         assert_eq!(
             ad.pcr(),
@@ -783,7 +798,7 @@ mod test {
         let pk = Packet::new(&buf[..]);
         assert!(pk.adaptation_control().has_payload());
         assert!(pk.adaptation_control().has_adaptation_field());
-        assert!(pk.adaptation_field().is_none());
+        assert!(pk.adaptation_field().is_err());
     }
 
     #[test]

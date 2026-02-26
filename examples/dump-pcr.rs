@@ -4,6 +4,8 @@ extern crate mpeg2ts_reader;
 use mpeg2ts_reader::demultiplex;
 use mpeg2ts_reader::demultiplex::DemuxContext;
 use mpeg2ts_reader::demultiplex::PacketFilter;
+use mpeg2ts_reader::error::DemuxError;
+use mpeg2ts_reader::error::ErrorSink;
 use mpeg2ts_reader::packet::Packet;
 use mpeg2ts_reader::psi;
 use std::env;
@@ -19,9 +21,28 @@ packet_filter_switch! {
         Pcr: PcrPacketFilter<PcrDumpDemuxContext>,
     }
 }
-demux_context!(PcrDumpDemuxContext, PcrDumpFilterSwitch);
+#[derive(Default)]
+pub struct PcrDumpDemuxContext {
+    changeset: demultiplex::FilterChangeset<PcrDumpFilterSwitch>,
+}
 impl PcrDumpDemuxContext {
-    fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> PcrDumpFilterSwitch {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+impl ErrorSink for PcrDumpDemuxContext {
+    fn error(&mut self, error: DemuxError) {
+        eprintln!("error: {}", error);
+    }
+}
+impl DemuxContext for PcrDumpDemuxContext {
+    type F = PcrDumpFilterSwitch;
+
+    fn filter_changeset(&mut self) -> &mut demultiplex::FilterChangeset<Self::F> {
+        &mut self.changeset
+    }
+
+    fn construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> PcrDumpFilterSwitch {
         match req {
             demultiplex::FilterRequest::ByPid(psi::pat::PAT_PID) => {
                 PcrDumpFilterSwitch::Pat(demultiplex::PatPacketFilter::default())
@@ -70,7 +91,7 @@ impl<Ctx: DemuxContext> PcrPacketFilter<Ctx> {
 impl<Ctx: DemuxContext> PacketFilter for PcrPacketFilter<Ctx> {
     type Ctx = Ctx;
     fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &Packet) {
-        if let Some(adaptation_field) = pk.adaptation_field() {
+        if let Ok(Some(adaptation_field)) = pk.adaptation_field() {
             if let Ok(pcr) = adaptation_field.pcr() {
                 println!("{:?} pcr={}", pk.pid(), u64::from(pcr));
             }
@@ -79,8 +100,6 @@ impl<Ctx: DemuxContext> PacketFilter for PcrPacketFilter<Ctx> {
 }
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
-
     // open input file named on command line,
     let name = env::args().nth(1).unwrap();
     let mut f = File::open(&name).unwrap_or_else(|_| panic!("file not found: {}", &name));

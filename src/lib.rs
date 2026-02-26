@@ -24,16 +24,11 @@
 //!     track application-specific details.
 //!   - Currently mutable state is stored in the instance for each type of syntax parser, and
 //!     it would be nice to explore extracting this out into parser-specific context types
-//! - Event generation / remove `warn!()`
-//!   - currently problems are reported to the `log` crate
-//!   - I would much prefer a way to emit 'events' for interesting data that can't just be an error
-//!     return value, and to not have any logging code mixed with parsing logic
-//! - General
-//!   - lots of places return `Option` but should return `Result` and a descriptive error
 
 #![forbid(unsafe_code)]
 #![deny(rust_2018_idioms, future_incompatible, missing_docs)]
 
+pub mod error;
 pub mod packet;
 #[macro_use]
 pub mod demultiplex;
