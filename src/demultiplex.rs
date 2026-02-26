@@ -12,6 +12,7 @@
 //!    for each type of sub-stream found within the Transport Stream data. possibly by using the
 //!    [`demux_context!()`](../macro.demux_context.html) macro.
 
+use crate::error::{DemuxError, ErrorSink};
 use crate::packet;
 use crate::psi;
 use crate::psi::pat;
@@ -19,7 +20,6 @@ use crate::psi::pmt::PmtSection;
 use crate::psi::pmt::StreamInfo;
 use crate::psi::tsdt::TsdtSection;
 use crate::StreamType;
-use log::warn;
 use std::marker;
 
 /// Trait to which `Demultiplex` delegates handling of subsets of Transport Stream packets.
@@ -114,6 +114,7 @@ macro_rules! demux_context {
                 }
             }
         }
+        impl $crate::error::ErrorSink for $name {}
         impl $crate::demultiplex::DemuxContext for $name {
             type F = $filter;
 
@@ -322,7 +323,7 @@ pub enum FilterRequest<'a, 'buf> {
 
 struct PmtProcessor<Ctx: DemuxContext> {
     pid: packet::Pid,
-    program_number: u16,
+    _program_number: u16,
     filters_registered: fixedbitset::FixedBitSet,
     phantom: marker::PhantomData<Ctx>,
 }
@@ -334,7 +335,7 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
     pub fn new(pid: packet::Pid, program_number: u16) -> PmtProcessor<Ctx> {
         PmtProcessor {
             pid,
-            program_number,
+            _program_number: program_number,
             filters_registered: fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT),
             phantom: marker::PhantomData,
         }
@@ -348,15 +349,26 @@ impl<Ctx: DemuxContext> PmtProcessor<Ctx> {
         sect: &PmtSection<'_>,
     ) {
         if 0x02 != header.table_id {
-            warn!(
-                "[PMT {:?} program:{}] Expected PMT to have table id 0x2, but got {:#x}",
-                self.pid, self.program_number, header.table_id
-            );
+            ctx.error(DemuxError::InvalidTableId {
+                pid: self.pid,
+                expected: 0x02,
+                actual: header.table_id,
+            });
             return;
         }
         // pass the table_id value this far!
         let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT);
-        for stream_info in sect.streams() {
+        for result in sect.streams() {
+            let stream_info = match result {
+                Ok(info) => info,
+                Err(e) => {
+                    ctx.error(DemuxError::PmtParseError {
+                        pid: self.pid,
+                        error: e,
+                    });
+                    continue;
+                }
+            };
             let pes_packet_consumer = ctx.construct(FilterRequest::ByStream {
                 program_pid: self.pid,
                 stream_type: stream_info.stream_type(),
@@ -393,37 +405,24 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
         data: &[u8],
     ) {
         if header.section_length > Self::SECTION_LENGTH_LIMIT {
-            warn!(
-                "[PMT {:?} program:{}] section_length={} exceeds limit of {}",
-                self.pid, self.program_number, header.section_length, Self::SECTION_LENGTH_LIMIT
-            );
+            ctx.error(DemuxError::SectionTooLarge {
+                pid: self.pid,
+                table_id: header.table_id,
+                length: header.section_length,
+                limit: Self::SECTION_LENGTH_LIMIT,
+            });
             return;
         }
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
         let end = data.len() - 4; // remove CRC bytes
         match PmtSection::from_bytes(&data[start..end]) {
             Ok(sect) => self.new_table(ctx, header, table_syntax_header, &sect),
-            Err(e) => warn!(
-                "[PMT {:?} program:{}] problem reading data: {:?}",
-                self.pid, self.program_number, e
-            ),
+            Err(e) => ctx.error(DemuxError::PmtParseError {
+                pid: self.pid,
+                error: e,
+            }),
         }
     }
-}
-
-/// TODO: this type does not belong here
-#[derive(Debug)]
-pub enum DemuxError {
-    /// The transport stream has a syntax error that means there was not enough data present to
-    /// parse the requested structure.
-    NotEnoughData {
-        /// The name of the field we were unable to parse
-        field: &'static str,
-        /// The expected size of the field data
-        expected: usize,
-        /// the actual size of date available within the transport stream
-        actual: usize,
-    },
 }
 
 type PacketFilterConsumer<Proc> = psi::SectionPacketConsumer<
@@ -450,11 +449,14 @@ impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
         let pmt_proc = PmtProcessor::new(pid, program_number);
         PmtPacketFilter {
             pmt_section_packet_consumer: psi::SectionPacketConsumer::new(
-                psi::SectionSyntaxSectionProcessor::new(psi::DedupSectionSyntaxPayloadParser::new(
-                    psi::BufferSectionSyntaxParser::new(
-                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pmt_proc),
-                    ),
-                )),
+                pid,
+                psi::SectionSyntaxSectionProcessor::new(
+                    pid,
+                    psi::DedupSectionSyntaxPayloadParser::new(psi::BufferSectionSyntaxParser::new(
+                        pid,
+                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, pmt_proc),
+                    )),
+                ),
             ),
         }
     }
@@ -511,17 +513,20 @@ impl<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> psi::WholeSectionSyntaxPayloadPars
         data: &[u8],
     ) {
         if header.table_id != 0x03 {
-            warn!(
-                "[TSDT] Expected TSDT to have table id 0x03, but got {:#x}",
-                header.table_id
-            );
+            ctx.error(DemuxError::InvalidTableId {
+                pid: psi::tsdt::TSDT_PID,
+                expected: 0x03,
+                actual: header.table_id,
+            });
             return;
         }
         if header.section_length > Self::SECTION_LENGTH_LIMIT {
-            warn!(
-                "[TSDT] section_length={} exceeds limit of {}",
-                header.section_length, Self::SECTION_LENGTH_LIMIT
-            );
+            ctx.error(DemuxError::SectionTooLarge {
+                pid: psi::tsdt::TSDT_PID,
+                table_id: header.table_id,
+                length: header.section_length,
+                limit: Self::SECTION_LENGTH_LIMIT,
+            });
             return;
         }
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
@@ -542,14 +547,18 @@ pub struct TsdtPacketFilter<Ctx: DemuxContext + 'static, C: TsdtConsumer<Ctx>> {
 impl<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> TsdtPacketFilter<Ctx, C> {
     /// Creates a new `TsdtPacketFilter` that delivers parsed TSDT sections to the given consumer.
     pub fn new(consumer: C) -> TsdtPacketFilter<Ctx, C> {
+        let pid = psi::tsdt::TSDT_PID;
         let tsdt_proc = TsdtProcessor::new(consumer);
         TsdtPacketFilter {
             tsdt_section_packet_consumer: psi::SectionPacketConsumer::new(
-                psi::SectionSyntaxSectionProcessor::new(psi::DedupSectionSyntaxPayloadParser::new(
-                    psi::BufferSectionSyntaxParser::new(
-                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(tsdt_proc),
-                    ),
-                )),
+                pid,
+                psi::SectionSyntaxSectionProcessor::new(
+                    pid,
+                    psi::DedupSectionSyntaxPayloadParser::new(psi::BufferSectionSyntaxParser::new(
+                        pid,
+                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, tsdt_proc),
+                    )),
+                ),
             ),
         }
     }
@@ -587,15 +596,23 @@ impl<Ctx: DemuxContext> PatProcessor<Ctx> {
         sect: &pat::PatSection<'_>,
     ) {
         if 0x00 != header.table_id {
-            warn!(
-                "Expected PAT to have table id 0x0, but got {:#x}",
-                header.table_id
-            );
+            ctx.error(DemuxError::InvalidTableId {
+                pid: psi::pat::PAT_PID,
+                expected: 0x00,
+                actual: header.table_id,
+            });
             return;
         }
         let mut pids_seen = fixedbitset::FixedBitSet::with_capacity(packet::Pid::PID_COUNT);
         // add or update filters for descriptors we've not seen before,
-        for desc in sect.programs() {
+        for result in sect.programs() {
+            let desc = match result {
+                Ok(desc) => desc,
+                Err(e) => {
+                    ctx.error(DemuxError::PatEntryParseError { error: e });
+                    continue;
+                }
+            };
             let filter = match desc {
                 pat::ProgramDescriptor::Program {
                     program_number,
@@ -636,10 +653,12 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
         data: &[u8],
     ) {
         if header.section_length > Self::SECTION_LENGTH_LIMIT {
-            warn!(
-                "[PAT] section_length={} exceeds limit of {}",
-                header.section_length, Self::SECTION_LENGTH_LIMIT
-            );
+            ctx.error(DemuxError::SectionTooLarge {
+                pid: psi::pat::PAT_PID,
+                table_id: header.table_id,
+                length: header.section_length,
+                limit: Self::SECTION_LENGTH_LIMIT,
+            });
             return;
         }
         let start = psi::SectionCommonHeader::SIZE + psi::TableSyntaxHeader::SIZE;
@@ -661,7 +680,7 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
 /// This trait defines behaviour that the process of demultiplexing requires from the context
 /// object, but an application has the opportunity to add further state to the type implementing
 /// this trait, if desired.
-pub trait DemuxContext: Sized {
+pub trait DemuxContext: Sized + ErrorSink {
     /// the type of `PacketFilter` which the `Demultiplex` object needs to use
     type F: PacketFilter<Ctx = Self>;
 
@@ -685,14 +704,18 @@ pub struct PatPacketFilter<Ctx: DemuxContext> {
 }
 impl<Ctx: DemuxContext> Default for PatPacketFilter<Ctx> {
     fn default() -> PatPacketFilter<Ctx> {
+        let pid = psi::pat::PAT_PID;
         let pat_proc = PatProcessor::default();
         PatPacketFilter {
             pat_section_packet_consumer: psi::SectionPacketConsumer::new(
-                psi::SectionSyntaxSectionProcessor::new(psi::DedupSectionSyntaxPayloadParser::new(
-                    psi::BufferSectionSyntaxParser::new(
-                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pat_proc),
-                    ),
-                )),
+                pid,
+                psi::SectionSyntaxSectionProcessor::new(
+                    pid,
+                    psi::DedupSectionSyntaxPayloadParser::new(psi::BufferSectionSyntaxParser::new(
+                        pid,
+                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, pat_proc),
+                    )),
+                ),
             ),
         }
     }
@@ -743,7 +766,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
         let mut itr = buf
             .chunks_exact(packet::Packet::SIZE)
             .map(packet::Packet::try_new);
-        let Some(Some(mut pk)) = itr.next() else {
+        let Some(Ok(mut pk)) = itr.next() else {
             return;
         };
         loop {
@@ -766,14 +789,10 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                 if pk.transport_error_indicator() {
                     // drop packets that have transport_error_indicator set, on the assumption that
                     // the contents are nonsense
-                    warn!("{:?} transport_error_indicator", this_pid);
+                    ctx.error(DemuxError::TransportError { pid: this_pid });
                 } else if pk.transport_scrambling_control().is_scrambled() {
                     // TODO: allow descrambler to be plugged in
-                    warn!(
-                        "{:?} dropping scrambled packet {:?}",
-                        this_pid,
-                        pk.transport_scrambling_control()
-                    );
+                    ctx.error(DemuxError::ScrambledPacket { pid: this_pid });
                 } else {
                     this_proc.consume(ctx, &pk);
 
@@ -784,7 +803,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                         // It's possible that filter_changeset could have changed the filter for
                         // the current PID, so break out of the inner loop in order to look the
                         // filter up afresh for the next packet
-                        pk = if let Some(Some(p)) = itr.next() {
+                        pk = if let Some(Ok(p)) = itr.next() {
                             p
                         } else {
                             return;
@@ -792,7 +811,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
                         break;
                     }
                 }
-                pk = if let Some(Some(p)) = itr.next() {
+                pk = if let Some(Ok(p)) = itr.next() {
                     p
                 } else {
                     return;
@@ -1097,10 +1116,6 @@ pub(crate) mod test {
 
     #[test]
     fn ignore_error_packet() {
-        let _ = env_logger::builder()
-            .filter_level(log::LevelFilter::Warn)
-            .is_test(true)
-            .try_init();
         let mut ctx = NullDemuxContext::new();
         let mut deplex = demultiplex::Demultiplex::new(&mut ctx);
         let count = CountPacketFilter { count: 0 };

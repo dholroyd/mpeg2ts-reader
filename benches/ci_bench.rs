@@ -9,7 +9,13 @@ use std::io::Read;
 
 pub struct NullTsdtConsumer;
 impl<Ctx> demultiplex::TsdtConsumer<Ctx> for NullTsdtConsumer {
-    fn tsdt(&mut self, _ctx: &mut Ctx, _header: &psi::TableSyntaxHeader<'_>, _section: &psi::tsdt::TsdtSection<'_>) {}
+    fn tsdt(
+        &mut self,
+        _ctx: &mut Ctx,
+        _header: &psi::TableSyntaxHeader<'_>,
+        _section: &psi::tsdt::TsdtSection<'_>,
+    ) {
+    }
 }
 
 packet_filter_switch! {
@@ -62,7 +68,7 @@ impl NullElementaryStreamConsumer {
 impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
     fn start_stream(&mut self, _ctx: &mut Ctx) {}
     fn begin_packet(&mut self, _ctx: &mut Ctx, header: pes::PesHeader) {
-        if let pes::PesContents::Parsed(Some(content)) = header.contents() {
+        if let pes::PesContents::Parsed(Ok(content)) = header.contents() {
             match content.pts_dts() {
                 Ok(pes::PtsDts::PtsOnly(Ok(ts))) => {
                     criterion::black_box(ts);

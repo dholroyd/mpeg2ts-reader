@@ -1,7 +1,26 @@
 //! Types related to the _Program Association Table_
 
 use crate::packet;
-use log::warn;
+use std::fmt;
+
+/// An error encountered while parsing a PAT entry.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PatError {
+    /// A PAT entry requires 4 bytes but fewer were available.
+    NotEnoughData {
+        /// The number of bytes that were actually available.
+        actual: usize,
+    },
+}
+impl fmt::Display for PatError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PatError::NotEnoughData { actual } => {
+                write!(f, "PAT entry too short: need 4 bytes, got {}", actual)
+            }
+        }
+    }
+}
 
 /// The identifier of TS Packets containing Program Association Table sections, with value `0`.
 pub const PAT_PID: packet::Pid = packet::Pid::new(0);
@@ -65,7 +84,7 @@ impl<'buf> PatSection<'buf> {
         PatSection { data }
     }
     /// Returns an iterator over the entries in this program association table section.
-    pub fn programs(&self) -> impl Iterator<Item = ProgramDescriptor> + 'buf {
+    pub fn programs(&self) -> impl Iterator<Item = Result<ProgramDescriptor, PatError>> + 'buf {
         ProgramIter { buf: self.data }
     }
 }
@@ -75,21 +94,19 @@ struct ProgramIter<'buf> {
     buf: &'buf [u8],
 }
 impl<'buf> Iterator for ProgramIter<'buf> {
-    type Item = ProgramDescriptor;
+    type Item = Result<ProgramDescriptor, PatError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.buf.is_empty() {
             return None;
         }
         if self.buf.len() < 4 {
-            warn!(
-                "too few bytes remaining for PAT descriptor: {}",
-                self.buf.len()
-            );
-            return None;
+            let actual = self.buf.len();
+            self.buf = &self.buf[0..0];
+            return Some(Err(PatError::NotEnoughData { actual }));
         }
         let (head, tail) = self.buf.split_at(4);
         self.buf = tail;
-        Some(ProgramDescriptor::from_bytes(head))
+        Some(Ok(ProgramDescriptor::from_bytes(head)))
     }
 }

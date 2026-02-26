@@ -10,7 +10,7 @@ impl pes::ElementaryStreamConsumer<FuzzDemuxContext> for FuzzElementaryStreamCon
         let _ = header.stream_id();
         let _ = header.pes_packet_length();
         match header.contents() {
-            pes::PesContents::Parsed(Some(content)) => {
+            pes::PesContents::Parsed(Ok(content)) => {
                 let _ = content.pes_priority();
                 let _ = content.data_alignment_indicator();
                 let _ = content.copyright();
@@ -24,7 +24,7 @@ impl pes::ElementaryStreamConsumer<FuzzDemuxContext> for FuzzElementaryStreamCon
                 let _ = content.pes_extension();
                 let _ = content.payload();
             },
-            pes::PesContents::Parsed(None) => {},
+            pes::PesContents::Parsed(Err(_)) => {},
             pes::PesContents::Payload(_data) => {},
         }
     }
@@ -38,7 +38,7 @@ impl demultiplex::PacketFilter for FuzzPacketFilter {
     type Ctx = FuzzDemuxContext;
 
     fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
-        if let Some(af) = pk.adaptation_field() {
+        if let Ok(Some(af)) = pk.adaptation_field() {
             format!("{:?}", af);
         }
     }

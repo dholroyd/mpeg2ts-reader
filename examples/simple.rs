@@ -4,6 +4,8 @@ extern crate hex_slice;
 
 use hex_slice::AsHex;
 use mpeg2ts_reader::demultiplex;
+use mpeg2ts_reader::error::DemuxError;
+use mpeg2ts_reader::error::ErrorSink;
 use mpeg2ts_reader::packet;
 use mpeg2ts_reader::pes;
 use mpeg2ts_reader::psi;
@@ -32,15 +34,34 @@ packet_filter_switch! {
     }
 }
 
-// This macro invocation creates a type called DumpDemuxContext, which is our application-specific
-// implementation of the DemuxContext trait.
-demux_context!(DumpDemuxContext, DumpFilterSwitch);
-
-// When the de-multiplexing process needs to create a PacketFilter instance to handle a particular
-// kind of data discovered within the Transport Stream being processed, it will send a
-// FilterRequest to our application-specific implementation of the do_construct() method
+// DumpDemuxContext is our application-specific implementation of the DemuxContext trait.
+// We implement the struct and trait manually (rather than using the demux_context! macro) so that
+// we can override error() to print transport stream problems to stderr.
+#[derive(Default)]
+pub struct DumpDemuxContext {
+    changeset: demultiplex::FilterChangeset<DumpFilterSwitch>,
+}
 impl DumpDemuxContext {
-    fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> DumpFilterSwitch {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+impl ErrorSink for DumpDemuxContext {
+    fn error(&mut self, error: DemuxError) {
+        eprintln!("error: {}", error);
+    }
+}
+impl demultiplex::DemuxContext for DumpDemuxContext {
+    type F = DumpFilterSwitch;
+
+    fn filter_changeset(&mut self) -> &mut demultiplex::FilterChangeset<Self::F> {
+        &mut self.changeset
+    }
+
+    // When the de-multiplexing process needs to create a PacketFilter instance to handle a
+    // particular kind of data discovered within the Transport Stream being processed, it will send
+    // a FilterRequest to this method
+    fn construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> DumpFilterSwitch {
         match req {
             // The 'Program Association Table' is is always on PID 0.  We just use the standard
             // handling here, but an application could insert its own logic if required,
@@ -109,7 +130,7 @@ impl pes::ElementaryStreamConsumer<DumpDemuxContext> for PtsDumpElementaryStream
     fn start_stream(&mut self, _ctx: &mut DumpDemuxContext) {}
     fn begin_packet(&mut self, _ctx: &mut DumpDemuxContext, header: pes::PesHeader) {
         match header.contents() {
-            pes::PesContents::Parsed(Some(parsed)) => {
+            pes::PesContents::Parsed(Ok(parsed)) => {
                 match parsed.pts_dts() {
                     Ok(pes::PtsDts::PtsOnly(Ok(pts))) => {
                         print!("{:?}: pts {:#08x}                ", self.pid, pts.value())
@@ -132,7 +153,7 @@ impl pes::ElementaryStreamConsumer<DumpDemuxContext> for PtsDumpElementaryStream
                     payload[..cmp::min(payload.len(), 16)].plain_hex(false)
                 )
             }
-            pes::PesContents::Parsed(None) => (),
+            pes::PesContents::Parsed(Err(_)) => (),
             pes::PesContents::Payload(payload) => {
                 self.len = Some(payload.len());
                 println!(
@@ -158,8 +179,6 @@ impl pes::ElementaryStreamConsumer<DumpDemuxContext> for PtsDumpElementaryStream
 }
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
-
     // open input file named on command line,
     let name = env::args().nth(1).unwrap();
     let mut f = File::open(&name).unwrap_or_else(|_| panic!("file not found: {}", &name));
