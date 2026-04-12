@@ -92,7 +92,7 @@ fn reader() {
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188 * 200_000);
     let mut buf = vec![0; size];
-    f.read(&mut buf[..]).unwrap();
+    f.read_exact(&mut buf[..]).unwrap();
 
     let mut ctx = NullDemuxContext::new();
     let mut demux = demultiplex::Demultiplex::new(&mut ctx);
