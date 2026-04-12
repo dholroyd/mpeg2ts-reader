@@ -9,6 +9,8 @@
  - Fixed `StreamType::is_pes()` incorrectly returning `true` for section-based stream types (`MHEG`, `DSMCC_UN_MESSAGES`, `DSMCC_STREAM_DESCRIPTORS`, `DSMCC_SECTIONS`, `ISO_13818_6_MULTIPROTOCOL_ENCAPSULATION`, `FLEX_MUX_ISO_14496_SECTIONS`, `SYNCHRONIZED_DOWNLOAD_PROTOCOL`, `METADATA_IN_METADATA_SECTIONS`, `DSMCC_DATA_CAROUSEL_METADATA`, `DSMCC_OBJECT_CAROUSEL_METADATA`, `SYNCHRONIZED_DOWNLOAD_PROTOCOL_METADATA`).
  - Raised PSI `section_length` limit from 1021 to 4093 in both `SectionSyntaxSectionProcessor` and `CompactSyntaxSectionProcessor`, matching the maximum allowed by the spec for private sections. The PAT and PMT retain their spec-mandated 1021 limit.
  - Fixed `Timestamp::from_pts_bytes()` rejecting valid PTS data when both PTS and DTS are present (prefix `'0011'`); it now accepts both `'0010'` and `'0011'` prefixes.
+ - Fixed PSI section framing to handle multiple sections packed into a single TS packet payload. Previously, when a packet with `payload_unit_start_indicator=1` carried a short section followed by the start of another section, the trailing section's leading bytes were silently dropped and every following continuation packet produced spurious `ExtraDataAfterSectionComplete` warnings until the next PUSI resync.
+ - Fixed PSI section parsing to buffer section headers that straddle TS packet boundaries. Previously, if the initial payload slice contained fewer than 8 header bytes (legal per the spec) the section was abandoned with a `SectionDataTooShort` warning (formerly logged as `"TODO: implement buffering"`); the new `SectionSyntaxFramer` accumulates bytes until a full header is available before parsing.
 
 ### Changed
  - **Breaking:** `AdaptationField::splice_countdown()` now returns `Result<i8, ..>` instead of `Result<u8, ..>`, since the spec defines this as a signed two's complement value.
@@ -23,13 +25,16 @@
  - **Breaking:** `PmtSection::streams()` iterator now yields `Result<StreamInfo, PmtError>` instead of `StreamInfo`.
  - Replaced all `warn!()` logging with the new `ErrorSink::error()` callback.
  - **Breaking:** `DemuxContext` now requires `ErrorSink` as a supertrait. The `demux_context!` macro automatically provides a no-op `ErrorSink` impl.
+ - **Breaking:** PSI section framing has been reworked. The previous pipeline of `SectionPacketConsumer` wrapping `BufferSectionSyntaxParser` wrapping `SectionSyntaxSectionProcessor` (and the compact-syntax equivalents) is replaced by a single `SectionSyntaxFramer` (or `CompactSyntaxFramer`) that wraps a `WholeSectionSyntaxPayloadParser` directly. Construction sites change from e.g. `SectionPacketConsumer::new(BufferSectionSyntaxParser::new(CrcCheckWholeSectionSyntaxPayloadParser::new(proc)))` to `SectionSyntaxFramer::new(pid, CrcCheckWholeSectionSyntaxPayloadParser::new(pid, proc))`.
+ - **Breaking:** Removed `SectionPacketConsumer`, `BufferSectionSyntaxParser`, `BufferCompactSyntaxParser`, `SectionSyntaxSectionProcessor`, and `CompactSyntaxSectionProcessor` - replaced by `SectionSyntaxFramer` / `CompactSyntaxFramer`.
+ - **Breaking:** Removed the `SectionProcessor`, `SectionSyntaxPayloadParser`, and `CompactSyntaxPayloadParser` traits - `WholeSectionSyntaxPayloadParser` / `WholeCompactSyntaxPayloadParser` are now the only extension points.
 
 ### Added
  - `ErrorSink` trait with a default no-op `error()` method. Override this to receive error reports about transport stream problems. When not overridden, monomorphization eliminates the calls entirely in release builds.
  - `DemuxError` enum (in the `error` module) for programmatic access to parsing problems (transport errors, scrambled packets, invalid table IDs, section length violations, PMT/PES parse errors).
  - `PmtError` enum (in the `psi::pmt` module) for PMT-specific parse errors (previously `DemuxError` in the `demultiplex` module).
  - `CrcCheckWholeSectionSyntaxPayloadParser::new()` now takes a `pid` parameter so errors carry the originating PID.
- - PSI helper types (`SectionPacketConsumer`, `SectionSyntaxSectionProcessor`, `CompactSyntaxSectionProcessor`, `BufferSectionSyntaxParser`, `BufferCompactSyntaxParser`) now take a `pid` parameter in their constructors so all errors carry the originating PID.
+ - New `SectionSyntaxFramer` and `CompactSyntaxFramer` types in the `psi` module that frame PSI sections out of TS packet payloads. These collapse the previous three-layer pipeline (`SectionPacketConsumer` → `Buffer*SyntaxParser` → `*SyntaxSectionProcessor`) into a single type. Both constructors take a `pid` so errors carry the originating PID.
  - `PesError` variants: `InvalidStartCode`, `InvalidCheckBits`, `HeaderLengthExceedsBuffer`, `HeaderDataLengthMismatch`.
  - Updated `StreamType` constants and `CoreDescriptors` / `AudioType` variants to match the 2025 edition.
  - Added TSDT (Transport Stream Description Table) support: `psi::tsdt::TsdtSection` for parsing, `demultiplex::TsdtConsumer` trait for receiving parsed sections, and `demultiplex::TsdtPacketFilter` for integration with the demuxer.

@@ -425,12 +425,8 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PmtProcessor<Ct
     }
 }
 
-type PacketFilterConsumer<Proc> = psi::SectionPacketConsumer<
-    psi::SectionSyntaxSectionProcessor<
-        psi::DedupSectionSyntaxPayloadParser<
-            psi::BufferSectionSyntaxParser<psi::CrcCheckWholeSectionSyntaxPayloadParser<Proc>>,
-        >,
-    >,
+type PacketFilterConsumer<Proc> = psi::SectionSyntaxFramer<
+    psi::DedupSectionSyntaxPayloadParser<psi::CrcCheckWholeSectionSyntaxPayloadParser<Proc>>,
 >;
 
 /// `PacketFilter` implementation which will insert some other `PacketFilter` into the `Demultiplex`
@@ -448,14 +444,10 @@ impl<Ctx: DemuxContext> PmtPacketFilter<Ctx> {
     pub fn new(pid: packet::Pid, program_number: u16) -> PmtPacketFilter<Ctx> {
         let pmt_proc = PmtProcessor::new(pid, program_number);
         PmtPacketFilter {
-            pmt_section_packet_consumer: psi::SectionPacketConsumer::new(
+            pmt_section_packet_consumer: psi::SectionSyntaxFramer::new(
                 pid,
-                psi::SectionSyntaxSectionProcessor::new(
-                    pid,
-                    psi::DedupSectionSyntaxPayloadParser::new(psi::BufferSectionSyntaxParser::new(
-                        pid,
-                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, pmt_proc),
-                    )),
+                psi::DedupSectionSyntaxPayloadParser::new(
+                    psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, pmt_proc),
                 ),
             ),
         }
@@ -550,14 +542,10 @@ impl<Ctx: DemuxContext, C: TsdtConsumer<Ctx>> TsdtPacketFilter<Ctx, C> {
         let pid = psi::tsdt::TSDT_PID;
         let tsdt_proc = TsdtProcessor::new(consumer);
         TsdtPacketFilter {
-            tsdt_section_packet_consumer: psi::SectionPacketConsumer::new(
+            tsdt_section_packet_consumer: psi::SectionSyntaxFramer::new(
                 pid,
-                psi::SectionSyntaxSectionProcessor::new(
-                    pid,
-                    psi::DedupSectionSyntaxPayloadParser::new(psi::BufferSectionSyntaxParser::new(
-                        pid,
-                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, tsdt_proc),
-                    )),
+                psi::DedupSectionSyntaxPayloadParser::new(
+                    psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, tsdt_proc),
                 ),
             ),
         }
@@ -675,7 +663,7 @@ impl<Ctx: DemuxContext> psi::WholeSectionSyntaxPayloadParser for PatProcessor<Ct
 // ---- demux ----
 
 /// Context shared between the `Dumultiplex` object and the `PacketFilter` instances
-/// which customise its behavior.
+/// which customise its behaviour.
 ///
 /// This trait defines behaviour that the process of demultiplexing requires from the context
 /// object, but an application has the opportunity to add further state to the type implementing
@@ -707,14 +695,10 @@ impl<Ctx: DemuxContext> Default for PatPacketFilter<Ctx> {
         let pid = psi::pat::PAT_PID;
         let pat_proc = PatProcessor::default();
         PatPacketFilter {
-            pat_section_packet_consumer: psi::SectionPacketConsumer::new(
+            pat_section_packet_consumer: psi::SectionSyntaxFramer::new(
                 pid,
-                psi::SectionSyntaxSectionProcessor::new(
-                    pid,
-                    psi::DedupSectionSyntaxPayloadParser::new(psi::BufferSectionSyntaxParser::new(
-                        pid,
-                        psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, pat_proc),
-                    )),
+                psi::DedupSectionSyntaxPayloadParser::new(
+                    psi::CrcCheckWholeSectionSyntaxPayloadParser::new(pid, pat_proc),
                 ),
             ),
         }
