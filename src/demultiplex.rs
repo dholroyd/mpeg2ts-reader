@@ -828,6 +828,7 @@ impl<Ctx: DemuxContext> Demultiplex<Ctx> {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use assert_matches::assert_matches;
     use bitstream_io::{BitWrite, BitWriter, BE};
     use hex_literal::*;
     use std::io;
@@ -859,7 +860,33 @@ pub(crate) mod test {
             Count: CountPacketFilter,
         }
     }
-    demux_context!(NullDemuxContext, NullFilterSwitch);
+    pub struct NullDemuxContext {
+        pub changeset: demultiplex::FilterChangeset<NullFilterSwitch>,
+        pub errors: Vec<crate::error::DemuxError>,
+    }
+    impl NullDemuxContext {
+        pub fn new() -> Self {
+            NullDemuxContext {
+                changeset: demultiplex::FilterChangeset::default(),
+                errors: Vec::new(),
+            }
+        }
+    }
+    impl crate::error::ErrorSink for NullDemuxContext {
+        fn error(&mut self, error: crate::error::DemuxError) {
+            self.errors.push(error);
+        }
+    }
+    impl demultiplex::DemuxContext for NullDemuxContext {
+        type F = NullFilterSwitch;
+
+        fn filter_changeset(&mut self) -> &mut demultiplex::FilterChangeset<Self::F> {
+            &mut self.changeset
+        }
+        fn construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> Self::F {
+            self.do_construct(req)
+        }
+    }
     impl NullDemuxContext {
         fn do_construct(&mut self, req: demultiplex::FilterRequest<'_, '_>) -> NullFilterSwitch {
             match req {
@@ -1033,6 +1060,324 @@ pub(crate) mod test {
         } else {
             panic!();
         }
+    }
+
+    // ---- PAT error path tests ----
+
+    #[test]
+    fn pat_invalid_table_id() {
+        let mut processor = demultiplex::PatProcessor::default();
+        let section = vec![
+            0xFF, 0, 0, // common header with wrong table_id
+            0x0D, 0x00, 0b00000001, 0xC1, 0x00, // table syntax header
+            0, 0, 0, 0, // CRC
+        ];
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(ctx.changeset.updates.is_empty());
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::InvalidTableId { actual: 0xFF, .. }]
+        );
+    }
+
+    #[test]
+    fn pat_section_too_large() {
+        let mut processor = demultiplex::PatProcessor::default();
+        let section = make_test_data(|w| {
+            w.write(8, 0x00)?; // table_id
+            w.write_bit(true)?; // section_syntax_indicator
+            w.write_bit(false)?; // private_indicator
+            w.write(2, 3)?; // reserved
+            w.write(12, 1022)?; // section_length (> 1021 limit)
+                                // table syntax header
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            w.write(32, 0) // CRC
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(ctx.changeset.updates.is_empty());
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::SectionTooLarge {
+                length: 1022,
+                limit: 1021,
+                ..
+            }]
+        );
+    }
+
+    #[test]
+    fn pat_entry_parse_error() {
+        let mut processor = demultiplex::PatProcessor::default();
+        // section_length covers the table syntax header (5 bytes) + 3 bytes of
+        // truncated PAT entry + 4 bytes CRC = 12
+        let section = make_test_data(|w| {
+            w.write(8, 0x00)?; // table_id
+            w.write_bit(true)?; // section_syntax_indicator
+            w.write_bit(false)?; // private_indicator
+            w.write(2, 3)?; // reserved
+            w.write(12, 12)?; // section_length
+                              // table syntax header
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            // truncated PAT entry: only 3 bytes instead of required 4
+            w.write(8, 0)?;
+            w.write(8, 1)?;
+            w.write(8, 0)?;
+            w.write(32, 0) // CRC
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(ctx.changeset.updates.is_empty());
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::PatEntryParseError { .. }]
+        );
+    }
+
+    // ---- PMT error path tests ----
+
+    #[test]
+    fn pmt_invalid_table_id() {
+        let pid = packet::Pid::new(101);
+        let mut processor = demultiplex::PmtProcessor::new(pid, 1001);
+        // section_length = 5 (table syntax header) + 4 (PMT HEADER_SIZE) + 4 (CRC) = 13
+        let section = make_test_data(|w| {
+            w.write(8, 0xFF)?; // wrong table_id
+            w.write_bit(true)?;
+            w.write_bit(false)?;
+            w.write(2, 3)?;
+            w.write(12, 13)?; // section_length
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            // minimal valid PMT payload (4 bytes)
+            w.write(3, 7)?; // reserved
+            w.write(13, 123)?; // pcr_pid
+            w.write(4, 15)?; // reserved
+            w.write(12, 0)?; // program_info_length
+            w.write(32, 0) // CRC
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(ctx.changeset.updates.is_empty());
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::InvalidTableId { actual: 0xFF, .. }]
+        );
+    }
+
+    #[test]
+    fn pmt_section_too_large() {
+        let pid = packet::Pid::new(101);
+        let mut processor = demultiplex::PmtProcessor::new(pid, 1001);
+        let section = make_test_data(|w| {
+            w.write(8, 0x02)?; // table_id
+            w.write_bit(true)?;
+            w.write_bit(false)?;
+            w.write(2, 3)?;
+            w.write(12, 1022)?; // section_length (> 1021 limit)
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            w.write(32, 0)
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(ctx.changeset.updates.is_empty());
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::SectionTooLarge {
+                length: 1022,
+                limit: 1021,
+                ..
+            }]
+        );
+    }
+
+    #[test]
+    fn pmt_from_bytes_error() {
+        let pid = packet::Pid::new(101);
+        let mut processor = demultiplex::PmtProcessor::new(pid, 1001);
+        // section_length=9 means only 9 bytes after the common header.
+        // 5 bytes table_syntax_header + 4 bytes CRC = 9, leaving 0 bytes for PMT payload.
+        // PmtSection::from_bytes() needs at least 4 bytes (HEADER_SIZE), so this will fail.
+        let section = make_test_data(|w| {
+            w.write(8, 0x02)?; // table_id
+            w.write_bit(true)?;
+            w.write_bit(false)?;
+            w.write(2, 3)?;
+            w.write(12, 9)?; // section_length
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            w.write(32, 0) // CRC
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(ctx.changeset.updates.is_empty());
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::PmtParseError { .. }]
+        );
+    }
+
+    #[test]
+    fn pmt_stream_parse_error() {
+        let pid = packet::Pid::new(101);
+        let mut processor = demultiplex::PmtProcessor::new(pid, 1001);
+        // Build a valid PMT header but with a truncated stream entry (3 bytes instead of 5)
+        let section = make_test_data(|w| {
+            w.write(8, 0x02)?; // table_id
+            w.write_bit(true)?;
+            w.write_bit(false)?;
+            w.write(2, 3)?;
+            w.write(12, 16)?; // section_length
+                              // table syntax header
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            // PMT payload
+            w.write(3, 7)?; // reserved
+            w.write(13, 123)?; // pcr_pid
+            w.write(4, 15)?; // reserved
+            w.write(12, 0)?; // program_info_length
+                             // truncated stream entry: only 3 bytes, need 5
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            w.write(32, 0) // CRC
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(ctx.changeset.updates.is_empty());
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::PmtParseError { .. }]
+        );
+    }
+
+    // ---- TSDT error path tests ----
+
+    struct MockTsdtConsumer {
+        called: bool,
+    }
+    impl super::TsdtConsumer<NullDemuxContext> for MockTsdtConsumer {
+        fn tsdt(
+            &mut self,
+            _ctx: &mut NullDemuxContext,
+            _header: &psi::TableSyntaxHeader<'_>,
+            _section: &super::TsdtSection<'_>,
+        ) {
+            self.called = true;
+        }
+    }
+
+    #[test]
+    fn tsdt_invalid_table_id() {
+        let consumer = MockTsdtConsumer { called: false };
+        let mut processor = super::TsdtProcessor::new(consumer);
+        let section = make_test_data(|w| {
+            w.write(8, 0xFF)?; // wrong table_id
+            w.write_bit(true)?;
+            w.write_bit(false)?;
+            w.write(2, 3)?;
+            w.write(12, 9)?;
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            w.write(32, 0)
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(!processor.consumer.called);
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::InvalidTableId { actual: 0xFF, .. }]
+        );
+    }
+
+    #[test]
+    fn tsdt_section_too_large() {
+        let consumer = MockTsdtConsumer { called: false };
+        let mut processor = super::TsdtProcessor::new(consumer);
+        let section = make_test_data(|w| {
+            w.write(8, 0x03)?; // correct table_id
+            w.write_bit(true)?;
+            w.write_bit(false)?;
+            w.write(2, 3)?;
+            w.write(12, 1022)?; // section_length (> 1021 limit)
+            w.write(16, 0)?;
+            w.write(2, 3)?;
+            w.write(5, 0)?;
+            w.write(1, 1)?;
+            w.write(8, 0)?;
+            w.write(8, 0)?;
+            w.write(32, 0)
+        });
+        let header = psi::SectionCommonHeader::new(&section[..psi::SectionCommonHeader::SIZE]);
+        let table_syntax_header =
+            psi::TableSyntaxHeader::new(&section[psi::SectionCommonHeader::SIZE..]);
+        let mut ctx = NullDemuxContext::new();
+        processor.section(&mut ctx, &header, &table_syntax_header, &section[..]);
+        assert!(!processor.consumer.called);
+        assert_matches!(
+            ctx.errors.as_slice(),
+            [crate::error::DemuxError::SectionTooLarge {
+                length: 1022,
+                limit: 1021,
+                ..
+            }]
+        );
     }
 
     #[test]
