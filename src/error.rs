@@ -267,3 +267,86 @@ pub trait ErrorSink {
 
 /// No-op implementation of `ErrorSink` for unit type, useful in tests.
 impl ErrorSink for () {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::packet::PacketError;
+    use crate::psi::pat::PatError;
+    use crate::psi::pmt::PmtError;
+
+    #[test]
+    fn display_all_variants() {
+        let pid = packet::Pid::new(100);
+        let cases: Vec<DemuxError> = vec![
+            DemuxError::TransportError { pid },
+            DemuxError::ScrambledPacket { pid },
+            DemuxError::InvalidTableId {
+                pid,
+                expected: 0x00,
+                actual: 0x02,
+            },
+            DemuxError::SectionTooLarge {
+                pid,
+                table_id: 0x02,
+                length: 2000,
+                limit: 1021,
+            },
+            DemuxError::PmtParseError {
+                pid,
+                error: PmtError::NotEnoughData {
+                    field: "test",
+                    expected: 4,
+                    actual: 0,
+                },
+            },
+            DemuxError::MissingPayloadStartIndicator { pid },
+            DemuxError::PesHeaderParseError { pid },
+            DemuxError::CrcCheckFailed {
+                pid,
+                table_id: 0x02,
+            },
+            DemuxError::SectionTooSmallForCrc {
+                pid,
+                table_id: 0x02,
+                actual: 2,
+            },
+            DemuxError::UnexpectedSectionSyntaxIndicator {
+                pid,
+                table_id: 0x02,
+            },
+            DemuxError::SectionDataTooShort {
+                pid,
+                table_id: 0x02,
+                actual: 3,
+                minimum: 8,
+            },
+            DemuxError::PsiSectionTooLarge {
+                pid,
+                table_id: 0x02,
+                length: 5000,
+                limit: 4093,
+            },
+            DemuxError::PsiPointerOutOfBounds { pid },
+            DemuxError::SectionHeaderTooShort { pid },
+            DemuxError::NoPayloadInPsiPacket { pid },
+            DemuxError::ExtraDataAfterSectionComplete { pid },
+            DemuxError::PatEntryParseError {
+                error: PatError::NotEnoughData { actual: 2 },
+            },
+            DemuxError::MalformedAdaptationField {
+                pid,
+                error: PacketError::InvalidAdaptationFieldLength { length: 200 },
+            },
+            DemuxError::MalformedPayload {
+                pid,
+                error: PacketError::PayloadOutOfBounds { offset: 200 },
+            },
+        ];
+        for error in &cases {
+            // exercise Display impl; just verify it doesn't panic and produces non-empty output
+            let s = error.to_string();
+            assert!(!s.is_empty(), "empty Display for {:?}", error);
+        }
+    }
+}
