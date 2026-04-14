@@ -74,10 +74,10 @@ impl<Ctx> pes::ElementaryStreamConsumer<Ctx> for NullElementaryStreamConsumer {
         if let pes::PesContents::Parsed(Ok(content)) = header.contents() {
             match content.pts_dts() {
                 Ok(pes::PtsDts::PtsOnly(Ok(ts))) => {
-                    criterion::black_box(ts);
+                    std::hint::black_box(ts);
                 }
                 Ok(pes::PtsDts::Both { pts: Ok(ts), .. }) => {
-                    criterion::black_box(ts);
+                    std::hint::black_box(ts);
                 }
                 _ => (),
             };
