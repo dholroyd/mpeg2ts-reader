@@ -25,9 +25,40 @@ jobs:
       # workflow
       run: cargo test --verbose --examples --tests --bench bench
 
-    - name: Build shootout
+
+  shootout:
+    name: Shootout
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install ffmpeg dev libs
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          clang \
+          libavcodec-dev \
+          libavdevice-dev \
+          libavfilter-dev \
+          libavformat-dev \
+          libavutil-dev \
+          libswresample-dev \
+          libswscale-dev \
+          pkg-config
+
+    - name: Install toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1.16.0
+      with:
+        components: clippy
+
+    - name: Build
       run: cargo build --verbose --all-targets
       working-directory: shootout
+
+    - name: Run clippy
+      uses: actions-rs-plus/clippy-check@v2.5.0
+      with:
+        args: --all-features --manifest-path shootout/Cargo.toml
 
 
   coverage:
@@ -68,11 +99,6 @@ jobs:
         uses: actions-rs-plus/clippy-check@v2.5.0
         with:
           args: --all-features
-
-      - name: Run clippy (shootout)
-        uses: actions-rs-plus/clippy-check@v2.4.2
-        with:
-          args: --all-features --manifest-path shootout/Cargo.toml
 
 
   fuzz:
