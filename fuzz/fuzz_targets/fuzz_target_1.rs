@@ -39,7 +39,7 @@ impl demultiplex::PacketFilter for FuzzPacketFilter {
 
     fn consume(&mut self, _ctx: &mut Self::Ctx, pk: &packet::Packet<'_>) {
         if let Ok(Some(af)) = pk.adaptation_field() {
-            format!("{:?}", af);
+            let _ = format!("{:?}", af);
         }
     }
 }
@@ -48,7 +48,7 @@ pub struct FuzzTsdtConsumer;
 impl demultiplex::TsdtConsumer<FuzzDemuxContext> for FuzzTsdtConsumer {
     fn tsdt(&mut self, _ctx: &mut FuzzDemuxContext, _header: &psi::TableSyntaxHeader<'_>, section: &psi::tsdt::TsdtSection<'_>) {
         for desc in section.descriptors::<descriptor::CoreDescriptors<'_>>() {
-            format!("{:?}", desc);
+            let _ = format!("{:?}", desc);
         }
     }
 }
@@ -74,10 +74,10 @@ impl FuzzDemuxContext {
                 // we make redundant calls to pmt.descriptors() for each stream, but this is the
                 // simplest place to hook this call into the fuzz test right now,
                 for desc in pmt.descriptors::<descriptor::CoreDescriptors>() {
-                    format!("{:?}", desc);
+                    let _ = format!("{:?}", desc);
                 }
                 for desc in stream_info.descriptors::<descriptor::CoreDescriptors>() {
-                    format!("{:?}", desc);
+                    let _ = format!("{:?}", desc);
                 }
                 if stream_type.is_pes() {
                     FuzzFilterSwitch::Elem(pes::PesPacketFilter::new(FuzzElementaryStreamConsumer))
