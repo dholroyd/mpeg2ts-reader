@@ -73,3 +73,22 @@ jobs:
         uses: actions-rs-plus/clippy-check@v2.4.2
         with:
           args: --all-features --manifest-path shootout/Cargo.toml
+
+
+  fuzz:
+    name: Fuzz build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install nightly toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1.15.2
+        with:
+          toolchain: nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Build fuzz target
+        run: cargo +nightly fuzz build fuzz_target_1

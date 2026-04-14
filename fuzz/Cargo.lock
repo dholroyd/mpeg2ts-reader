@@ -37,9 +37,9 @@ checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
 name = "four-cc"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "431a4c31778fde52b4400de34975f219eeca55cc829a9de157cd743a5b230ecb"
+checksum = "795cbfc56d419a7ce47ccbb7504dd9a5b7c484c083c356e797de08bd988d9629"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -51,21 +51,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "log"
-version = "0.4.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
-dependencies = [
- "cfg-if",
-]
-
-[[package]]
 name = "mpeg2ts-reader"
-version = "0.16.0"
+version = "0.18.2"
 dependencies = [
  "encoding_rs",
  "fixedbitset",
- "log",
  "smptera-format-identifiers-rust",
 ]
 
@@ -79,9 +69,9 @@ dependencies = [
 
 [[package]]
 name = "smptera-format-identifiers-rust"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b79962555faf3a7892357f69d0306269cb1b265007957252c843953804884750"
+checksum = "3ca207e91f7abecd0079fcdcbefb79b9cd28be2f8bd6596e1290b929857f42f3"
 dependencies = [
  "four-cc",
 ]
