@@ -14,7 +14,7 @@ fn load_sample_data() -> (Vec<u8>, usize) {
     let l = f.metadata().unwrap().len() as usize;
     let size = l.min(188*200_000);
     let mut buf = vec![0; size];
-    f.read(&mut buf[..]).unwrap();
+    f.read_exact(&mut buf[..]).unwrap();
     (buf, size)
 }
 

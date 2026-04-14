@@ -10,6 +10,11 @@ pub struct Mpeg2tsReader {
     demux: demultiplex::Demultiplex<NullDemuxContext>,
     ctx: NullDemuxContext,
 }
+impl Default for Mpeg2tsReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Mpeg2tsReader {
     pub fn new() -> Mpeg2tsReader {
         let mut ctx = NullDemuxContext::new();
@@ -20,7 +25,7 @@ impl Mpeg2tsReader {
         }
     }
     pub fn check_timestamps(&mut self, buf: &[u8]) {
-        self.demux.push(&mut self.ctx, &buf[..]);
+        self.demux.push(&mut self.ctx, buf);
     }
 }
 

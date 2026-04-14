@@ -15,10 +15,8 @@ impl Mpeg2ts {
                     }
                     let this_ts = if let Some(dts) = pes.header.dts {
                         Some(dts.as_u64())
-                    } else if let Some(pts) = pes.header.pts {
-                        Some(pts.as_u64())
                     } else {
-                        None
+                        pes.header.pts.map(|pts| pts.as_u64())
                     };
                     if let Some(this) = this_ts {
                         if let Some(last) = last_ts {

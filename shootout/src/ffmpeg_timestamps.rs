@@ -6,6 +6,11 @@ use std::ffi;
 pub struct Ffmpeg{
     fmt: *const AVInputFormat,
 }
+impl Default for Ffmpeg {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Ffmpeg {
     pub fn new() -> Ffmpeg {
         unsafe {
