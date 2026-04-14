@@ -2,6 +2,12 @@ name: Benchmark
 on:
   push:
     branches: master
+    paths:
+      - 'src/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/benchmark.yml'
 jobs:
   benchmark_with_bencher:
     name: Benchmark with Bencher
