@@ -25,6 +25,10 @@ jobs:
       # workflow
       run: cargo test --verbose --examples --tests --bench bench
 
+    - name: Build shootout
+      run: cargo build --verbose --all-targets
+      working-directory: shootout
+
 
   coverage:
     name: Coverage
@@ -64,3 +68,8 @@ jobs:
         uses: actions-rs-plus/clippy-check@v2.5.0
         with:
           args: --all-features
+
+      - name: Run clippy (shootout)
+        uses: actions-rs-plus/clippy-check@v2.4.2
+        with:
+          args: --all-features --manifest-path shootout/Cargo.toml
