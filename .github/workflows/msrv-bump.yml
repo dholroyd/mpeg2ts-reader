@@ -12,12 +12,12 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Determine MSRV from 24 months ago
+    - name: Determine MSRV from 12 months ago
       id: msrv
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        CUTOFF=$(date -d '24 months ago' +%s)
+        CUTOFF=$(date -d '12 months ago' +%s)
         TARGET=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
           'https://api.github.com/repos/rust-lang/rust/releases?per_page=100' \
           | jq -r --argjson cutoff "$CUTOFF" '
@@ -37,6 +37,6 @@ jobs:
         title: "Bump MSRV to ${{ steps.msrv.outputs.version }}"
         body: |
           Automated MSRV bump to the latest Rust stable release
-          that is at least 24 months old.
+          that is at least 12 months old.
         branch: msrv-bump
         commit-message: "Bump MSRV to ${{ steps.msrv.outputs.version }}"
