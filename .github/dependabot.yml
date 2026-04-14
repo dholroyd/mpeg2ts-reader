@@ -13,6 +13,12 @@ updates:
     versions:
     - ">= 0.3.a, < 0.4"
 
+- package-ecosystem: cargo
+  directory: "/shootout/"
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 10
+
 - package-ecosystem: github-actions
   directory: /
   schedule:
