@@ -915,7 +915,7 @@ pub(crate) mod test {
     #[test]
     fn pat_no_existing_program() {
         let mut processor = demultiplex::PatProcessor::default();
-        let section = vec![
+        let section = [
             0, 0, 0, // common header
             // table syntax header
             0x0D, 0x00, 0b00000001, 0xC1, 0x00, // PAT section
@@ -941,7 +941,7 @@ pub(crate) mod test {
         let mut ctx = NullDemuxContext::new();
         let mut processor = demultiplex::PatProcessor::default();
         {
-            let section = vec![
+            let section = [
                 0, 0, 0, // common header
                 // table syntax header
                 0x0D, 0x00, 0b00000001, 0xC1, 0x00,
@@ -957,7 +957,7 @@ pub(crate) mod test {
         }
         ctx.changeset.updates.clear();
         {
-            let section = vec![
+            let section = [
                 0, 0, 0, // common header
                 // table syntax header
                 0x0D, 0x00, 0b00000011, 0xC1, 0x00, // new version!
@@ -1051,7 +1051,7 @@ pub(crate) mod test {
     #[test]
     fn pat_invalid_table_id() {
         let mut processor = demultiplex::PatProcessor::default();
-        let section = vec![
+        let section = [
             0xFF, 0, 0, // common header with wrong table_id
             0x0D, 0x00, 0b00000001, 0xC1, 0x00, // table syntax header
             0, 0, 0, 0, // CRC
@@ -1468,7 +1468,7 @@ pub(crate) mod test {
         }
 
         // set the transport_error_indicator
-        buf[1] = buf[1] | 0b1000_0000;
+        buf[1] |= 0b1000_0000;
 
         deplex.push(&mut ctx, &buf);
         // the packet has error_indicator, so we don't expect the packet filter to have been called

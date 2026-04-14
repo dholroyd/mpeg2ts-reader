@@ -152,7 +152,7 @@ impl<'buf> UnknownDescriptor<'buf> {
         Ok(UnknownDescriptor { tag, payload })
     }
 }
-impl<'buf> fmt::Debug for UnknownDescriptor<'buf> {
+impl fmt::Debug for UnknownDescriptor<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("UnknownDescriptor")
             .field("tag", &self.tag)

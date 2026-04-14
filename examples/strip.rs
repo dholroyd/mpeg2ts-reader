@@ -14,9 +14,9 @@ impl<W: io::Write> demultiplex::PacketFilter for StripFilterSwitch<W> {
     type Ctx = StripDemuxContext<W>;
     #[inline(always)]
     fn consume(&mut self, ctx: &mut StripDemuxContext<W>, pk: &Packet<'_>) {
-        match self {
-            &mut StripFilterSwitch::Write(ref mut f) => f.consume(ctx, pk),
-            &mut StripFilterSwitch::Strip(ref mut f) => f.consume(ctx, pk),
+        match *self {
+            StripFilterSwitch::Write(ref mut f) => f.consume(ctx, pk),
+            StripFilterSwitch::Strip(ref mut f) => f.consume(ctx, pk),
         }
     }
 }
@@ -76,7 +76,7 @@ impl<W: io::Write> demultiplex::PacketFilter for PacketWriter<W> {
 }
 impl<W: io::Write> Default for PacketWriter<W> {
     fn default() -> Self {
-        PacketWriter(marker::PhantomData::default())
+        PacketWriter(marker::PhantomData)
     }
 }
 
@@ -90,7 +90,7 @@ impl<W: io::Write> demultiplex::PacketFilter for PacketStripper<W> {
 }
 impl<W: io::Write> Default for PacketStripper<W> {
     fn default() -> Self {
-        PacketStripper(marker::PhantomData::default())
+        PacketStripper(marker::PhantomData)
     }
 }
 

@@ -93,7 +93,7 @@ impl<'buf> PatSection<'buf> {
 struct ProgramIter<'buf> {
     buf: &'buf [u8],
 }
-impl<'buf> Iterator for ProgramIter<'buf> {
+impl Iterator for ProgramIter<'_> {
     type Item = Result<ProgramDescriptor, PatError>;
 
     fn next(&mut self) -> Option<Self::Item> {

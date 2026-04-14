@@ -126,7 +126,7 @@ impl<'buf> Language<'buf> {
         AudioType::from(self.buf[3])
     }
 }
-impl<'buf> fmt::Debug for Language<'buf> {
+impl fmt::Debug for Language<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("Language")
             .field("code", &self.code())
@@ -136,12 +136,12 @@ impl<'buf> fmt::Debug for Language<'buf> {
 }
 
 struct LangsDebug<'buf>(&'buf Iso639LanguageDescriptor<'buf>);
-impl<'buf> fmt::Debug for LangsDebug<'buf> {
+impl fmt::Debug for LangsDebug<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_list().entries(self.0.languages()).finish()
     }
 }
-impl<'buf> fmt::Debug for Iso639LanguageDescriptor<'buf> {
+impl fmt::Debug for Iso639LanguageDescriptor<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("Iso639LanguageDescriptor")
             .field("languages", &LangsDebug(self))

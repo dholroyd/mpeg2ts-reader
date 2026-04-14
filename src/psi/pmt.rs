@@ -24,7 +24,7 @@ pub enum PmtError {
 pub struct PmtSection<'buf> {
     data: &'buf [u8],
 }
-impl<'buf> fmt::Debug for PmtSection<'buf> {
+impl fmt::Debug for PmtSection<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("PmtSection")
             .field("pcr_pid", &self.pcr_pid())
@@ -34,7 +34,7 @@ impl<'buf> fmt::Debug for PmtSection<'buf> {
     }
 }
 struct StreamsDebug<'buf>(&'buf PmtSection<'buf>);
-impl<'buf> fmt::Debug for StreamsDebug<'buf> {
+impl fmt::Debug for StreamsDebug<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_list().entries(self.0.streams()).finish()
     }
@@ -141,8 +141,8 @@ impl<'buf> Iterator for StreamInfoIter<'buf> {
 ///  - The `elementry_pid` property allows us to find Transport Stream packets that belong to the
 ///    elementry stream
 ///  - `descriptors` _may_ provide extra metadata describing some of the
-///     stream's properties (for example, the streams 'language' might be given in a descriptor; or
-///     it might not)
+///    stream's properties (for example, the streams 'language' might be given in a descriptor; or
+///    it might not)
 pub struct StreamInfo<'buf> {
     data: &'buf [u8],
 }
@@ -191,7 +191,7 @@ impl<'buf> StreamInfo<'buf> {
         descriptor::DescriptorIter::new(&self.data[Self::HEADER_SIZE..descriptor_end])
     }
 }
-impl<'buf> fmt::Debug for StreamInfo<'buf> {
+impl fmt::Debug for StreamInfo<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("StreamInfo")
             .field("stream_type", &self.stream_type())

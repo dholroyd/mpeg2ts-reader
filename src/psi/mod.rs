@@ -107,7 +107,7 @@ impl<'buf> TableSyntaxHeader<'buf> {
         self.buf[4]
     }
 }
-impl<'buf> fmt::Debug for TableSyntaxHeader<'buf> {
+impl fmt::Debug for TableSyntaxHeader<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("TableSyntaxHeader")
             .field("id", &self.id())
@@ -847,6 +847,7 @@ mod test {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn syntax_framer() -> (SectionSyntaxFramer<SyntaxSink>, Rc<RefCell<Vec<Vec<u8>>>>) {
         let sink_out = Rc::new(RefCell::new(vec![]));
         let framer = SectionSyntaxFramer::new(
@@ -858,6 +859,7 @@ mod test {
         (framer, sink_out)
     }
 
+    #[allow(clippy::type_complexity)]
     fn compact_framer() -> (CompactSyntaxFramer<CompactSink>, Rc<RefCell<Vec<Vec<u8>>>>) {
         let sink_out = Rc::new(RefCell::new(vec![]));
         let framer = CompactSyntaxFramer::new(

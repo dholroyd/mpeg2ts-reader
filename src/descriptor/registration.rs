@@ -50,7 +50,7 @@ impl<'buf> RegistrationDescriptor<'buf> {
         &self.buf[4..]
     }
 }
-impl<'buf> fmt::Debug for RegistrationDescriptor<'buf> {
+impl fmt::Debug for RegistrationDescriptor<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("RegistrationDescriptor")
             .field("format_identifier", &self.format_identifier())

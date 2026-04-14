@@ -38,7 +38,7 @@ impl<'buf> fmt::Debug for DescriptorsDebug<'buf> {
     }
 }
 
-impl<'buf> fmt::Debug for TsdtSection<'buf> {
+impl fmt::Debug for TsdtSection<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.debug_struct("TsdtSection")
             .field("descriptors", &DescriptorsDebug(self))

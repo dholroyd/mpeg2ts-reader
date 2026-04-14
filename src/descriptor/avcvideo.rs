@@ -105,16 +105,16 @@ mod test {
         let desc = CoreDescriptors::from_bytes(&data[..]).unwrap();
         assert_matches!(desc, CoreDescriptors::AvcVideo(avc_video) => {
             assert_eq!(avc_video.level_idc(), 30);
-            assert_eq!(avc_video.constraint_set0_flag(), true);
-            assert_eq!(avc_video.constraint_set1_flag(), true);
-            assert_eq!(avc_video.constraint_set3_flag(), false);
-            assert_eq!(avc_video.constraint_set4_flag(), false);
-            assert_eq!(avc_video.constraint_set5_flag(), false);
+            assert!(avc_video.constraint_set0_flag());
+            assert!(avc_video.constraint_set1_flag());
+            assert!(!avc_video.constraint_set3_flag());
+            assert!(!avc_video.constraint_set4_flag());
+            assert!(!avc_video.constraint_set5_flag());
             assert_eq!(avc_video.avc_compatible_flags(), 0);
             assert_eq!(avc_video.profile_idc(), 66);
-            assert_eq!(avc_video.avc_still_present(), false);
-            assert_eq!(avc_video.avc_24_hour_picture_flag(), false);
-            assert_eq!(avc_video.frame_packing_sei_not_present_flag(), true);
+            assert!(!avc_video.avc_still_present());
+            assert!(!avc_video.avc_24_hour_picture_flag());
+            assert!(avc_video.frame_packing_sei_not_present_flag());
         })
     }
 

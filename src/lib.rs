@@ -342,10 +342,7 @@ mod test {
     use super::StreamType;
 
     fn is_reserved(st: &StreamType) -> bool {
-        match st.0 {
-            0x00 | 0x37..=0x41 | 0x43..=0x7e => true,
-            _ => false,
-        }
+        matches!(st.0, 0x00 | 0x37..=0x41 | 0x43..=0x7e)
     }
 
     fn is_section_carried(st: &StreamType) -> bool {

@@ -509,7 +509,7 @@ impl From<EsRate> for u32 {
 pub struct PStdBuffer<'buf> {
     buf: &'buf [u8],
 }
-impl<'buf> PStdBuffer<'buf> {
+impl PStdBuffer<'_> {
     /// Returns `true` if the buffer size is measured in 1024-byte units, `false` for 128-byte
     /// units.
     pub fn buffer_scale(&self) -> bool {
@@ -546,7 +546,7 @@ impl fmt::Debug for PStdBuffer<'_> {
 pub struct ProgramPacketSequenceCounter<'buf> {
     buf: &'buf [u8],
 }
-impl<'buf> ProgramPacketSequenceCounter<'buf> {
+impl ProgramPacketSequenceCounter<'_> {
     /// Returns the 7-bit program packet sequence counter value.
     pub fn counter(&self) -> u8 {
         self.buf[0] & 0b0111_1111
@@ -1210,7 +1210,7 @@ impl<'buf> PesParsedContents<'buf> {
     }
 }
 
-impl<'buf> fmt::Debug for PesParsedContents<'buf> {
+impl fmt::Debug for PesParsedContents<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         let mut s = f.debug_struct("PesParsedContents");
         s.field("pes_priority", &self.pes_priority())

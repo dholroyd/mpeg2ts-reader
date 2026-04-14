@@ -315,7 +315,7 @@ impl<'buf> AdaptationField<'buf> {
     }
 }
 
-impl<'buf> fmt::Debug for AdaptationField<'buf> {
+impl fmt::Debug for AdaptationField<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = f.debug_struct("AdaptationField");
         d.field("discontinuity_indicator", &self.discontinuity_indicator());
@@ -419,7 +419,7 @@ impl<'buf> AdaptationFieldExtension<'buf> {
     }
 }
 
-impl<'buf> fmt::Debug for AdaptationFieldExtension<'buf> {
+impl fmt::Debug for AdaptationFieldExtension<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = f.debug_struct("AdaptationFieldExtension");
         d.field("ltw_offset", &self.ltw_offset());
