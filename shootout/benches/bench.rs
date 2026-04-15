@@ -2,7 +2,7 @@
 extern crate criterion;
 extern crate mpeg2ts_reader_shootout;
 
-use criterion::{Criterion,Benchmark,Throughput};
+use criterion::{Criterion, Throughput};
 use std::fs::File;
 use std::io::Read;
 use mpeg2ts_reader_shootout::mpeg2ts_timestamps::Mpeg2ts;
@@ -20,31 +20,40 @@ fn load_sample_data() -> (Vec<u8>, usize) {
 
 fn mpeg2ts(c: &mut Criterion) {
     let (buf, size_bytes) = load_sample_data();
-    c.bench("crate:mpeg2ts", Benchmark::new("dts-check", move |b| {
+    let mut group = c.benchmark_group("crate:mpeg2ts");
+    group.throughput(Throughput::Bytes(size_bytes as u64));
+    group.bench_function("dts-check", move |b| {
         b.iter(|| {
             Mpeg2ts::check_timestamps(&buf[..]);
-        } );
-    }).throughput(Throughput::Bytes(size_bytes as u32)));
+        });
+    });
+    group.finish();
 }
 
 fn mpeg2ts_reader(c: &mut Criterion) {
     let (buf, size_bytes) = load_sample_data();
-    c.bench("crate:mpeg2ts-reader", Benchmark::new("dts-check", move |b| {
+    let mut group = c.benchmark_group("crate:mpeg2ts-reader");
+    group.throughput(Throughput::Bytes(size_bytes as u64));
+    group.bench_function("dts-check", move |b| {
         b.iter(|| {
             let mut r = Mpeg2tsReader::new();
             r.check_timestamps(&buf[..]);
-        } );
-    }).throughput(Throughput::Bytes(size_bytes as u32)));
+        });
+    });
+    group.finish();
 }
 
 fn ffmpeg(c: &mut Criterion) {
     let (buf, size_bytes) = load_sample_data();
     let f = Ffmpeg::new();
-    c.bench("crate:ffmpeg-sys", Benchmark::new("dts-check", move |b| {
+    let mut group = c.benchmark_group("crate:ffmpeg-sys");
+    group.throughput(Throughput::Bytes(size_bytes as u64));
+    group.bench_function("dts-check", move |b| {
         b.iter(|| {
             f.check_timestamps(&buf[..]);
-        } );
-    }).throughput(Throughput::Bytes(size_bytes as u32)));
+        });
+    });
+    group.finish();
 }
 
 
