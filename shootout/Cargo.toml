@@ -10,7 +10,7 @@ mpeg2ts-reader = { path = ".." }
 ffmpeg-sys-next = { version = "8.1.0", default-features = false, features = ["avcodec", "avformat"] }
 
 [dev-dependencies]
-criterion = "0.2"
+criterion = "0.8"
 
 [[bench]]
 name = "bench"
