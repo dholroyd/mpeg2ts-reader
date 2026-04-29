@@ -5,7 +5,7 @@ publish = false
 edition = "2021"
 
 [dependencies]
-mpeg2ts = "0.1.1"
+mpeg2ts = "0.6.0"
 mpeg2ts-reader = { path = ".." }
 ffmpeg-sys-next = { version = "8.1.0", default-features = false, features = ["avcodec", "avformat"] }
 
