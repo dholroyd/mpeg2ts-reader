@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Install toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1.16.0
@@ -30,7 +30,7 @@ jobs:
     name: Shootout
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Install ffmpeg dev libs
       run: |
@@ -64,7 +64,7 @@ jobs:
       options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1.16.0
 
@@ -84,7 +84,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1.16.0
         with:
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install nightly toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1.16.0
