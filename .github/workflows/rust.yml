@@ -51,7 +51,7 @@ jobs:
       working-directory: shootout
 
     - name: Run clippy
-      uses: actions-rs-plus/clippy-check@v2.5.0
+      uses: actions-rs-plus/clippy-check@v2.7.1
       with:
         args: --all-features --manifest-path shootout/Cargo.toml
 
@@ -91,7 +91,7 @@ jobs:
           components: clippy
 
       - name: Run clippy
-        uses: actions-rs-plus/clippy-check@v2.5.0
+        uses: actions-rs-plus/clippy-check@v2.7.1
         with:
           args: --all-features
 
